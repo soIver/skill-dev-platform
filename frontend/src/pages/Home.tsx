@@ -1,10 +1,10 @@
 import { useState } from "react"
-import useStore from "../hooks/useStore"
+import {useUserStore} from "../hooks/useStore"
 
 export default function Home() {
-    const user = useStore((state) => state.user);
-    const setUser = useStore((state) => state.setUser);
-    const clearUser = useStore((state) => state.clearUser);
+    const user = useUserStore((state) => state.user);
+    const setUser = useUserStore((state) => state.setUser);
+    const clearUser = useUserStore((state) => state.clearUser);
 
     const [name, setName] = useState(user?.name ?? "");
     const [email, setEmail] = useState(user?.email ?? "");

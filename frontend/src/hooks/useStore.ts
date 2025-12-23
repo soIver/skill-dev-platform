@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
-type User = {
+interface User {
     id: number;
     name: string;
     email: string;
@@ -9,26 +9,23 @@ type User = {
     role: string;
 }
 
-type Store = {
+interface UserStore {
     user: User | null;
-}
-
-type Actions = {
     setUser: (user: User) => any;
+    setUserName: (name: string) => any;
     clearUser: () => any;
 }
 
-const useStore = create<Store & Actions>()(
+export const useUserStore = create<UserStore>()(
     devtools(
         persist(
             (set) => ({
                 user: null,
                 setUser: (user: User) => set({ user }),
+                setUserName: (name: string) => set((state) => ({user: state.user ? { ...state.user, name } : null})),
                 clearUser: () => set({ user: null }),
             }),
-            { name: 'main-store' },
+            { name: 'user-store' },
         ),
     ),
 )
-
-export default useStore;
