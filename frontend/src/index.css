@@ -1,5 +1,29 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #0077c8;
+  --color-primary-hover: #2086ca;
+}
+
+@layer components {
+    .auth-panel { @apply max-w-md w-full p-6 rounded-xl bg-white shadow-md }
+    .panel-header {@apply text-3xl font-bold mb-6 text-start}
+    .input-field { 
+        @apply mt-1 block w-full rounded-lg border border-gray-300 p-2 transition-colors
+        focus:outline-none focus:ring-1 focus:ring-primary;
+        &:hover {
+            @apply border-primary;
+        }
+    }
+    .primary-button {
+        @apply w-full px-4 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer transition-colors;
+        &:hover {
+            @apply bg-primary-hover;
+        }
+      }
+    .hyperlink {@apply text-blue-600 hover:underline}
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
