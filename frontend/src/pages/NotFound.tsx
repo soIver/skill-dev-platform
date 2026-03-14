@@ -10,7 +10,7 @@ export default function NotFound() {
                 <p className="text-lg mb-6 text-gray-600">Проверьте, нет ли в адресе лишних символов</p>
 
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={() => window.history.length > 2 ? navigate(-1) : navigate("/")}
                     className="primary-button"
                 >
                     Вернуться туда, где всё работало
