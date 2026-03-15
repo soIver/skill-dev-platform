@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import Config
-from auth.router import router as auth_router
+from .auth.router import router as auth_router
+from .config import Config
 
 app = FastAPI()
 app.include_router(auth_router, prefix="/api")
@@ -15,6 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
+
+@app.get("/api")
 async def root():
     return {"message": "API is running"}

@@ -4,14 +4,15 @@ from datetime import datetime
 
 from config import Config
 
-
 MOSCOW_TZ = Config.UTC3
 DATA_PATH = Config.DATA_PATH
+
 
 class MoscowFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=MOSCOW_TZ)
         return dt.strftime(datefmt or "%d-%m-%Y %H:%M:%S")
+
 
 def get_logger(name: str = "app", level: str = "INFO"):
     logger = logging.getLogger(name)
@@ -22,7 +23,7 @@ def get_logger(name: str = "app", level: str = "INFO"):
 
     formatter = MoscowFormatter(
         fmt="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
-        datefmt="%d-%m-%Y %H:%M:%S"
+        datefmt="%d-%m-%Y %H:%M:%S",
     )
 
     # ====================== КОНСОЛЬ ======================

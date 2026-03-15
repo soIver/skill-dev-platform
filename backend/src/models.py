@@ -1,11 +1,16 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship, backref
-from datetime import datetime
+# src/models.py
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy.orm import DeclarativeBase
 
-Base = declarative_base()
+
+class Base(AsyncAttrs, DeclarativeBase):
+    pass
+
 
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
