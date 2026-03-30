@@ -1,20 +1,15 @@
 import AppRoutes from "./routes";
-import { useLocation } from "react-router-dom";
+import VerNavBar from "./components/VerNavBar";
 
 export default function Layout() {
-  const location = useLocation(); // проверка текущего пути
-  const isAuthPage = location.pathname.startsWith("/auth");
-
   return (
-    <>
-      {!isAuthPage && (
-        <nav className="bg-blue-600 p-4 text-white">
-          {/* { навигационная панель } */}
-        </nav>
-      )}
-      <main>
-        <AppRoutes />
-      </main>
-    </>
+    <div className="flex min-h-screen bg-gray-50">
+      <VerNavBar />
+      <div className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 overflow-auto">
+          <AppRoutes />
+        </main>
+      </div>
+    </div>
   );
 }

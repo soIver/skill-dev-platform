@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useUserStore } from "../hooks/useStore"; // ← поменяй путь, если файл лежит в другой папке
+import { useUserStore } from "../hooks/useStore";
 import { config } from "../config";
 
 export default function Registration() {
@@ -34,7 +34,7 @@ export default function Registration() {
       const data = await response.json();
       const { access_token, user } = data;
 
-      // Сохраняем в Zustand
+      // сохранение в Zustand
       setUser({
         id: user.id,
         email: user.email,
@@ -43,7 +43,7 @@ export default function Registration() {
         githubUsername: user.githubUsername,
       });
 
-      // Переход на профиль сразу после получения токена
+      // переход в профиль сразу после получения токена
       navigate("/profile");
     } catch (error: unknown) {
       console.error(error);
