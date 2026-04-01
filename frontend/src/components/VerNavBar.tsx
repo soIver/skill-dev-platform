@@ -19,14 +19,16 @@ export default function VerNavBar() {
 
   return (
     <aside
-      className={`bg-white border border-gray-200 h-screen flex flex-col transition-all duration-300
+      className={`bg-white border border-gray-300 h-screen flex flex-col transition-all duration-300
       ${isExpanded ? NAV_WIDTH.expanded : NAV_WIDTH.collapsed}`}
     >
       {/* лого */}
       <div className="h-20 flex items-center px-6">
         <span
-          className={`text-2xl font-bold transition-all duration-300 ${
-            isExpanded ? "opacity-100" : "opacity-0"
+          className={`text-2xl font-bold transition-all ${
+            isExpanded
+              ? "ml-2 opacity-100 duration-400"
+              : "opacity-0 duration-200"
           }`}
         >
           SkillDev
@@ -34,13 +36,13 @@ export default function VerNavBar() {
       </div>
 
       {/* область навигации */}
-      <nav className="flex-1 px-2 py-4 space-y-2">
+      <nav className="flex-1 pe-2 py-4 space-y-2">
         <VerNavItem
           to="/profile"
           icon={ProfileIcon}
           label="Профиль"
           isExpanded={isExpanded}
-          isActive={location.pathname === "/profile"}
+          isActive={location.pathname.search("/profile") !== -1}
         />
       </nav>
 
@@ -78,8 +80,8 @@ function VerNavItem({
   return (
     <Link
       to={to}
-      className={`flex items-center h-12 px-3 rounded-xl transition-all
-        ${isActive ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
+      className={`flex font-medium items-center h-12 px-3 rounded-e-xl transition-all
+        ${isActive ? "bg-blue-50 text-primary-hover border border-gray-200" : "text-gray-700 hover:bg-gray-100"}`}
     >
       {/* иконка раздела */}
       <div className="w-10 min-w-10 flex items-center justify-center">

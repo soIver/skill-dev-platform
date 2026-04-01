@@ -58,7 +58,7 @@ export default function Registration() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="auth-panel">
-        <h1 className="panel-header">Регистрация</h1>
+        <h1 className="auth-panel-header">Регистрация</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

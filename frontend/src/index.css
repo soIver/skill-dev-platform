@@ -1,42 +1,56 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #0077c8;
-  --color-primary-hover: #2086ca;
+    --color-primary: #0077c8;
+    --color-primary-hover: #2086ca;
+    --color-danger: #ef4444;
+    --color-danger-hover: #ef6161;
 }
 
 @layer components {
-    .auth-panel { @apply max-w-md w-full p-6 rounded-xl bg-white shadow-md }
-    .panel-header {@apply text-3xl font-bold mb-6 text-start}
-    .input-field { 
+    .auth-panel {
+        @apply max-w-md w-full p-6 rounded-xl border bg-white border-gray-400  shadow-md;
+    }
+    .auth-panel-header {
+        @apply text-3xl font-bold mb-6 text-start;
+    }
+    .workspace-panel {
+        @apply p-6 rounded-xl border bg-white border-gray-400 shadow-md;
+    }
+    .workspace-panel-header {
+        @apply text-2xl font-semibold mb-3 pb-2 text-start border-b border-gray-400;
+    }
+    .input-field {
         @apply mt-1 block w-full rounded-lg border border-gray-300 p-2 transition-colors
         focus:outline-none focus:ring-1 focus:ring-primary;
         &:hover {
             @apply border-primary;
         }
     }
+    .danger-button {
+        @apply w-full px-4 py-2 text-white rounded-xl font-medium cursor-pointer transition-colors bg-danger hover:bg-danger-hover;
+    }
     .primary-button {
-        @apply w-full px-4 py-2 bg-primary text-white rounded-lg font-medium cursor-pointer transition-colors;
-        &:hover {
-            @apply bg-primary-hover;
-        }
-      }
-    .hyperlink {@apply text-blue-600 hover:underline}
+        @apply w-full px-4 py-2 text-white rounded-xl font-medium cursor-pointer transition-colors bg-primary hover:bg-primary-hover;
+    }
+    .hyperlink {
+        @apply text-blue-600 hover:underline;
+    }
 }
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 html,
 #root {
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
 }
