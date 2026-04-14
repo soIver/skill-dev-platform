@@ -2,19 +2,18 @@ import logging
 import os
 from datetime import datetime
 
-from config import Config
+from .config import global_config
 
-MOSCOW_TZ = Config.UTC3
-DATA_PATH = Config.DATA_PATH
-
+MOSCOW_TZ = global_config.UTC3
+DATA_PATH = global_config.DATA_PATH
+DEFAULT_LEVEL = global_config.DEFAULT_LOGGER_LEVEL
 
 class MoscowFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=MOSCOW_TZ)
         return dt.strftime(datefmt or "%d-%m-%Y %H:%M:%S")
 
-
-def get_logger(name: str = "app", level: str = "INFO"):
+def get_logger(name: str = "app", level: str = DEFAULT_LEVEL):
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
@@ -26,12 +25,12 @@ def get_logger(name: str = "app", level: str = "INFO"):
         datefmt="%d-%m-%Y %H:%M:%S",
     )
 
-    # ====================== КОНСОЛЬ ======================
+    # консольный вывод
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # ====================== ФАЙЛ ======================
+    # файловый вывод
     os.makedirs(DATA_PATH, exist_ok=True)
     file_handler = logging.FileHandler(f"{DATA_PATH}/app.log", encoding="utf-8")
     file_handler.setFormatter(formatter)

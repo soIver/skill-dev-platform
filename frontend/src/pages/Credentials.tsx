@@ -1,23 +1,20 @@
 import { useNavigate } from "react-router-dom";
+
+import { logout } from "../auth";
 import { useUserStore } from "../hooks/useStore";
-import { config } from "../config";
-import GitHubIcon from "../assets/icons/github.svg";
+import GitHubIcon from "../assets/icons/github.svg?react";
 
 export default function Credentials() {
   const navigate = useNavigate();
   const user = useUserStore((state) => state.user);
-  const clearUser = useUserStore((state) => state.clearUser);
 
   const handleLogout = async () => {
     try {
-      await fetch(`${config.apiBaseUrl}/auth/logout`, {
-        method: "POST",
-      });
+      await logout();
     } catch (err) {
       console.error(err);
     }
 
-    clearUser();
     navigate("/auth/login");
   };
 

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useUserStore } from "../hooks/useStore";
 
-import ProfileIcon from "../assets/icons/profile.svg";
-import ArrowToggle from "../assets/icons/arrow-toggle.svg";
+import ProfileIcon from "../assets/icons/profile.svg?react";
+import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
 
 const NAV_WIDTH = {
   expanded: "w-64",

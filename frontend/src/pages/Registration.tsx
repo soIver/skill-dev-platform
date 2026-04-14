@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useUserStore } from "../hooks/useStore";
-import { config } from "../config";
+
+import { register } from "../auth";
 
 export default function Registration() {
   const [email, setEmail] = useState("");
@@ -9,8 +9,6 @@ export default function Registration() {
   const [repeatPassword, setRepeatPassword] = useState("");
 
   const navigate = useNavigate();
-  const setUser = useUserStore((state) => state.setUser);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -20,30 +18,7 @@ export default function Registration() {
     }
 
     try {
-      const response = await fetch(`${config.apiBaseUrl}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Ошибка регистрации");
-      }
-
-      const data = await response.json();
-      const { access_token, user } = data;
-
-      // сохранение в Zustand
-      setUser({
-        id: user.id,
-        email: user.email,
-        token: access_token,
-        role: user.role,
-        githubUsername: user.githubUsername,
-      });
-
-      // переход в профиль сразу после получения токена
+      await register({ email, password });
       navigate("/profile");
     } catch (error: unknown) {
       console.error(error);

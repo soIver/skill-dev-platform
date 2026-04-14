@@ -1,13 +1,27 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+
+import { login } from "../auth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Вход:", { email, password });
+
+    try {
+      await login({ email, password });
+      navigate("/profile");
+    } catch (error: unknown) {
+      console.error(error);
+
+      const message =
+        error instanceof Error ? error.message : "Что-то пошло не так";
+
+      alert(message);
+    }
   };
 
   const handleGitHubLogin = () => {

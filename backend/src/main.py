@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
@@ -22,9 +23,24 @@ app.add_middleware(
 app.state.limiter = Limiter(
     key_func=get_remote_address,  # рейт-лимит по айпи
     storage_uri=global_config.REDIS_URL,
-    default_limits=["10/minute"],
+    default_limits=[f"{global_config.RATE_LIMIT_RPM}/minute"],
 )
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: Exception):
+    if isinstance(exc, RateLimitExceeded):
+        return JSONResponse(
+            status_code=429,
+            content={"error": f"Rate limit exceeded: {exc.detail}"},
+        )
+
+    return JSONResponse(
+        status_code=503,
+        content={"error": "Rate limiter storage is unavailable"},
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 

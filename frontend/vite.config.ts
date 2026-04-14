@@ -12,7 +12,7 @@ export default defineConfig({
       },
     }),
     svgr({
-      include: "**/*.svg",
+      include: "**/*.svg?react",
       svgrOptions: {
         exportType: "default",
         namedExport: "ReactComponent",

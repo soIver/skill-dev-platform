@@ -4,25 +4,24 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from .config import Config
+from .config import global_config
 
-# Создаем асинхронный движок
+# асинхронный движок
 engine = create_async_engine(
-    Config.DATABASE_URL,
-    echo=True,  # логирование SQL запросов
+    global_config.DATABASE_URL,
+    echo=global_config.DEFAULT_LOGGER_LEVEL == "DEBUG",  # логирование запросов в дебаг-режиме
     pool_size=5,
     max_overflow=10,
 )
 
-# Создаем фабрику сессий
+# фабрика сессий
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
 
-
-# Функция для получения сессии (будет использоваться в зависимостях FastAPI)
+# функция для получения сессии
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
