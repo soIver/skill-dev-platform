@@ -16,5 +16,5 @@ async def _cleanup_expired_refresh_tokens() -> int:
     async with AsyncSessionLocal() as session:
         deleted_tokens = await cleanup_expired_refresh_tokens(session)
 
-    logger.debug("Deleted %s expired refresh token(s)", deleted_tokens)
+    logger.debug(f"Удалено {deleted_tokens} истёкших токенов")
     return deleted_tokens

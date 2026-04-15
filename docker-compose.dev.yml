@@ -56,6 +56,7 @@ services:
       - ./backend:/app
     command: >
       celery -A src.celery_app.celery_app worker --beat --loglevel=info
+      --schedule=/app/data/celerybeat-schedule
 
 volumes:
   postgres_dev_data:
