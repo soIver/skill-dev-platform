@@ -2,14 +2,16 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from fastapi import Depends, Header, HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from ..config import Config
+from ..config import global_config
 from ..models import RefreshToken, User
 from ..logger import get_logger
 
@@ -44,20 +46,22 @@ class TokenService:
 
         await self._revoke_active_device_tokens(user.id, normalized_device_id)
 
+        role_name = user.role_rel.name if user.role_rel else "user"
+
         access_token = self._encode_token(
             {
                 "sub": str(user.id),
                 "email": user.email,
-                "role": user.role,
+                "role": role_name,
                 "type": "access",
                 "jti": uuid4().hex,
             },
-            timedelta(minutes=Config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
+            timedelta(minutes=global_config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
         )
 
         refresh_jti = uuid4().hex
         refresh_expires_at = now + timedelta(
-            minutes=Config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES
+            minutes=global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES
         )
         refresh_token = self._encode_token(
             {
@@ -65,12 +69,12 @@ class TokenService:
                 "type": "refresh",
                 "jti": refresh_jti,
             },
-            timedelta(minutes=Config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES),
+            timedelta(minutes=global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES),
         )
 
         self.db.add(
             RefreshToken(
-                user_id=user.id,
+                user=user.id,
                 jti=refresh_jti,
                 device_id=normalized_device_id,
                 expires_at=refresh_expires_at,
@@ -100,7 +104,10 @@ class TokenService:
         if refresh_token_row.revoked or refresh_token_row.expires_at <= self._now():
             raise self._invalid_token_error()
 
-        user = await self.db.get(User, user_id)
+        user_result = await self.db.execute(
+            select(User).options(joinedload(User.role_rel)).where(User.id == user_id)
+        )
+        user = user_result.unique().scalar_one_or_none()
         if user is None:
             raise self._invalid_token_error()
 
@@ -169,7 +176,7 @@ class TokenService:
         await self.db.execute(
             update(RefreshToken)
             .where(
-                RefreshToken.user_id == user_id,
+                RefreshToken.user == user_id,
                 RefreshToken.device_id == device_id,
                 RefreshToken.revoked.is_(False),
             )
@@ -181,7 +188,7 @@ class TokenService:
     ) -> RefreshToken | None:
         result = await self.db.execute(
             select(RefreshToken).where(
-                RefreshToken.user_id == user_id,
+                RefreshToken.user == user_id,
                 RefreshToken.jti == jti,
             )
         )
@@ -192,16 +199,16 @@ class TokenService:
         to_encode["exp"] = self._now() + expires_delta
         return jwt.encode(
             to_encode,
-            Config.JWT_SECRET_KEY,
-            algorithm=Config.JWT_ALGORITHM,
+            global_config.JWT_SECRET_KEY,
+            algorithm=global_config.JWT_ALGORITHM,
         )
 
     def _decode_token(self, token: str, expected_type: str) -> dict:
         try:
             payload = jwt.decode(
                 token,
-                Config.JWT_SECRET_KEY,
-                algorithms=[Config.JWT_ALGORITHM],
+                global_config.JWT_SECRET_KEY,
+                algorithms=[global_config.JWT_ALGORITHM],
             )
         except JWTError as exc:
             raise self._invalid_token_error() from exc
@@ -219,11 +226,11 @@ class TokenService:
 
     @classmethod
     def _get_redis(cls) -> Redis | None:
-        if not Config.REDIS_URL:
+        if not global_config.REDIS_URL:
             return None
         if cls._redis is None:
             cls._redis = from_url(
-                Config.REDIS_URL,
+                global_config.REDIS_URL,
                 decode_responses=True,
                 socket_connect_timeout=2,
                 socket_timeout=2,
@@ -236,7 +243,7 @@ class TokenService:
 
     @staticmethod
     def _now() -> datetime:
-        return datetime.now(Config.UTC3)
+        return datetime.now(timezone.utc)
 
     @staticmethod
     def _invalid_token_error() -> ValueError:
@@ -249,3 +256,80 @@ async def cleanup_expired_refresh_tokens(db: AsyncSession) -> int:
     )
     await db.commit()
     return result.rowcount or 0
+
+
+# === Dependencies для защиты эндпоинтов ===
+
+
+@dataclass(slots=True, frozen=True)
+class TokenClaims:
+    user_id: int
+    email: str
+    role: str
+    jti: str
+
+
+async def get_current_user(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> TokenClaims:
+    """Извлекает claims из access token. Проверяет подпись и blacklist."""
+    if not authorization:
+        raise _unauthorized()
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise _unauthorized()
+
+    try:
+        payload = jwt.decode(
+            token.strip(),
+            global_config.JWT_SECRET_KEY,
+            algorithms=[global_config.JWT_ALGORITHM],
+        )
+    except JWTError:
+        raise _unauthorized()
+
+    if payload.get("type") != "access":
+        raise _unauthorized()
+
+    # проверка blacklist
+    token_jti = payload.get("jti")
+    if token_jti:
+        redis = TokenService._get_redis()
+        if redis:
+            try:
+                blacklisted = await redis.get(f"blacklist:access:{token_jti}")
+                if blacklisted:
+                    raise _unauthorized()
+            except RedisError:
+                pass  # если redis недоступ — не блокируем
+
+    try:
+        return TokenClaims(
+            user_id=int(payload["sub"]),
+            email=payload["email"],
+            role=payload["role"],
+            jti=payload["jti"],
+        )
+    except (KeyError, TypeError, ValueError):
+        raise _unauthorized()
+
+
+def require_role(*allowed_roles: str):
+    """Dependency factory: разрешает доступ только указанным ролям."""
+    async def _check_role(claims: TokenClaims = Depends(get_current_user)):
+        if claims.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Доступ запрещён. Требуется одна из ролей: {', '.join(allowed_roles)}",
+            )
+        return claims
+
+    return _check_role
+
+
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Недействительный токен",
+    )

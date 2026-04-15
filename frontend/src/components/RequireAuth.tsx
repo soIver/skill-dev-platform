@@ -5,9 +5,10 @@ import { useUserStore } from "../hooks/useStore";
 
 interface RequireAuthProps {
   children: ReactNode;
+  allowedRoles?: string[];
 }
 
-export default function RequireAuth({ children }: RequireAuthProps) {
+export default function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
   const isHydrated = useUserStore((state) => state.isHydrated);
   const user = useUserStore((state) => state.user);
 
@@ -17,6 +18,10 @@ export default function RequireAuth({ children }: RequireAuthProps) {
 
   if (!user) {
     return <Navigate to="/auth/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/profile/skills" replace />;
   }
 
   return <>{children}</>;

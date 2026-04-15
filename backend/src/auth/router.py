@@ -83,13 +83,14 @@ async def logout(
 
 
 def _build_auth_response(user, token_pair: TokenPair) -> AuthResponse:
+    role_name = user.role_rel.name if user.role_rel else "user"
     return AuthResponse(
         access_token=token_pair.access_token,
         refresh_token=token_pair.refresh_token,
         user={
             "id": user.id,
             "email": user.email,
-            "role": user.role,
+            "role": role_name,
             "githubUsername": user.github_username or "",
         },
     )

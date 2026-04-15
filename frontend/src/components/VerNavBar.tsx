@@ -3,6 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { useUserStore } from "../hooks/useStore";
 
 import ProfileIcon from "../assets/icons/profile.svg?react";
+import TestsIcon from "../assets/icons/tests.svg?react";
+import VacanciesIcon from "../assets/icons/vacancies.svg?react";
+import ContentIcon from "../assets/icons/content.svg?react";
+import AdminIcon from "../assets/icons/admin.svg?react";
 import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
 
 const NAV_WIDTH = {
@@ -31,7 +35,7 @@ export default function VerNavBar() {
               : "opacity-0 duration-200"
           }`}
         >
-          SkillDev
+          it-skill-dev
         </span>
       </div>
 
@@ -42,8 +46,40 @@ export default function VerNavBar() {
           icon={ProfileIcon}
           label="Профиль"
           isExpanded={isExpanded}
-          isActive={location.pathname.search("/profile") !== -1}
+          isActive={location.pathname.startsWith("/profile")}
         />
+        <VerNavItem
+          to="/tests"
+          icon={TestsIcon}
+          label="Тесты"
+          isExpanded={isExpanded}
+          isActive={location.pathname.startsWith("/tests")}
+        />
+        <VerNavItem
+          to="/vacancies"
+          icon={VacanciesIcon}
+          label="Вакансии"
+          isExpanded={isExpanded}
+          isActive={location.pathname.startsWith("/vacancies")}
+        />
+        {(user.role === "curator" || user.role === "admin") && (
+          <VerNavItem
+            to="/content"
+            icon={ContentIcon}
+            label="Контент"
+            isExpanded={isExpanded}
+            isActive={location.pathname.startsWith("/content")}
+          />
+        )}
+        {user.role === "admin" && (
+          <VerNavItem
+            to="/admin"
+            icon={AdminIcon}
+            label="Администрирование"
+            isExpanded={isExpanded}
+            isActive={location.pathname.startsWith("/admin")}
+          />
+        )}
       </nav>
 
       {/* переключение состояния панели */}
@@ -81,16 +117,16 @@ function VerNavItem({
     <Link
       to={to}
       className={`flex font-medium items-center h-12 px-3 rounded-e-xl transition-all
-        ${isActive ? "bg-blue-50 text-primary-hover border border-gray-200" : "text-gray-700 hover:bg-gray-100"}`}
+        ${isActive ? "bg-blue-50 text-primary-hover" : "text-gray-700 hover:bg-gray-100"}`}
     >
       {/* иконка раздела */}
-      <div className="w-10 min-w-10 flex items-center justify-center">
-        <Icon className="w-7 h-7" />
+      <div className="w-11 min-w-11 flex items-center justify-center">
+        <Icon className="w-9 h-9" />
       </div>
 
       {/* название раздела */}
       <div
-        className={`text-lg overflow-hidden transition-all duration-300${
+        className={`text-md overflow-hidden transition-all duration-300${
           isExpanded ? "max-w-[200px] opacity-100 ml-2" : "max-w-0 opacity-0"
         }`}
       >
