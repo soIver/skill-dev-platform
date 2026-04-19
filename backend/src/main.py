@@ -8,19 +8,15 @@ from slowapi.util import get_remote_address
 
 from .auth.router import router as auth_router
 from .config import global_config
-from .database import engine
-from .models import Base
+from .database import init_database
 
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 app = FastAPI()
 
+
 @app.on_event("startup")
 async def on_startup():
-    await init_db()
+    await init_database()
 
 
 app.include_router(auth_router, prefix="/api")

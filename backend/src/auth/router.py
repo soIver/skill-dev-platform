@@ -2,13 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from .schemas import (
-    AuthResponse,
-    Credentials,
-    LogoutRequest,
-    MessageResponse,
-    RefreshTokenRequest,
-)
+from .schemas import AuthResponse, Credentials, LogoutRequest, MessageResponse, RefreshTokenRequest
 from .service import TokenPair, TokenService
 from .utils import authenticate_user, register_user
 
@@ -83,7 +77,7 @@ async def logout(
 
 
 def _build_auth_response(user, token_pair: TokenPair) -> AuthResponse:
-    role_name = user.role_rel.name if user.role_rel else "user"
+    role_name = user.role.name if user.role else "user"
     return AuthResponse(
         access_token=token_pair.access_token,
         refresh_token=token_pair.refresh_token,
@@ -91,7 +85,6 @@ def _build_auth_response(user, token_pair: TokenPair) -> AuthResponse:
             "id": user.id,
             "email": user.email,
             "role": role_name,
-            "githubUsername": user.github_username or "",
         },
     )
 

@@ -8,7 +8,7 @@ from .service import PasswordService
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
     result = await db.execute(
-        select(User).options(joinedload(User.role_rel)).where(User.email == email)
+        select(User).options(joinedload(User.role)).where(User.email == email)
     )
     user = result.unique().scalar_one_or_none()
     if user is None or not PasswordService.verify(password, user.password_hash):
@@ -28,14 +28,14 @@ async def register_user(db: AsyncSession, email: str, password: str) -> User | N
     new_user = User(
         email=email,
         password_hash=PasswordService.hash(password),
-        role=user_role.id,
+        role=user_role,
     )
     db.add(new_user)
     await db.commit()
-    await db.refresh(new_user)
 
-    # подгружаем роль для дальнейшего использования
-    role_result = await db.execute(select(Role).where(Role.id == new_user.role))
-    new_user.role_rel = role_result.scalar_one()
-
-    return new_user
+    result = await db.execute(
+        select(User)
+        .options(joinedload(User.role))
+        .where(User.id == new_user.id)
+    )
+    return result.unique().scalar_one()

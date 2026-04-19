@@ -1,16 +1,4 @@
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    Numeric,
-    Date,
-    func,
-    text,
-)
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func, text
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -18,11 +6,13 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 class Base(AsyncAttrs, DeclarativeBase):
     pass
 
+
 class Role(Base):
     __tablename__ = "roles"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
+
 
 class User(Base):
     __tablename__ = "users"
@@ -30,21 +20,20 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
-    github_token = Column(String, nullable=True)
-    github_username = Column(String, unique=True, nullable=True)
-    role = Column(
+    role_id = Column(
         Integer,
         ForeignKey("roles.id", ondelete="RESTRICT"),
         nullable=False,
     )
 
-    role_rel = relationship("Role", lazy="select")
+    role = relationship("Role", lazy="select")
+
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
-    user = Column(
+    user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
@@ -56,22 +45,26 @@ class RefreshToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    user = relationship("User", lazy="select")
+
+
 class CodeType(Base):
     __tablename__ = "code_types"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
 
+
 class VerificationCode(Base):
     __tablename__ = "verification_codes"
 
     id = Column(Integer, primary_key=True)
-    user = Column(
+    user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
     )
-    type = Column(
+    type_id = Column(
         Integer,
         ForeignKey("code_types.id"),
         nullable=False,
@@ -80,11 +73,15 @@ class VerificationCode(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    user = relationship("User", lazy="select")
+    code_type = relationship("CodeType", lazy="select")
+
+
 class UserRepo(Base):
     __tablename__ = "user_repos"
 
     id = Column(Integer, primary_key=True)
-    user = Column(
+    user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
@@ -93,11 +90,15 @@ class UserRepo(Base):
     name = Column(String, nullable=False)
     analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
+    user = relationship("User", lazy="select")
+
+
 class Skill(Base):
     __tablename__ = "skills"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
+
 
 class Level(Base):
     __tablename__ = "levels"
@@ -105,11 +106,13 @@ class Level(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
 
+
 class ContentStatus(Base):
     __tablename__ = "content_status"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
+
 
 class SkillLevel(Base):
     __tablename__ = "skill_levels"
@@ -126,12 +129,12 @@ class SkillLevel(Base):
         nullable=False,
     )
     order_index = Column(Integer, nullable=False)
-    status = Column(
+    status_id = Column(
         Integer,
         ForeignKey("content_status.id"),
         nullable=True,
     )
-    created_by = Column(
+    author_id = Column(
         Integer,
         ForeignKey("users.id"),
         nullable=True,
@@ -139,29 +142,40 @@ class SkillLevel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    skill = relationship("Skill", lazy="select")
+    level = relationship("Level", lazy="select")
+    status = relationship("ContentStatus", lazy="select")
+    author = relationship("User", lazy="select")
+
+
 class Test(Base):
     __tablename__ = "tests"
 
     id = Column(Integer, primary_key=True)
-    skill_level = Column(
+    skill_level_id = Column(
         Integer,
         ForeignKey("skill_levels.id"),
         nullable=True,
     )
     time_limit_minutes = Column(Integer, nullable=True)
     threshold_score = Column(Integer, nullable=True)
-    status = Column(
+    status_id = Column(
         Integer,
         ForeignKey("content_status.id"),
         nullable=True,
     )
-    created_by = Column(
+    author_id = Column(
         Integer,
         ForeignKey("users.id"),
         nullable=True,
     )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    skill_level = relationship("SkillLevel", lazy="select")
+    status = relationship("ContentStatus", lazy="select")
+    author = relationship("User", lazy="select")
+
 
 class TestQuestion(Base):
     __tablename__ = "test_questions"
@@ -177,6 +191,9 @@ class TestQuestion(Base):
     points = Column(Integer, default=1)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    test = relationship("Test", lazy="select")
+
+
 class QuestionAnswer(Base):
     __tablename__ = "question_answers"
 
@@ -191,42 +208,50 @@ class QuestionAnswer(Base):
     order_index = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    question = relationship("TestQuestion", lazy="select")
+
+
 class UserTestAttempt(Base):
     __tablename__ = "user_test_attempts"
 
     id = Column(Integer, primary_key=True)
-    user = Column(
+    user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    test = Column(
+    test_id = Column(
         Integer,
         ForeignKey("tests.id"),
         nullable=True,
     )
     score = Column(Integer, nullable=True)
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String, default="in_progress")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", lazy="select")
+    test = relationship("Test", lazy="select")
+
 
 class UserSkill(Base):
     __tablename__ = "user_skills"
 
     id = Column(Integer, primary_key=True)
-    user = Column(
+    user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    skill_level = Column(
+    skill_level_id = Column(
         Integer,
         ForeignKey("skill_levels.id"),
         nullable=True,
     )
     obtained_date = Column(Date, server_default=func.current_date())
     repeated_date = Column(Date, nullable=True)
+
+    user = relationship("User", lazy="select")
+    skill_level = relationship("SkillLevel", lazy="select")
+
 
 class Vacancy(Base):
     __tablename__ = "vacancies"
@@ -237,25 +262,55 @@ class Vacancy(Base):
     company = Column(String, nullable=True)
     salary_min = Column(Integer, nullable=True)
     salary_max = Column(Integer, nullable=True)
-    experience = Column(String, nullable=True)
-    keywords = Column(String, nullable=True)
+    exp_years_min = Column(Integer, nullable=True)
     url = Column(String, nullable=False)
     analyzed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class Keyword(Base):
+    __tablename__ = "keywords"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+
+
+class VacancyKeyword(Base):
+    __tablename__ = "vacancy_keywords"
+
+    id = Column(Integer, primary_key=True)
+    vacancy_id = Column(
+        Integer,
+        ForeignKey("vacancies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    keyword_id = Column(
+        Integer,
+        ForeignKey("keywords.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    vacancy = relationship("Vacancy", lazy="select")
+    keyword = relationship("Keyword", lazy="select")
+
 
 class VacancySkill(Base):
     __tablename__ = "vacancy_skills"
 
     id = Column(Integer, primary_key=True)
-    vacancy = Column(
+    vacancy_id = Column(
         Integer,
         ForeignKey("vacancies.id", ondelete="CASCADE"),
         nullable=False,
     )
-    skill_level = Column(
+    skill_level_id = Column(
         Integer,
         ForeignKey("skill_levels.id"),
         nullable=True,
     )
+
+    vacancy = relationship("Vacancy", lazy="select")
+    skill_level = relationship("SkillLevel", lazy="select")
+
 
 class Recommendation(Base):
     __tablename__ = "recommendations"
@@ -263,14 +318,13 @@ class Recommendation(Base):
     id = Column(Integer, primary_key=True)
     description = Column(Text, nullable=True)
     check_repo = Column(Boolean, default=False)
-    avg_rating = Column(Numeric(3, 2), nullable=True)
     shown_times = Column(Integer, default=0)
-    status = Column(
+    status_id = Column(
         Integer,
         ForeignKey("content_status.id"),
         nullable=True,
     )
-    created_by = Column(
+    author_id = Column(
         Integer,
         ForeignKey("users.id"),
         nullable=True,
@@ -278,20 +332,28 @@ class Recommendation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    status = relationship("ContentStatus", lazy="select")
+    author = relationship("User", lazy="select")
+
+
 class SkillRecommendation(Base):
     __tablename__ = "skill_recommendations"
 
     id = Column(Integer, primary_key=True)
-    skill_level = Column(
+    skill_level_id = Column(
         Integer,
         ForeignKey("skill_levels.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recommendation = Column(
+    recommendation_id = Column(
         Integer,
         ForeignKey("recommendations.id", ondelete="CASCADE"),
         nullable=False,
     )
+
+    skill_level = relationship("SkillLevel", lazy="select")
+    recommendation = relationship("Recommendation", lazy="select")
+
 
 class UserRecommendation(Base):
     __tablename__ = "user_recommendations"
@@ -302,7 +364,7 @@ class UserRecommendation(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recommendation = Column(
+    recommendation_id = Column(
         Integer,
         ForeignKey("recommendations.id", ondelete="CASCADE"),
         nullable=False,
@@ -311,18 +373,24 @@ class UserRecommendation(Base):
     completed = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    user = relationship("User", lazy="select")
+    recommendation = relationship("Recommendation", lazy="select")
+
+
 class UserVacancy(Base):
     __tablename__ = "user_vacancies"
 
     id = Column(Integer, primary_key=True)
-    user = Column(
+    user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    vacancy = Column(
+    vacancy_id = Column(
         Integer,
         ForeignKey("vacancies.id", ondelete="CASCADE"),
         nullable=False,
     )
 
+    user = relationship("User", lazy="select")
+    vacancy = relationship("Vacancy", lazy="select")

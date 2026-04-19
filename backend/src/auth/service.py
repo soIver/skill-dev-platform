@@ -46,7 +46,7 @@ class TokenService:
 
         await self._revoke_active_device_tokens(user.id, normalized_device_id)
 
-        role_name = user.role_rel.name if user.role_rel else "user"
+        role_name = user.role.name if user.role else "user"
 
         access_token = self._encode_token(
             {
@@ -74,7 +74,7 @@ class TokenService:
 
         self.db.add(
             RefreshToken(
-                user=user.id,
+                user=user,
                 jti=refresh_jti,
                 device_id=normalized_device_id,
                 expires_at=refresh_expires_at,
@@ -105,7 +105,7 @@ class TokenService:
             raise self._invalid_token_error()
 
         user_result = await self.db.execute(
-            select(User).options(joinedload(User.role_rel)).where(User.id == user_id)
+            select(User).options(joinedload(User.role)).where(User.id == user_id)
         )
         user = user_result.unique().scalar_one_or_none()
         if user is None:
@@ -176,7 +176,7 @@ class TokenService:
         await self.db.execute(
             update(RefreshToken)
             .where(
-                RefreshToken.user == user_id,
+                RefreshToken.user_id == user_id,
                 RefreshToken.device_id == device_id,
                 RefreshToken.revoked.is_(False),
             )
@@ -188,7 +188,7 @@ class TokenService:
     ) -> RefreshToken | None:
         result = await self.db.execute(
             select(RefreshToken).where(
-                RefreshToken.user == user_id,
+                RefreshToken.user_id == user_id,
                 RefreshToken.jti == jti,
             )
         )
