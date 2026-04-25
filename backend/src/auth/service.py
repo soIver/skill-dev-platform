@@ -7,12 +7,12 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from ..config import global_config
-from ..models import RefreshToken, User
+from ..models import User
 from ..logger import get_logger
 
 logger = get_logger("auth.service")
@@ -22,6 +22,7 @@ logger = get_logger("auth.service")
 class TokenPair:
     access_token: str
     refresh_token: str
+
 
 class PasswordService:
     _pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -33,6 +34,7 @@ class PasswordService:
     @classmethod
     def hash(cls, password: str) -> str:
         return cls._pwd_context.hash(password)
+
 
 class TokenService:
     _redis: Redis | None = None
@@ -72,15 +74,12 @@ class TokenService:
             timedelta(minutes=global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES),
         )
 
-        self.db.add(
-            RefreshToken(
-                user=user,
-                jti=refresh_jti,
-                device_id=normalized_device_id,
-                expires_at=refresh_expires_at,
-            )
+        await self._store_refresh_token(
+            user_id=user.id,
+            jti=refresh_jti,
+            device_id=normalized_device_id,
+            expires_at=refresh_expires_at,
         )
-        await self.db.commit()
 
         return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
@@ -89,19 +88,16 @@ class TokenService:
     ) -> tuple[User, TokenPair]:
         payload = self._decode_token(refresh_token, expected_type="refresh")
         user_id = self._extract_user_id(payload)
-        refresh_token_row = await self._get_refresh_token_row(
+        normalized_device_id = self._normalize_device_id(device_id)
+        refresh_token_data = await self._get_refresh_token_data(
             user_id=user_id,
             jti=payload["jti"],
         )
 
-        if refresh_token_row is None:
+        if refresh_token_data is None:
             raise self._invalid_token_error()
 
-        normalized_device_id = self._normalize_device_id(device_id)
-        if refresh_token_row.device_id != normalized_device_id:
-            raise self._invalid_token_error()
-
-        if refresh_token_row.revoked or refresh_token_row.expires_at <= self._now():
+        if refresh_token_data["device_id"] != normalized_device_id:
             raise self._invalid_token_error()
 
         user_result = await self.db.execute(
@@ -109,10 +105,11 @@ class TokenService:
         )
         user = user_result.unique().scalar_one_or_none()
         if user is None:
+            await self._delete_refresh_token(user_id, payload["jti"], normalized_device_id)
             raise self._invalid_token_error()
 
-        refresh_token_row.revoked = True
-        token_pair = await self.issue_token_pair(user, refresh_token_row.device_id)
+        await self._delete_refresh_token(user_id, payload["jti"], normalized_device_id)
+        token_pair = await self.issue_token_pair(user, normalized_device_id)
         return user, token_pair
 
     async def revoke_refresh_token(
@@ -126,19 +123,19 @@ class TokenService:
         except ValueError:
             return
 
-        refresh_token_row = await self._get_refresh_token_row(
-            user_id=self._extract_user_id(payload),
+        user_id = self._extract_user_id(payload)
+        normalized_device_id = self._normalize_device_id(device_id)
+        refresh_token_data = await self._get_refresh_token_data(
+            user_id=user_id,
             jti=payload["jti"],
         )
-        if refresh_token_row is None or refresh_token_row.revoked:
+        if refresh_token_data is None:
             return
 
-        normalized_device_id = self._normalize_device_id(device_id)
-        if refresh_token_row.device_id != normalized_device_id:
+        if refresh_token_data["device_id"] != normalized_device_id:
             return
 
-        refresh_token_row.revoked = True
-        await self.db.commit()
+        await self._delete_refresh_token(user_id, payload["jti"], normalized_device_id)
 
     async def blacklist_access_token(self, access_token: str | None) -> None:
         if not access_token:
@@ -173,26 +170,56 @@ class TokenService:
             logger.warning("Не удалось записать access token в Redis blacklist: %s", exc)
 
     async def _revoke_active_device_tokens(self, user_id: int, device_id: str) -> None:
-        await self.db.execute(
-            update(RefreshToken)
-            .where(
-                RefreshToken.user_id == user_id,
-                RefreshToken.device_id == device_id,
-                RefreshToken.revoked.is_(False),
-            )
-            .values(revoked=True)
-        )
+        redis = self._require_redis()
+        active_jti = await redis.get(self._device_key(user_id, device_id))
+        if not active_jti:
+            return
 
-    async def _get_refresh_token_row(
-        self, user_id: int, jti: str
-    ) -> RefreshToken | None:
-        result = await self.db.execute(
-            select(RefreshToken).where(
-                RefreshToken.user_id == user_id,
-                RefreshToken.jti == jti,
+        async with redis.pipeline(transaction=True) as pipeline:
+            pipeline.delete(self._refresh_key(user_id, active_jti))
+            pipeline.delete(self._device_key(user_id, device_id))
+            await pipeline.execute()
+
+    async def _store_refresh_token(
+        self,
+        user_id: int,
+        jti: str,
+        device_id: str,
+        expires_at: datetime,
+    ) -> None:
+        redis = self._require_redis()
+        ttl_seconds = int((expires_at - self._now()).total_seconds())
+        if ttl_seconds <= 0:
+            raise self._invalid_token_error()
+
+        async with redis.pipeline(transaction=True) as pipeline:
+            pipeline.hset(
+                self._refresh_key(user_id, jti),
+                mapping={
+                    "user_id": str(user_id),
+                    "device_id": device_id,
+                    "expires_at": expires_at.isoformat(),
+                },
             )
-        )
-        return result.scalar_one_or_none()
+            pipeline.expire(self._refresh_key(user_id, jti), ttl_seconds)
+            pipeline.set(self._device_key(user_id, device_id), jti, ex=ttl_seconds)
+            await pipeline.execute()
+
+    async def _get_refresh_token_data(
+        self, user_id: int, jti: str
+    ) -> dict[str, str] | None:
+        redis = self._require_redis()
+        refresh_token_data = await redis.hgetall(self._refresh_key(user_id, jti))
+        if not refresh_token_data:
+            return None
+        return refresh_token_data
+
+    async def _delete_refresh_token(self, user_id: int, jti: str, device_id: str) -> None:
+        redis = self._require_redis()
+        async with redis.pipeline(transaction=True) as pipeline:
+            pipeline.delete(self._refresh_key(user_id, jti))
+            pipeline.delete(self._device_key(user_id, device_id))
+            await pipeline.execute()
 
     def _encode_token(self, payload: dict, expires_delta: timedelta) -> str:
         to_encode = payload.copy()
@@ -237,6 +264,21 @@ class TokenService:
             )
         return cls._redis
 
+    @classmethod
+    def _require_redis(cls) -> Redis:
+        redis = cls._get_redis()
+        if redis is None:
+            raise RuntimeError("Redis не настроен для хранения refresh token")
+        return redis
+
+    @staticmethod
+    def _refresh_key(user_id: int, jti: str) -> str:
+        return f"auth:refresh:{user_id}:{jti}"
+
+    @staticmethod
+    def _device_key(user_id: int, device_id: str) -> str:
+        return f"auth:refresh:device:{user_id}:{device_id}"
+
     @staticmethod
     def _normalize_device_id(device_id: str | None) -> str:
         return device_id or "unknown-device"
@@ -248,14 +290,6 @@ class TokenService:
     @staticmethod
     def _invalid_token_error() -> ValueError:
         return ValueError("Недействительный refresh token")
-
-
-async def cleanup_expired_refresh_tokens(db: AsyncSession) -> int:
-    result = await db.execute(
-        delete(RefreshToken).where(RefreshToken.expires_at <= TokenService._now())
-    )
-    await db.commit()
-    return result.rowcount or 0
 
 
 # === Dependencies для защиты эндпоинтов ===

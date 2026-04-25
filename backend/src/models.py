@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -29,52 +29,11 @@ class User(Base):
     role = relationship("Role", lazy="select")
 
 
-class RefreshToken(Base):
-    __tablename__ = "refresh_tokens"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-    jti = Column(String(36), unique=True, index=True, nullable=False)
-    device_id = Column(String(255), nullable=False)
-    revoked = Column(Boolean, nullable=False, default=False, server_default=text("false"))
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    user = relationship("User", lazy="select")
-
-
 class CodeType(Base):
     __tablename__ = "code_types"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
-
-
-class VerificationCode(Base):
-    __tablename__ = "verification_codes"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    type_id = Column(
-        Integer,
-        ForeignKey("code_types.id"),
-        nullable=False,
-    )
-    code = Column(String, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User", lazy="select")
-    code_type = relationship("CodeType", lazy="select")
 
 
 class UserRepo(Base):

@@ -18,6 +18,8 @@ class Config:
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
     CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
     CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "Europe/Moscow")
+    ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
     UTC3 = timezone(timedelta(hours=3))
 
@@ -39,7 +41,7 @@ class Config:
 
     @classmethod
     def validate(cls):
-        if not all((cls.DATABASE_URL, cls.REDIS_URL, cls.JWT_SECRET_KEY)):
+        if not all((cls.DATABASE_URL, cls.REDIS_URL, cls.JWT_SECRET_KEY, cls.ADMIN_EMAIL)):
             print("Переменные среды требуют проверки")
             return False
         return True
