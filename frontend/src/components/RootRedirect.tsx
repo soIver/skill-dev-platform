@@ -4,19 +4,15 @@ import { useUserStore } from "../hooks/useStore";
 
 export default function RootRedirect() {
   const isHydrated = useUserStore((state) => state.isHydrated);
+  const isAuthChecked = useUserStore((state) => state.isAuthChecked);
   const user = useUserStore((state) => state.user);
-  const refreshToken = useUserStore((state) => state.refreshToken);
 
-  if (!isHydrated) {
+  if (!isHydrated || !isAuthChecked) {
     return null;
   }
 
   if (user) {
     return <Navigate to="/profile" replace />;
-  }
-
-  if (refreshToken) {
-    return null;
   }
 
   return <Navigate to="/auth/login" replace />;

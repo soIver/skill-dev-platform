@@ -10,9 +10,10 @@ interface RequireAuthProps {
 
 export default function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
   const isHydrated = useUserStore((state) => state.isHydrated);
+  const isAuthChecked = useUserStore((state) => state.isAuthChecked);
   const user = useUserStore((state) => state.user);
 
-  if (!isHydrated) {
+  if (!isHydrated || !isAuthChecked) {
     return null;
   }
 

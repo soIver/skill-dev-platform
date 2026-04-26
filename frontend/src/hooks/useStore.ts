@@ -7,22 +7,25 @@ export interface User {
   role: string;
 }
 
-interface SessionPayload {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
+export interface GitHubProfile {
+  connected: boolean;
+  login: string | null;
+  name: string | null;
+  avatar_url: string | null;
+  profile_url: string | null;
 }
 
 interface UserStore {
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
+  githubProfile: GitHubProfile | null;
   deviceId: string;
   isHydrated: boolean;
-  setSession: (session: SessionPayload) => void;
-  setAccessToken: (accessToken: string | null) => void;
+  isAuthChecked: boolean;
+  setSession: (user: User) => void;
+  setGitHubProfile: (githubProfile: GitHubProfile | null) => void;
   clearSession: () => void;
   setHydrated: (isHydrated: boolean) => void;
+  setAuthChecked: (isAuthChecked: boolean) => void;
 }
 
 function createDeviceId(): string {
@@ -34,34 +37,35 @@ export const useUserStore = create<UserStore>()(
     persist(
       (set) => ({
         user: null,
-        accessToken: null,
-        refreshToken: null,
+        githubProfile: null,
         deviceId: createDeviceId(),
         isHydrated: false,
-        setSession: (session) =>
+        isAuthChecked: false,
+        setSession: (user) =>
           set({
-            user: session.user,
-            accessToken: session.accessToken,
-            refreshToken: session.refreshToken,
+            user,
+            isAuthChecked: true,
           }),
-        setAccessToken: (accessToken) => set({ accessToken }),
+        setGitHubProfile: (githubProfile) => set({ githubProfile }),
         clearSession: () =>
           set({
             user: null,
-            accessToken: null,
-            refreshToken: null,
+            githubProfile: null,
+            isAuthChecked: true,
           }),
         setHydrated: (isHydrated) => set({ isHydrated }),
+        setAuthChecked: (isAuthChecked) => set({ isAuthChecked }),
       }),
       {
         name: "auth-store",
         partialize: (state) => ({
           user: state.user,
-          refreshToken: state.refreshToken,
+          githubProfile: state.githubProfile,
           deviceId: state.deviceId,
         }),
         onRehydrateStorage: () => (state) => {
           state?.setHydrated(true);
+          state?.setAuthChecked(false);
         },
       },
     ),

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from .config import global_config
 from .models import Base, Role, User
@@ -33,6 +33,9 @@ async def get_db() -> AsyncSession:
 async def init_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS github_token VARCHAR")
+        )
         logger.debug("Таблицы БД созданы")
 
 

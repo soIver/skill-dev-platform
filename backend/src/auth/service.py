@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from redis.asyncio import Redis, from_url
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from ..config import global_config
-from ..models import User
+from ..models import User, Role
 from ..logger import get_logger
 
 logger = get_logger("auth.service")
@@ -84,8 +84,11 @@ class TokenService:
         return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
     async def refresh_token_pair(
-        self, refresh_token: str, device_id: str | None
+        self, refresh_token: str | None, device_id: str | None
     ) -> tuple[User, TokenPair]:
+        if not refresh_token:
+            raise self._invalid_token_error()
+
         payload = self._decode_token(refresh_token, expected_type="refresh")
         user_id = self._extract_user_id(payload)
         normalized_device_id = self._normalize_device_id(device_id)
@@ -268,7 +271,7 @@ class TokenService:
     def _require_redis(cls) -> Redis:
         redis = cls._get_redis()
         if redis is None:
-            raise RuntimeError("Redis не настроен для хранения refresh token")
+            raise RuntimeError("Redis не настроен для хранения токенов обновления")
         return redis
 
     @staticmethod
@@ -292,9 +295,6 @@ class TokenService:
         return ValueError("Недействительный refresh token")
 
 
-# === Dependencies для защиты эндпоинтов ===
-
-
 @dataclass(slots=True, frozen=True)
 class TokenClaims:
     user_id: int
@@ -302,68 +302,74 @@ class TokenClaims:
     role: str
     jti: str
 
+class AuthService:
+    """Фасад для операций аутентификации"""
 
-async def get_current_user(
-    authorization: str | None = Header(default=None, alias="Authorization"),
-) -> TokenClaims:
-    """Извлекает claims из access token. Проверяет подпись и blacklist."""
-    if not authorization:
-        raise _unauthorized()
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.token_service = TokenService(db)
 
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise _unauthorized()
-
-    try:
-        payload = jwt.decode(
-            token.strip(),
-            global_config.JWT_SECRET_KEY,
-            algorithms=[global_config.JWT_ALGORITHM],
+    async def authenticate(self, email: str, password: str) -> User | None:
+        result = await self.db.execute(
+            select(User).options(joinedload(User.role)).where(User.email == email)
         )
-    except JWTError:
-        raise _unauthorized()
+        user = result.unique().scalar_one_or_none()
+        if user is None or not PasswordService.verify(password, user.password_hash):
+            return None
+        return user
 
-    if payload.get("type") != "access":
-        raise _unauthorized()
+    async def register(self, email: str, password: str) -> User | None:
+        existing = await self.db.execute(select(User).where(User.email == email))
+        if existing.scalar_one_or_none() is not None:
+            return None
 
-    # проверка blacklist
-    token_jti = payload.get("jti")
-    if token_jti:
-        redis = TokenService._get_redis()
-        if redis:
-            try:
-                blacklisted = await redis.get(f"blacklist:access:{token_jti}")
-                if blacklisted:
-                    raise _unauthorized()
-            except RedisError:
-                pass  # если redis недоступ — не блокируем
+        role_result = await self.db.execute(select(Role).where(Role.name == "user"))
+        user_role = role_result.scalar_one_or_none()
+        if user_role is None:
+            return None
 
-    try:
-        return TokenClaims(
-            user_id=int(payload["sub"]),
-            email=payload["email"],
-            role=payload["role"],
-            jti=payload["jti"],
+        new_user = User(
+            email=email,
+            password_hash=PasswordService.hash(password),
+            role=user_role,
         )
-    except (KeyError, TypeError, ValueError):
-        raise _unauthorized()
+        self.db.add(new_user)
+        await self.db.commit()
+
+        result = await self.db.execute(
+            select(User).options(joinedload(User.role)).where(User.id == new_user.id)
+        )
+        return result.unique().scalar_one()
+
+    async def login(self, email: str, password: str, device_id: str | None) -> tuple[User, TokenPair]:
+        user = await self.authenticate(email, password)
+        if not user:
+            raise InvalidCredentialsError("Неверный email или пароль")
+        token_pair = await self.token_service.issue_token_pair(user, device_id)
+        return user, token_pair
+
+    async def refresh(self, refresh_token: str | None, device_id: str | None) -> tuple[User, TokenPair]:
+        try:
+            return await self.token_service.refresh_token_pair(refresh_token, device_id)
+        except ValueError as exc:
+            raise InvalidTokenError(str(exc)) from exc
+
+    async def logout(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        device_id: str | None,
+    ) -> None:
+        if refresh_token:
+            await self.token_service.revoke_refresh_token(refresh_token, device_id)
+        if access_token:
+            await self.token_service.blacklist_access_token(access_token)
 
 
-def require_role(*allowed_roles: str):
-    """Dependency factory: разрешает доступ только указанным ролям."""
-    async def _check_role(claims: TokenClaims = Depends(get_current_user)):
-        if claims.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Доступ запрещён. Требуется одна из ролей: {', '.join(allowed_roles)}",
-            )
-        return claims
+class InvalidCredentialsError(HTTPException):
+    def __init__(self, detail: str):
+        super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
-    return _check_role
-
-
-def _unauthorized() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Недействительный токен",
-    )
+class InvalidTokenError(HTTPException):
+    def __init__(self, detail: str):
+        super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)

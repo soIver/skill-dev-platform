@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { register } from "../auth";
+import { useToast } from "../components/ToastProvider";
 
 export default function Registration() {
   const [email, setEmail] = useState("");
@@ -9,24 +10,37 @@ export default function Registration() {
   const [repeatPassword, setRepeatPassword] = useState("");
 
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (password !== repeatPassword) {
-      alert("Пароли не совпадают!");
+      showToast({
+        title: "Ошибка регистрации",
+        message: "Пароли не совпадают.",
+        variant: "error",
+      });
       return;
     }
 
     try {
       await register({ email, password });
+      showToast({
+        title: "Регистрация завершена",
+        message: "Аккаунт успешно создан.",
+        variant: "success",
+      });
       navigate("/profile");
     } catch (error: unknown) {
       console.error(error);
-
-      const message =
-        error instanceof Error ? error.message : "Что-то пошло не так";
-
-      alert(message);
+      showToast({
+        title: "Ошибка регистрации",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "При регистрации произошла ошибка на сервере.",
+        variant: "error",
+      });
     }
   };
 

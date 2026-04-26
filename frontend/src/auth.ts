@@ -2,8 +2,6 @@ import { config } from "./config";
 import { useUserStore, type User } from "./hooks/useStore";
 
 interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
   token_type: string;
   user: User;
 }
@@ -24,17 +22,8 @@ function getDefaultHeaders(): HeadersInit {
   };
 }
 
-function buildHeaders(
-  headers?: HeadersInit,
-  accessToken?: string | null,
-): Record<string, string> {
-  const normalizedHeaders = new Headers(headers);
-
-  if (accessToken) {
-    normalizedHeaders.set("Authorization", `Bearer ${accessToken}`);
-  }
-
-  return Object.fromEntries(normalizedHeaders.entries());
+function buildHeaders(headers?: HeadersInit): Record<string, string> {
+  return Object.fromEntries(new Headers(headers).entries());
 }
 
 async function readApiError(response: Response): Promise<string> {
@@ -53,6 +42,7 @@ async function fetchAuth(
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     method: "POST",
     headers: getDefaultHeaders(),
+    credentials: "include",
     body: JSON.stringify(body),
   });
 
@@ -64,12 +54,10 @@ async function fetchAuth(
 }
 
 function applyAuthSession(data: AuthResponse): void {
-  useUserStore.getState().setSession({
-    user: data.user,
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-  });
+  useUserStore.getState().setSession(data.user);
 }
+
+let refreshPromise: Promise<boolean> | null = null;
 
 export async function login(credentials: Credentials): Promise<void> {
   const data = await fetchAuth("/auth/login", credentials);
@@ -82,37 +70,76 @@ export async function register(credentials: Credentials): Promise<void> {
 }
 
 export async function restoreSession(): Promise<boolean> {
-  const { refreshToken } = useUserStore.getState();
-  if (!refreshToken) {
-    return false;
+  if (refreshPromise) {
+    return refreshPromise;
   }
 
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/auth/refresh`, {
+        method: "POST",
+        headers: getDefaultHeaders(),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        useUserStore.getState().clearSession();
+        return false;
+      }
+
+      const data = (await response.json()) as AuthResponse;
+      applyAuthSession(data);
+      return true;
+    } catch {
+      useUserStore.getState().clearSession();
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+export async function syncSession(): Promise<boolean> {
   try {
-    const data = await fetchAuth("/auth/refresh", { refresh_token: refreshToken });
-    applyAuthSession(data);
-    return true;
+    const response = await fetch(`${config.apiBaseUrl}/auth/session`, {
+      method: "GET",
+      headers: {
+        [DEVICE_ID_HEADER]: useUserStore.getState().deviceId,
+      },
+      credentials: "include",
+    });
+
+    if (response.ok) {
+      const user = (await response.json()) as User;
+      useUserStore.getState().setSession(user);
+      return true;
+    }
+
+    if (response.status !== 401) {
+      useUserStore.getState().clearSession();
+      return false;
+    }
   } catch {
     useUserStore.getState().clearSession();
     return false;
   }
+
+  return restoreSession();
 }
 
 export async function logout(): Promise<void> {
-  const { accessToken, refreshToken } = useUserStore.getState();
-  if (!refreshToken) {
-    useUserStore.getState().clearSession();
-    return;
-  }
-
   try {
-    await fetch(`${config.apiBaseUrl}/auth/logout`, {
+    const response = await fetch(`${config.apiBaseUrl}/auth/logout`, {
       method: "POST",
-      headers: {
-        ...getDefaultHeaders(),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      headers: getDefaultHeaders(),
+      credentials: "include",
     });
+
+    if (!response.ok) {
+      throw new Error(await readApiError(response));
+    }
   } finally {
     useUserStore.getState().clearSession();
   }
@@ -122,13 +149,17 @@ export async function authFetch(
   input: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const { accessToken } = useUserStore.getState();
   const response = await fetch(input, {
     ...init,
-    headers: buildHeaders(init.headers, accessToken),
+    credentials: "include",
+    headers: buildHeaders(init.headers),
   });
 
   if (response.status !== 401) {
+    return response;
+  }
+
+  if (input.endsWith("/auth/refresh")) {
     return response;
   }
 
@@ -137,9 +168,25 @@ export async function authFetch(
     return response;
   }
 
-  const { accessToken: nextAccessToken } = useUserStore.getState();
   return fetch(input, {
     ...init,
-    headers: buildHeaders(init.headers, nextAccessToken),
+    credentials: "include",
+    headers: buildHeaders(init.headers),
   });
+}
+
+export async function authJson<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await authFetch(`${config.apiBaseUrl}${path}`, init);
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
 }

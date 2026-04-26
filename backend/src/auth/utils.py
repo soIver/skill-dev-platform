@@ -1,41 +1,67 @@
-from sqlalchemy import select
-from sqlalchemy.orm import joinedload
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Cookie, Depends, HTTPException, status
+from jose import JWTError, jwt
 
-from ..models import User, Role
-from .service import PasswordService
+from ..config import global_config
+from .service import TokenClaims, TokenService
 
 
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
-    result = await db.execute(
-        select(User).options(joinedload(User.role)).where(User.email == email)
+async def get_current_user(
+    access_token: str | None = Cookie(
+        default=None,
+        alias=global_config.AUTH_ACCESS_COOKIE_NAME,
+    ),
+) -> TokenClaims:
+    """Проверяет подпись токена и наличие в чёрном списке"""
+    if not access_token:
+        raise _unauthorized()
+
+    try:
+        payload = jwt.decode(
+            access_token,
+            global_config.JWT_SECRET_KEY,
+            algorithms=[global_config.JWT_ALGORITHM],
+        )
+    except JWTError:
+        raise _unauthorized()
+
+    if payload.get("type") != "access":
+        raise _unauthorized()
+
+    token_jti = payload.get("jti")
+    if token_jti:
+        redis = TokenService._get_redis()
+        if redis:
+            try:
+                if await redis.get(f"blacklist:access:{token_jti}"):
+                    raise _unauthorized()
+            except Exception:
+                pass  # если Redis недоступен, не блокируем
+
+    try:
+        return TokenClaims(
+            user_id=int(payload["sub"]),
+            email=payload["email"],
+            role=payload["role"],
+            jti=payload["jti"],
+        )
+    except (KeyError, TypeError, ValueError):
+        raise _unauthorized()
+
+
+def require_role(*allowed_roles: str):
+    """Разрешает доступ только указанным ролям"""
+    async def _check_role(claims: TokenClaims = Depends(get_current_user)):
+        if claims.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав",
+            )
+        return claims
+    return _check_role
+
+
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Недействительный токен",
     )
-    user = result.unique().scalar_one_or_none()
-    if user is None or not PasswordService.verify(password, user.password_hash):
-        return None
-    return user
-
-async def register_user(db: AsyncSession, email: str, password: str) -> User | None:
-    registered_user_result = await db.execute(select(User).where(User.email == email))
-    if registered_user_result.scalar_one_or_none() is not None:
-        return None
-
-    user_role_result = await db.execute(select(Role).where(Role.name == "user"))
-    user_role = user_role_result.scalar_one_or_none()
-    if user_role is None:
-        return None
-
-    new_user = User(
-        email=email,
-        password_hash=PasswordService.hash(password),
-        role=user_role,
-    )
-    db.add(new_user)
-    await db.commit()
-
-    result = await db.execute(
-        select(User)
-        .options(joinedload(User.role))
-        .where(User.id == new_user.id)
-    )
-    return result.unique().scalar_one()

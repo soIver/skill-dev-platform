@@ -2,25 +2,35 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { login } from "../auth";
+import { useToast } from "../components/ToastProvider";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       await login({ email, password });
+      showToast({
+        title: "Вход выполнен",
+        message: "Вы успешно вошли в аккаунт.",
+        variant: "success",
+      });
       navigate("/profile");
     } catch (error: unknown) {
       console.error(error);
-
-      const message =
-        error instanceof Error ? error.message : "Что-то пошло не так";
-
-      alert(message);
+      showToast({
+        title: "Ошибка входа",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "При авторизации произошла ошибка на сервере.",
+        variant: "error",
+      });
     }
   };
 

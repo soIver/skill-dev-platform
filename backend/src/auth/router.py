@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+# router.py
+from fastapi import APIRouter, Cookie, Depends, Header, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from .schemas import AuthResponse, Credentials, LogoutRequest, MessageResponse, RefreshTokenRequest
-from .service import TokenPair, TokenService
-from .utils import authenticate_user, register_user
+from ..config import global_config
+from .schemas import AuthResponse, Credentials, MessageResponse, UserResponse
+from .service import AuthService, TokenPair
+from .utils import TokenClaims, get_current_user
 
 router = APIRouter(prefix="/auth")
 
@@ -12,89 +14,118 @@ router = APIRouter(prefix="/auth")
 @router.post("/login", response_model=AuthResponse)
 async def login(
     credentials: Credentials,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
 ):
-    user = await authenticate_user(db, credentials.email, credentials.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный email или пароль",
-        )
-
-    token_pair = await TokenService(db).issue_token_pair(user, device_id)
-    return _build_auth_response(user, token_pair)
+    auth = AuthService(db)
+    user, token_pair = await auth.login(credentials.email, credentials.password, device_id)
+    _set_auth_cookies(response, token_pair)
+    return _build_auth_response(user)
 
 
 @router.post("/register", response_model=AuthResponse)
 async def register(
     credentials: Credentials,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
 ):
-    user = await register_user(db, credentials.email, credentials.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пользователь с таким email уже существует",
-        )
-
-    token_pair = await TokenService(db).issue_token_pair(user, device_id)
-    return _build_auth_response(user, token_pair)
+    auth = AuthService(db)
+    user, token_pair = await auth.login(credentials.email, credentials.password, device_id)
+    _set_auth_cookies(response, token_pair)
+    return _build_auth_response(user)
 
 
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh_tokens(
-    payload: RefreshTokenRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
+    refresh_token: str | None = Cookie(
+        default=None,
+        alias=global_config.AUTH_REFRESH_COOKIE_NAME,
+    ),
 ):
-    try:
-        user, token_pair = await TokenService(db).refresh_token_pair(
-            payload.refresh_token,
-            device_id,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-        ) from exc
+    auth = AuthService(db)
+    user, token_pair = await auth.refresh(refresh_token, device_id)
+    _set_auth_cookies(response, token_pair)
+    return _build_auth_response(user)
 
-    return _build_auth_response(user, token_pair)
+
+@router.get("/session", response_model=UserResponse)
+async def get_session(claims: TokenClaims = Depends(get_current_user)):
+    return UserResponse(id=claims.user_id, email=claims.email, role=claims.role)
 
 
 @router.post("/logout", response_model=MessageResponse)
 async def logout(
-    payload: LogoutRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
-    authorization: str | None = Header(default=None, alias="Authorization"),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
+    access_token: str | None = Cookie(
+        default=None,
+        alias=global_config.AUTH_ACCESS_COOKIE_NAME,
+    ),
+    refresh_token: str | None = Cookie(
+        default=None,
+        alias=global_config.AUTH_REFRESH_COOKIE_NAME,
+    ),
 ):
-    token_service = TokenService(db)
-    await token_service.revoke_refresh_token(payload.refresh_token, device_id)
-    await token_service.blacklist_access_token(_extract_bearer_token(authorization))
-    return {"message": "Сессия завершена"}
+    auth = AuthService(db)
+    await auth.logout(access_token, refresh_token, device_id)
+    _clear_auth_cookies(response)
+    return MessageResponse(message="Сессия завершена")
 
 
-def _build_auth_response(user, token_pair: TokenPair) -> AuthResponse:
+# ── Приватные хелперы роутера ──────────────────────────────
+
+def _build_auth_response(user) -> AuthResponse:
     role_name = user.role.name if user.role else "user"
     return AuthResponse(
-        access_token=token_pair.access_token,
-        refresh_token=token_pair.refresh_token,
         user={
             "id": user.id,
             "email": user.email,
             "role": role_name,
-        },
+        }
     )
 
 
-def _extract_bearer_token(authorization: str | None) -> str | None:
-    if not authorization:
-        return None
+def _set_auth_cookies(response: Response, token_pair: TokenPair) -> None:
+    secure = global_config.auth_cookie_secure()
+    response.set_cookie(
+        key=global_config.AUTH_ACCESS_COOKIE_NAME,
+        value=token_pair.access_token,
+        max_age=global_config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=global_config.AUTH_COOKIE_HTTPONLY,
+        secure=secure,
+        samesite="lax",
+        path=global_config.AUTH_ACCESS_COOKIE_PATH,
+    )
+    response.set_cookie(
+        key=global_config.AUTH_REFRESH_COOKIE_NAME,
+        value=token_pair.refresh_token,
+        max_age=global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=global_config.AUTH_COOKIE_HTTPONLY,
+        secure=secure,
+        samesite="strict",
+        path=global_config.AUTH_REFRESH_COOKIE_PATH,
+    )
 
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        return None
 
-    return token.strip()
+def _clear_auth_cookies(response: Response) -> None:
+    secure = global_config.auth_cookie_secure()
+    response.delete_cookie(
+        key=global_config.AUTH_ACCESS_COOKIE_NAME,
+        path=global_config.AUTH_ACCESS_COOKIE_PATH,
+        httponly=global_config.AUTH_COOKIE_HTTPONLY,
+        secure=secure,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key=global_config.AUTH_REFRESH_COOKIE_NAME,
+        path=global_config.AUTH_REFRESH_COOKIE_PATH,
+        httponly=global_config.AUTH_COOKIE_HTTPONLY,
+        secure=secure,
+        samesite="strict",
+    )

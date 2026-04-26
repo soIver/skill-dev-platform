@@ -9,6 +9,7 @@ from slowapi.util import get_remote_address
 from .auth.router import router as auth_router
 from .config import global_config
 from .database import init_database
+from .github.router import router as github_router
 
 
 app = FastAPI()
@@ -20,6 +21,7 @@ async def on_startup():
 
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(github_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

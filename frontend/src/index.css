@@ -33,8 +33,35 @@
     .primary-button {
         @apply w-full px-4 py-2 text-white rounded-xl font-medium cursor-pointer transition-colors bg-primary hover:bg-primary-hover;
     }
+    .github-connect-button {
+        @apply flex items-center gap-3 px-6 py-4 cursor-pointer border border-gray-300 rounded-2xl w-full transition-all duration-200
+               disabled:opacity-50 disabled:cursor-not-allowed
+               hover:border-gray-300 hover:shadow-md hover:gap-4;
+    }
     .hyperlink {
         @apply text-blue-600 hover:underline;
+    }
+    .toast-viewport {
+        @apply fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 pointer-events-none;
+    }
+    .toast-item {
+        @apply pointer-events-auto flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 shadow-lg;
+        animation: toast-slide-in 220ms ease-out, toast-fade-out 320ms ease-in 3.88s forwards;
+    }
+    .toast-success {
+        @apply border-emerald-200 bg-emerald-50 text-emerald-900;
+    }
+    .toast-error {
+        @apply border-red-200 bg-red-50 text-red-900;
+    }
+    .toast-title {
+        @apply text-sm font-semibold;
+    }
+    .toast-message {
+        @apply mt-1 text-sm opacity-90;
+    }
+    .toast-close {
+        @apply cursor-pointer text-xl leading-none opacity-70 transition-opacity hover:opacity-100;
     }
 }
 
@@ -53,4 +80,24 @@ html,
     margin: 0;
     padding: 0;
     min-height: 100vh;
+}
+
+@keyframes toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes toast-fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
