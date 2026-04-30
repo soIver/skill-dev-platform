@@ -33,9 +33,6 @@ async def get_db() -> AsyncSession:
 async def init_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(
-            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS github_token VARCHAR")
-        )
         logger.debug("Таблицы БД созданы")
 
 
@@ -57,11 +54,18 @@ async def init_roles():
 
 
 async def create_admin():
+    if not global_config.ADMIN_EMAIL or not global_config.ADMIN_PASSWORD:
+        logger.warning(
+            "Запись администратора не создана: ADMIN_EMAIL или ADMIN_PASSWORD не заданы"
+        )
+        return
+
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Role).where(Role.name == "admin"))
         admin_role = result.scalar_one_or_none()
 
         if admin_role is None:
+            logger.warning("Запись администратора не создана: роль admin не найдена")
             return
 
         result = await db.execute(
@@ -70,6 +74,7 @@ async def create_admin():
         existing_admin = result.scalar_one_or_none()
 
         if existing_admin is not None:
+            logger.debug("Запись администратора уже существует")
             return
 
         admin_user = User(

@@ -16,7 +16,6 @@ class Config:
     DATABASE_URL = os.getenv("DATABASE_URL")
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
     CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
-    CELERY_TIMEZONE = "Europe/Moscow"
     ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 

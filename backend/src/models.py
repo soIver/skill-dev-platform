@@ -67,13 +67,6 @@ class Level(Base):
     name = Column(String, unique=True, nullable=False)
 
 
-class ContentStatus(Base):
-    __tablename__ = "content_status"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-
-
 class SkillLevel(Base):
     __tablename__ = "skill_levels"
 
@@ -89,11 +82,6 @@ class SkillLevel(Base):
         nullable=False,
     )
     order_index = Column(Integer, nullable=False)
-    status_id = Column(
-        Integer,
-        ForeignKey("content_status.id"),
-        nullable=True,
-    )
     author_id = Column(
         Integer,
         ForeignKey("users.id"),
@@ -104,7 +92,6 @@ class SkillLevel(Base):
 
     skill = relationship("Skill", lazy="select")
     level = relationship("Level", lazy="select")
-    status = relationship("ContentStatus", lazy="select")
     author = relationship("User", lazy="select")
 
 
@@ -119,11 +106,7 @@ class Test(Base):
     )
     time_limit_minutes = Column(Integer, nullable=True)
     threshold_score = Column(Integer, nullable=True)
-    status_id = Column(
-        Integer,
-        ForeignKey("content_status.id"),
-        nullable=True,
-    )
+    is_published = Column(Boolean, default=False)
     author_id = Column(
         Integer,
         ForeignKey("users.id"),
@@ -133,7 +116,6 @@ class Test(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     skill_level = relationship("SkillLevel", lazy="select")
-    status = relationship("ContentStatus", lazy="select")
     author = relationship("User", lazy="select")
 
 
@@ -279,11 +261,6 @@ class Recommendation(Base):
     description = Column(Text, nullable=True)
     check_repo = Column(Boolean, default=False)
     shown_times = Column(Integer, default=0)
-    status_id = Column(
-        Integer,
-        ForeignKey("content_status.id"),
-        nullable=True,
-    )
     author_id = Column(
         Integer,
         ForeignKey("users.id"),
@@ -292,7 +269,6 @@ class Recommendation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    status = relationship("ContentStatus", lazy="select")
     author = relationship("User", lazy="select")
 
 
