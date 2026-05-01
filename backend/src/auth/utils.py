@@ -1,8 +1,13 @@
 from fastapi import Cookie, Depends, HTTPException, status
-from jose import JWTError, jwt
 
 from ..config import global_config
+from ..utils.crypto import JwtCodec
 from .service import TokenClaims, TokenService
+
+jwt_codec = JwtCodec(
+    secret_key=global_config.JWT_SECRET_KEY,
+    algorithm=global_config.JWT_ALGORITHM,
+)
 
 
 async def get_current_user(
@@ -16,15 +21,11 @@ async def get_current_user(
         raise _unauthorized()
 
     try:
-        payload = jwt.decode(
+        payload = jwt_codec.decode(
             access_token,
-            global_config.JWT_SECRET_KEY,
-            algorithms=[global_config.JWT_ALGORITHM],
+            expected_type="access",
         )
-    except JWTError:
-        raise _unauthorized()
-
-    if payload.get("type") != "access":
+    except ValueError:
         raise _unauthorized()
 
     token_jti = payload.get("jti")

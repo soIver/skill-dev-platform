@@ -8,7 +8,7 @@ from slowapi.util import get_remote_address
 
 from .auth.router import router as auth_router
 from .config import global_config
-from .database import init_database
+from .utils.database import init_database
 from .github.router import router as github_router
 
 

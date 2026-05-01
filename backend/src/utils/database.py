@@ -1,12 +1,15 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import select, text
+from sqlalchemy import select
 
-from .config import global_config
-from .models import Base, Role, User
+from ..config import global_config
+from ..models import Base, Role, User
+from .crypto import Hasher
 from .logger import get_logger
-from .auth.service import PasswordService
 
 logger = get_logger("database")
+password_hasher = Hasher(
+    schemes=global_config.PASSWORD_HASH_SCHEMES
+)
 
 # асинхронный движок
 engine = create_async_engine(
@@ -79,7 +82,7 @@ async def create_admin():
 
         admin_user = User(
             email=global_config.ADMIN_EMAIL,
-            password_hash=PasswordService.hash(global_config.ADMIN_PASSWORD),
+            password_hash=password_hasher.hash(global_config.ADMIN_PASSWORD),
             role_id=admin_role.id,
         )
 

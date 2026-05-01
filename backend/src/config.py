@@ -22,8 +22,8 @@ class Config:
     UTC3 = timezone(timedelta(hours=3))
 
     # JWT
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "secret")
-    JWT_ALGORITHM = "HS256"
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 5
     JWT_REFRESH_TOKEN_EXPIRE_MINUTES = 10080
     AUTH_ACCESS_COOKIE_NAME = "access_token"
@@ -47,9 +47,12 @@ class Config:
     GITHUB_OAUTH_STATE_TTL_SECONDS = 600
 
     GITHUB_API_VERSION = "2026-03-10"
-    GITHUB_TOKEN_ENCRYPTION_SECRET = os.getenv(
-        "GITHUB_TOKEN_ENCRYPTION_SECRET",
-        JWT_SECRET_KEY,
+    STRING_ENCRYPTION_ALGORITHM = os.getenv("STRING_ENCRYPTION_ALGORITHM", "fernet")
+    STRING_ENCRYPTION_SECRET = os.getenv("STRING_ENCRYPTION_SECRET")
+    PASSWORD_HASH_SCHEMES = tuple(
+        scheme.strip()
+        for scheme in os.getenv("PASSWORD_HASH_SCHEMES", "argon2").split(",")
+        if scheme
     )
 
     # CORS
@@ -59,8 +62,8 @@ class Config:
     RATE_LIMIT_RPM = 100 # запросов в минуту
 
     @classmethod
-    def github_token_encryption_key(cls) -> bytes:
-        digest = hashlib.sha256(cls.GITHUB_TOKEN_ENCRYPTION_SECRET.encode("utf-8")).digest()
+    def string_encryption_key(cls) -> bytes:
+        digest = hashlib.sha256(cls.STRING_ENCRYPTION_SECRET.encode("utf-8")).digest()
         return base64.urlsafe_b64encode(digest)
 
     @classmethod
@@ -73,7 +76,9 @@ class Config:
 
     @classmethod
     def validate(cls):
-        if not all((cls.DATABASE_URL, cls.REDIS_URL, cls.JWT_SECRET_KEY, cls.ADMIN_EMAIL)):
+        if not all((cls.DATABASE_URL, cls.REDIS_URL, 
+                    cls.JWT_SECRET_KEY, cls.STRING_ENCRYPTION_SECRET,
+                    cls.ADMIN_EMAIL, cls.ADMIN_PASSWORD)):
             print("Переменные среды требуют проверки")
             return False
         return True

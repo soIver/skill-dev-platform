@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime
 
-from .config import global_config
+from ..config import global_config
 
 MOSCOW_TZ = global_config.UTC3
 DATA_PATH = global_config.DATA_PATH

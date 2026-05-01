@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.utils import TokenClaims, get_current_user
-from ..database import get_db
+from ..utils.database import get_db
 from .schemas import (
     GitHubAuthorizationUrlResponse,
     GitHubDisconnectResponse,

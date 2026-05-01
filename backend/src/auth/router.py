@@ -1,8 +1,7 @@
-# router.py
 from fastapi import APIRouter, Cookie, Depends, Header, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db
+from ..utils.database import get_db
 from ..config import global_config
 from .schemas import AuthResponse, Credentials, MessageResponse, UserResponse
 from .service import AuthService, TokenPair

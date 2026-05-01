@@ -260,7 +260,7 @@ class Recommendation(Base):
     id = Column(Integer, primary_key=True)
     description = Column(Text, nullable=True)
     check_repo = Column(Boolean, default=False)
-    shown_times = Column(Integer, default=0)
+    is_published = Column(Boolean, default=False)
     author_id = Column(
         Integer,
         ForeignKey("users.id"),

@@ -9,18 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.service import TokenClaims
 from ..config import global_config
-from ..logger import get_logger
+from ..utils.crypto import Cipher, Hasher, generate_urlsafe_token
+from ..utils.logger import get_logger
 from .utils import (
     build_github_authorization_url,
-    build_pkce_challenge,
-    decrypt_github_token,
-    encrypt_github_token,
-    generate_oauth_state,
-    generate_pkce_verifier,
     get_user_by_id,
 )
 
 logger = get_logger("github.service")
+string_cipher = Cipher(
+    secret_key=global_config.string_encryption_key(),
+    algorithm=global_config.STRING_ENCRYPTION_ALGORITHM,
+)
 
 
 @dataclass(slots=True)
@@ -40,8 +40,8 @@ class GitHubService:
     async def create_authorization_url(self, claims: TokenClaims) -> str:
         self._validate_config()
         redis = self._require_redis()
-        state = generate_oauth_state()
-        code_verifier = generate_pkce_verifier()
+        state = generate_urlsafe_token(32)
+        code_verifier = generate_urlsafe_token(64)
         state_payload = json.dumps(
             {
                 "user_id": claims.user_id,
@@ -64,7 +64,7 @@ class GitHubService:
 
         return build_github_authorization_url(
             state=state,
-            code_challenge=build_pkce_challenge(code_verifier),
+            code_challenge=Hasher.sha256_base64url(code_verifier),
         )
 
     async def handle_callback(self, code: str, state: str) -> str:
@@ -89,7 +89,7 @@ class GitHubService:
         if user is None:
             raise ValueError("Пользователь не найден")
 
-        user.github_token = encrypt_github_token(access_token)
+        user.github_token = string_cipher.encrypt(access_token)
         await self.db.commit()
 
         return self._build_frontend_redirect_url(status="connected", login=profile.login)
@@ -100,7 +100,7 @@ class GitHubService:
             return None
 
         try:
-            access_token = decrypt_github_token(user.github_token)
+            access_token = string_cipher.decrypt(user.github_token)
             return await self._fetch_github_profile(access_token)
         except (ValueError, httpx.HTTPError) as exc:
             logger.warning("Не удалось получить GitHub-профиль пользователя %s: %s", user_id, exc)
@@ -115,9 +115,10 @@ class GitHubService:
 
         encrypted_token = user.github_token
         try:
-            access_token = decrypt_github_token(encrypted_token)
-        except ValueError as exc:
-            logger.warning("Не удалось расшифровать GitHub token при отвязке для пользователя %s", user_id)
+            access_token = string_cipher.decrypt(
+                encrypted_token)
+        except ValueError:
+            logger.exception("Не удалось расшифровать GitHub token при отвязке для пользователя %s", user_id)
             user.github_token = None
             await self.db.commit()
             return

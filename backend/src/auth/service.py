@@ -3,8 +3,6 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import HTTPException, status
-from jose import JWTError, jwt
-from passlib.context import CryptContext
 from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
 from sqlalchemy import select
@@ -13,27 +11,23 @@ from sqlalchemy.orm import joinedload
 
 from ..config import global_config
 from ..models import User, Role
-from ..logger import get_logger
+from ..utils.crypto import Hasher, JwtCodec
+from ..utils.logger import get_logger
 
 logger = get_logger("auth.service")
+password_hasher = Hasher(
+    schemes=global_config.PASSWORD_HASH_SCHEMES
+)
+jwt_codec = JwtCodec(
+    secret_key=global_config.JWT_SECRET_KEY,
+    algorithm=global_config.JWT_ALGORITHM,
+)
 
 
 @dataclass(slots=True)
 class TokenPair:
     access_token: str
     refresh_token: str
-
-
-class PasswordService:
-    _pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-
-    @classmethod
-    def verify(cls, plain_password: str, hashed_password: str) -> bool:
-        return cls._pwd_context.verify(plain_password, hashed_password)
-
-    @classmethod
-    def hash(cls, password: str) -> str:
-        return cls._pwd_context.hash(password)
 
 
 class TokenService:
@@ -50,7 +44,7 @@ class TokenService:
 
         role_name = user.role.name if user.role else "user"
 
-        access_token = self._encode_token(
+        access_token = jwt_codec.encode(
             {
                 "sub": str(user.id),
                 "email": user.email,
@@ -65,7 +59,7 @@ class TokenService:
         refresh_expires_at = now + timedelta(
             minutes=global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES
         )
-        refresh_token = self._encode_token(
+        refresh_token = jwt_codec.encode(
             {
                 "sub": str(user.id),
                 "type": "refresh",
@@ -89,7 +83,7 @@ class TokenService:
         if not refresh_token:
             raise self._invalid_token_error()
 
-        payload = self._decode_token(refresh_token, expected_type="refresh")
+        payload = jwt_codec.decode(refresh_token, expected_type="refresh")
         user_id = self._extract_user_id(payload)
         normalized_device_id = self._normalize_device_id(device_id)
         refresh_token_data = await self._get_refresh_token_data(
@@ -122,7 +116,7 @@ class TokenService:
             return
 
         try:
-            payload = self._decode_token(refresh_token, expected_type="refresh")
+            payload = jwt_codec.decode(refresh_token, expected_type="refresh")
         except ValueError:
             return
 
@@ -145,8 +139,8 @@ class TokenService:
             return
 
         try:
-            claims = jwt.get_unverified_claims(access_token)
-        except JWTError:
+            claims = JwtCodec.get_unverified_claims(access_token)
+        except ValueError:
             return
 
         token_jti = claims.get("jti")
@@ -224,30 +218,6 @@ class TokenService:
             pipeline.delete(self._device_key(user_id, device_id))
             await pipeline.execute()
 
-    def _encode_token(self, payload: dict, expires_delta: timedelta) -> str:
-        to_encode = payload.copy()
-        to_encode["exp"] = self._now() + expires_delta
-        return jwt.encode(
-            to_encode,
-            global_config.JWT_SECRET_KEY,
-            algorithm=global_config.JWT_ALGORITHM,
-        )
-
-    def _decode_token(self, token: str, expected_type: str) -> dict:
-        try:
-            payload = jwt.decode(
-                token,
-                global_config.JWT_SECRET_KEY,
-                algorithms=[global_config.JWT_ALGORITHM],
-            )
-        except JWTError as exc:
-            raise self._invalid_token_error() from exc
-
-        if payload.get("type") != expected_type or not payload.get("jti"):
-            raise self._invalid_token_error()
-
-        return payload
-
     def _extract_user_id(self, payload: dict) -> int:
         try:
             return int(payload["sub"])
@@ -314,7 +284,7 @@ class AuthService:
             select(User).options(joinedload(User.role)).where(User.email == email)
         )
         user = result.unique().scalar_one_or_none()
-        if user is None or not PasswordService.verify(password, user.password_hash):
+        if user is None or not password_hasher.verify(password, user.password_hash):
             return None
         return user
 
@@ -330,7 +300,7 @@ class AuthService:
 
         new_user = User(
             email=email,
-            password_hash=PasswordService.hash(password),
+            password_hash=password_hasher.hash(password),
             role=user_role,
         )
         self.db.add(new_user)
