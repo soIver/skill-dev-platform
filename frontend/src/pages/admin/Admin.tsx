@@ -1,11 +1,10 @@
 import { Outlet } from "react-router-dom";
-import HorNavBar from "../components/HorNavBar";
+import HorNavBar from "../../components/HorNavBar";
 
 export default function Admin() {
   const tabs = [
-    { to: "skills", label: "Навыки" },
-    { to: "recommendations", label: "Рекомендации" },
-    { to: "users", label: "Пользователи" },
+    { to: "management", label: "Управление" },
+    { to: "statistics", label: "Статистика" },
   ];
 
   return (

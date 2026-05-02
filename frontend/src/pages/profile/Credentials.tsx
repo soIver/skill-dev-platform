@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { authJson, logout } from "../auth";
-import { useToast } from "../components/ToastProvider";
-import { useUserStore, type GitHubProfile } from "../hooks/useStore";
-import GitHubIcon from "../assets/icons/github.svg?react";
+import { authJson, logout } from "../../auth";
+import { useToast } from "../../components/ToastProvider";
+import { useUserStore, type GitHubProfile } from "../../hooks/useStore";
+import GitHubIcon from "../../assets/icons/github.svg?react";
 
 export default function Credentials() {
   const location = useLocation();

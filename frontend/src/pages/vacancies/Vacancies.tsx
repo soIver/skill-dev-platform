@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import HorNavBar from "../components/HorNavBar";
+import HorNavBar from "../../components/HorNavBar";
 
 export default function Vacancies() {
   const tabs = [

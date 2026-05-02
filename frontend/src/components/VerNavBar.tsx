@@ -8,10 +8,11 @@ import VacanciesIcon from "../assets/icons/vacancies.svg?react";
 import ContentIcon from "../assets/icons/content.svg?react";
 import AdminIcon from "../assets/icons/admin.svg?react";
 import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
+import IsdLogo from "../assets/icons/isd-logo.svg?react";
 
 const NAV_WIDTH = {
   expanded: "w-64",
-  collapsed: "w-20",
+  collapsed: "w-26",
 };
 
 export default function VerNavBar() {
@@ -27,12 +28,17 @@ export default function VerNavBar() {
       ${isExpanded ? NAV_WIDTH.expanded : NAV_WIDTH.collapsed}`}
     >
       {/* лого */}
-      <div className="h-20 flex items-center px-6">
+      <div className="h-20 flex items-center px-6 overflow-hidden">
+        <IsdLogo
+          className={`shrink-0 transition-all duration-300 ${
+            isExpanded ? "w-0 opacity-0" : "w-15 h-15 opacity-100"
+          }`}
+        />
         <span
-          className={`text-2xl font-bold transition-all ${
+          className={`text-2xl font-bold whitespace-nowrap shrink-0 transition-all ${
             isExpanded
               ? "ml-2 opacity-100 duration-400"
-              : "opacity-0 duration-200"
+              : "max-w-0 opacity-0 duration-200"
           }`}
         >
           it-skill-dev
@@ -40,7 +46,7 @@ export default function VerNavBar() {
       </div>
 
       {/* область навигации */}
-      <nav className="flex-1 pe-2 py-4 space-y-2">
+      <nav className="flex-1 pe-2 py-4 space-y-3">
         <VerNavItem
           to="/profile"
           icon={ProfileIcon}
@@ -83,13 +89,16 @@ export default function VerNavBar() {
       </nav>
 
       {/* переключение состояния панели */}
-      <div className="p-3 flex justify-end">
+      <div className="relative h-12 mx-3 mb-3">
         <button
           onClick={() => setIsExpanded((prev) => !prev)}
-          className="h-12 w-12 flex items-center justify-center rounded-xl hover:bg-gray-100"
+          className="absolute top-0 h-12 w-12 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all duration-300"
+          style={{
+            left: isExpanded ? "calc(100% - 3rem)" : "calc(50% - 1.5rem)",
+          }}
         >
           <ArrowToggle
-            className={`w-5 h-5 transition-transform duration-300 ${
+            className={`w-6 h-6 transition-transform duration-300 ${
               isExpanded ? "rotate-180" : ""
             }`}
           />
@@ -120,7 +129,7 @@ function VerNavItem({
         ${isActive ? "bg-blue-50 text-primary-hover" : "text-gray-700 hover:bg-gray-100"}`}
     >
       {/* иконка раздела */}
-      <div className="w-11 min-w-11 flex items-center justify-center">
+      <div className="w-11 min-w-11 ml-3 flex items-center justify-center">
         <Icon className="w-9 h-9" />
       </div>
 

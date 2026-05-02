@@ -2,18 +2,20 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import Registration from "./pages/Registration";
 import Login from "./pages/Login";
-import Profile from "./pages/Profile";
-import Credentials from "./pages/Credentials";
-import Skills from "./pages/Skills";
+import Profile from "./pages/profile/Profile";
+import Credentials from "./pages/profile/Credentials";
+import Skills from "./pages/profile/Skills";
 import Tests from "./pages/Tests";
-import Vacancies from "./pages/Vacancies";
-import VacancyMatching from "./pages/VacancyMatching";
-import VacancyAnalysis from "./pages/VacancyAnalysis";
-import ContentManagement from "./pages/ContentManagement";
-import Admin from "./pages/Admin";
-import SkillsAdmin from "./pages/SkillsAdmin";
-import RecommendationsAdmin from "./pages/RecommendationsAdmin";
-import UsersAdmin from "./pages/UsersAdmin";
+import Vacancies from "./pages/vacancies/Vacancies";
+import VacancyMatching from "./pages/vacancies/Matching";
+import VacancyAnalysis from "./pages/vacancies/Analysis";
+import Content from "./pages/content/Content";
+import ContentSkills from "./pages/content/Skills";
+import ContentTests from "./pages/content/Tests";
+import ContentRecommendations from "./pages/content/Recommendations";
+import Admin from "./pages/admin/Admin";
+import Management from "./pages/admin/Management";
+import Statistics from "./pages/admin/Statistics";
 import RequireAuth from "./components/RequireAuth";
 import RootRedirect from "./components/RootRedirect";
 
@@ -60,10 +62,15 @@ export default function AppRoutes() {
         path="/content"
         element={
           <RequireAuth allowedRoles={["curator", "admin"]}>
-            <ContentManagement />
+            <Content />
           </RequireAuth>
         }
-      />
+      >
+        <Route index element={<Navigate to="skills" replace />} />
+        <Route path="skills" element={<ContentSkills />} />
+        <Route path="tests" element={<ContentTests />} />
+        <Route path="recommendations" element={<ContentRecommendations />} />
+      </Route>
       <Route
         path="/admin"
         element={
@@ -72,10 +79,9 @@ export default function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="skills" replace />} />
-        <Route path="skills" element={<SkillsAdmin />} />
-        <Route path="recommendations" element={<RecommendationsAdmin />} />
-        <Route path="users" element={<UsersAdmin />} />
+        <Route index element={<Navigate to="management" replace />} />
+        <Route path="management" element={<Management />} />
+        <Route path="statistics" element={<Statistics />} />
       </Route>
     </Routes>
   );
