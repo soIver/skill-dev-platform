@@ -3,7 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..utils.database import get_db
 from ..config import global_config
-from .schemas import AuthResponse, Credentials, MessageResponse, UserResponse
+from .schemas import (
+    AuthResponse,
+    LoginCredentials,
+    MessageResponse,
+    RegistrationCredentials,
+    UserResponse,
+)
 from .service import AuthService, TokenPair
 from .utils import TokenClaims, get_current_user
 
@@ -12,25 +18,34 @@ router = APIRouter(prefix="/auth")
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
-    credentials: Credentials,
+    credentials: LoginCredentials,
     response: Response,
     db: AsyncSession = Depends(get_db),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
 ):
     auth = AuthService(db)
-    user, token_pair = await auth.login(credentials.email, credentials.password, device_id)
+    user, token_pair = await auth.login(
+        credentials.identifier,
+        credentials.password,
+        device_id,
+    )
     _set_auth_cookies(response, token_pair)
     return _build_auth_response(user)
 
 
 @router.post("/register", response_model=AuthResponse)
 async def register(
-    credentials: Credentials,
+    credentials: RegistrationCredentials,
     response: Response,
     db: AsyncSession = Depends(get_db),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
 ):
     auth = AuthService(db)
+    user = await auth.register(
+        credentials.username,
+        credentials.email,
+        credentials.password,
+    )
     user, token_pair = await auth.login(credentials.email, credentials.password, device_id)
     _set_auth_cookies(response, token_pair)
     return _build_auth_response(user)
@@ -54,7 +69,12 @@ async def refresh_tokens(
 
 @router.get("/session", response_model=UserResponse)
 async def get_session(claims: TokenClaims = Depends(get_current_user)):
-    return UserResponse(id=claims.user_id, email=claims.email, role=claims.role)
+    return UserResponse(
+        id=claims.user_id,
+        username=claims.username,
+        email=claims.email,
+        role=claims.role,
+    )
 
 
 @router.post("/logout", response_model=MessageResponse)
@@ -84,6 +104,7 @@ def _build_auth_response(user) -> AuthResponse:
     return AuthResponse(
         user={
             "id": user.id,
+            "username": user.username,
             "email": user.email,
             "role": role_name,
         }

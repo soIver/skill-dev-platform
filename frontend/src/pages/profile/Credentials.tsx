@@ -186,6 +186,13 @@ export default function Credentials() {
           <div className="space-y-6">
             <div className="flex items-center">
               <div>
+                <p className="text-sm text-gray-500">Имя пользователя</p>
+                <p className="text-lg font-medium">{user?.username}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center">
+              <div>
                 <p className="text-sm text-gray-500">Электронная почта</p>
                 <p className="text-lg font-medium">{user?.email}</p>
               </div>

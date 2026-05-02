@@ -41,7 +41,7 @@ export default function VerNavBar() {
               : "max-w-0 opacity-0 duration-200"
           }`}
         >
-          it-skill-dev
+          IT-SKILL-DEV
         </span>
       </div>
 

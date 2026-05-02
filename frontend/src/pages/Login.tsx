@@ -5,7 +5,7 @@ import { login } from "../auth";
 import { useToast } from "../components/ToastProvider";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -14,7 +14,7 @@ export default function Login() {
     e.preventDefault();
 
     try {
-      await login({ email, password });
+      await login({ identifier, password });
       showToast({
         title: "Вход выполнен",
         message: "Вы успешно вошли в аккаунт.",
@@ -46,14 +46,14 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Электронная почта
+              Электронная почта или имя пользователя
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="input-field"
-              placeholder="you@example.com"
+              placeholder="you@example.com или username"
               required
             />
           </div>

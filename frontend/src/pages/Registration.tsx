@@ -5,6 +5,7 @@ import { register } from "../auth";
 import { useToast } from "../components/ToastProvider";
 
 export default function Registration() {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
@@ -24,7 +25,7 @@ export default function Registration() {
     }
 
     try {
-      await register({ email, password });
+      await register({ username, email, password });
       showToast({
         title: "Регистрация завершена",
         message: "Аккаунт успешно создан.",
@@ -50,6 +51,20 @@ export default function Registration() {
         <h1 className="auth-panel-header">Регистрация</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Имя пользователя
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="input-field"
+              placeholder="username"
+              required
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Электронная почта

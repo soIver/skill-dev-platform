@@ -41,6 +41,7 @@ async def get_current_user(
     try:
         return TokenClaims(
             user_id=int(payload["sub"]),
+            username=payload["username"],
             email=payload["email"],
             role=payload["role"],
             jti=payload["jti"],

@@ -81,6 +81,7 @@ async def create_admin():
             return
 
         admin_user = User(
+            username="admin",
             email=global_config.ADMIN_EMAIL,
             password_hash=password_hasher.hash(global_config.ADMIN_PASSWORD),
             role_id=admin_role.id,

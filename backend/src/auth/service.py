@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -47,6 +47,7 @@ class TokenService:
         access_token = jwt_codec.encode(
             {
                 "sub": str(user.id),
+                "username": user.username,
                 "email": user.email,
                 "role": role_name,
                 "type": "access",
@@ -268,6 +269,7 @@ class TokenService:
 @dataclass(slots=True, frozen=True)
 class TokenClaims:
     user_id: int
+    username: str
     email: str
     role: str
     jti: str
@@ -279,26 +281,34 @@ class AuthService:
         self.db = db
         self.token_service = TokenService(db)
 
-    async def authenticate(self, email: str, password: str) -> User | None:
+    async def authenticate(self, identifier: str, password: str) -> User | None:
         result = await self.db.execute(
-            select(User).options(joinedload(User.role)).where(User.email == email)
+            select(User).options(joinedload(User.role)).where(
+                or_(User.email == identifier, User.username == identifier)
+            )
         )
         user = result.unique().scalar_one_or_none()
         if user is None or not password_hasher.verify(password, user.password_hash):
             return None
         return user
 
-    async def register(self, email: str, password: str) -> User | None:
-        existing = await self.db.execute(select(User).where(User.email == email))
-        if existing.scalar_one_or_none() is not None:
-            return None
+    async def register(self, username: str, email: str, password: str) -> User:
+        existing_user = await self.db.execute(
+            select(User).where(or_(User.email == email, User.username == username))
+        )
+        existing = existing_user.scalar_one_or_none()
+        if existing is not None:
+            if existing.email == email:
+                raise UserAlreadyExistsError("Пользователь с таким email уже существует")
+            raise UserAlreadyExistsError("Пользователь с таким именем уже существует")
 
         role_result = await self.db.execute(select(Role).where(Role.name == "user"))
         user_role = role_result.scalar_one_or_none()
         if user_role is None:
-            return None
+            raise RuntimeError("Роль user не найдена")
 
         new_user = User(
+            username=username,
             email=email,
             password_hash=password_hasher.hash(password),
             role=user_role,
@@ -311,10 +321,10 @@ class AuthService:
         )
         return result.unique().scalar_one()
 
-    async def login(self, email: str, password: str, device_id: str | None) -> tuple[User, TokenPair]:
-        user = await self.authenticate(email, password)
+    async def login(self, identifier: str, password: str, device_id: str | None) -> tuple[User, TokenPair]:
+        user = await self.authenticate(identifier, password)
         if not user:
-            raise InvalidCredentialsError("Неверный email или пароль")
+            raise InvalidCredentialsError("Неверный email, логин или пароль")
         token_pair = await self.token_service.issue_token_pair(user, device_id)
         return user, token_pair
 
@@ -339,6 +349,12 @@ class AuthService:
 class InvalidCredentialsError(HTTPException):
     def __init__(self, detail: str):
         super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+class UserAlreadyExistsError(HTTPException):
+    def __init__(self, detail: str):
+        super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
 
 class InvalidTokenError(HTTPException):
     def __init__(self, detail: str):

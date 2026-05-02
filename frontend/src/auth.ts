@@ -7,6 +7,12 @@ interface AuthResponse {
 }
 
 interface Credentials {
+  identifier: string;
+  password: string;
+}
+
+interface RegistrationCredentials {
+  username: string;
   email: string;
   password: string;
 }
@@ -64,7 +70,7 @@ export async function login(credentials: Credentials): Promise<void> {
   applyAuthSession(data);
 }
 
-export async function register(credentials: Credentials): Promise<void> {
+export async function register(credentials: RegistrationCredentials): Promise<void> {
   const data = await fetchAuth("/auth/register", credentials);
   applyAuthSession(data);
 }
