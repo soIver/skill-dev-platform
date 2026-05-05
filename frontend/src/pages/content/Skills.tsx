@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
 import { useContentStore, type ProficiencyItem } from "../../hooks/useContentStore";
+import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 
 interface SearchResponse {
   items: ProficiencyItem[];
@@ -48,7 +49,6 @@ export default function SkillsAdmin() {
     }
 
     timerRef.current = setTimeout(() => {
-      // Avoid fetching if the current input exactly matches the last search
       if (
         skillInput === lastSearch.skill &&
         levelInput === lastSearch.level &&
@@ -100,6 +100,34 @@ export default function SkillsAdmin() {
 
   const canCreate = !isSearching && !isDebouncing && !isCreating && !hasExactMatch && skillInput.trim() !== "" && levelInput.trim() !== "";
 
+  const columns: Column<ProficiencyItem>[] = [
+    {
+      key: "skill_name",
+      header: "Название",
+      align: "center",
+      width: "w-1/3",
+      render: (item) => <span className="text-gray-900">{item.skill_name}</span>,
+    },
+    {
+      key: "level_name",
+      header: "Уровень",
+      align: "center",
+      width: "w-1/3",
+      render: (item) => (
+        <span className="inline-block px-2 py-1 bg-gray-100 rounded text-sm text-gray-800">
+          {item.level_name}
+        </span>
+      ),
+    },
+    {
+      key: "obtained_count",
+      header: "Получен",
+      align: "center",
+      width: "w-1/3",
+      render: (item) => <span className="text-gray-500">{item.obtained_count}</span>,
+    },
+  ];
+
   return (
     <div className="flex gap-8 h-[calc(100vh-12rem)] min-h-[600px]">
       <div className="workspace-panel flex-1 flex flex-col h-full">
@@ -107,7 +135,7 @@ export default function SkillsAdmin() {
 
         <div className="flex gap-4 mb-6">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Навык</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Название</label>
             <input
               type="text"
               value={skillInput}
@@ -136,61 +164,15 @@ export default function SkillsAdmin() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto border border-gray-200 rounded-lg bg-white">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-50 sticky top-0 shadow-sm">
-              <tr>
-                <th className="py-3 px-4 font-medium text-gray-700 text-center w-1/3">Навык</th>
-                <th className="py-3 px-4 font-medium text-gray-700 text-center w-1/3">Уровень</th>
-                <th className="py-3 px-4 font-medium text-gray-700 text-center w-1/3">Получен</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {results.length > 0 ? (
-                results.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4 text-gray-900 text-center">{item.skill_name}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="inline-block px-2 py-1 bg-gray-100 rounded text-sm text-gray-800">
-                        {item.level_name}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-500">{item.obtained_count}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={3} className="py-8 text-center text-gray-500">
-                    {isSearching || isDebouncing ? "Поиск..." : "Навыки не найдены"}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div
-          className={`flex justify-center items-center gap-4 mt-4 transition-opacity duration-300 ${totalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-        >
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
-          >
-            ←
-          </button>
-          <span className="text-sm text-gray-600">
-            Страница {currentPage} из {totalPages}
-          </span>
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
-          >
-            →
-          </button>
-        </div>
+        <PaginatedTable
+          columns={columns}
+          data={results}
+          isLoading={isSearching || isDebouncing}
+          emptyMessage="Навыки не найдены"
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       <div className="workspace-panel flex-1 flex flex-col h-full">

@@ -107,6 +107,7 @@ class Test(Base):
     )
     time_limit_minutes = Column(Integer, nullable=True)
     threshold_score = Column(Integer, nullable=True)
+    variant = Column(Integer, nullable=False)
     is_published = Column(Boolean, default=False)
     author_id = Column(
         Integer,
