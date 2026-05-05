@@ -69,7 +69,7 @@ class Level(Base):
 
 
 class SkillLevel(Base):
-    __tablename__ = "skill_levels"
+    __tablename__ = "proficiencies"
 
     id = Column(Integer, primary_key=True)
     skill_id = Column(
@@ -100,9 +100,9 @@ class Test(Base):
     __tablename__ = "tests"
 
     id = Column(Integer, primary_key=True)
-    skill_level_id = Column(
+    proficiency_id = Column(
         Integer,
-        ForeignKey("skill_levels.id"),
+        ForeignKey("proficiencies.id"),
         nullable=True,
     )
     time_limit_minutes = Column(Integer, nullable=True)
@@ -116,7 +116,7 @@ class Test(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    skill_level = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("SkillLevel", lazy="select")
     author = relationship("User", lazy="select")
 
 
@@ -176,7 +176,7 @@ class UserTestAttempt(Base):
 
 
 class UserSkill(Base):
-    __tablename__ = "user_skills"
+    __tablename__ = "user_proficiencies"
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
@@ -184,16 +184,16 @@ class UserSkill(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    skill_level_id = Column(
+    proficiency_id = Column(
         Integer,
-        ForeignKey("skill_levels.id"),
+        ForeignKey("proficiencies.id"),
         nullable=True,
     )
     obtained_date = Column(Date, server_default=func.current_date())
     repeated_date = Column(Date, nullable=True)
 
     user = relationship("User", lazy="select")
-    skill_level = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("SkillLevel", lazy="select")
 
 
 class Vacancy(Base):
@@ -237,7 +237,7 @@ class VacancyKeyword(Base):
 
 
 class VacancySkill(Base):
-    __tablename__ = "vacancy_skills"
+    __tablename__ = "vacancy_proficiencies"
 
     id = Column(Integer, primary_key=True)
     vacancy_id = Column(
@@ -245,14 +245,14 @@ class VacancySkill(Base):
         ForeignKey("vacancies.id", ondelete="CASCADE"),
         nullable=False,
     )
-    skill_level_id = Column(
+    proficiency_id = Column(
         Integer,
-        ForeignKey("skill_levels.id"),
+        ForeignKey("proficiencies.id"),
         nullable=True,
     )
 
     vacancy = relationship("Vacancy", lazy="select")
-    skill_level = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("SkillLevel", lazy="select")
 
 
 class Recommendation(Base):
@@ -277,9 +277,9 @@ class SkillRecommendation(Base):
     __tablename__ = "skill_recommendations"
 
     id = Column(Integer, primary_key=True)
-    skill_level_id = Column(
+    proficiency_id = Column(
         Integer,
-        ForeignKey("skill_levels.id", ondelete="CASCADE"),
+        ForeignKey("proficiencies.id", ondelete="CASCADE"),
         nullable=False,
     )
     recommendation_id = Column(
@@ -288,7 +288,7 @@ class SkillRecommendation(Base):
         nullable=False,
     )
 
-    skill_level = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("SkillLevel", lazy="select")
     recommendation = relationship("Recommendation", lazy="select")
 
 
