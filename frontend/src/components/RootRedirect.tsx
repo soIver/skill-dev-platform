@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 
-import { useUserStore } from "../hooks/useStore";
+import { useUserStore } from "../hooks/useUserStore";
 
 export default function RootRedirect() {
   const isHydrated = useUserStore((state) => state.isHydrated);

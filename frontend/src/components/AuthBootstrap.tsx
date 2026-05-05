@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { syncSession } from "../auth";
-import { useUserStore } from "../hooks/useStore";
+import { useUserStore } from "../hooks/useUserStore";
 
 const PUBLIC_PATHS = new Set(["/", "/auth/login", "/auth/registration"]);
 

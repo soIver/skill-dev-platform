@@ -3,13 +3,13 @@ import HorNavBar from "../../components/HorNavBar";
 
 export default function Content() {
   const tabs = [
-    { to: "skills", label: "Навыки" },
     { to: "tests", label: "Тесты" },
+    { to: "skills", label: "Навыки" },
     { to: "recommendations", label: "Рекомендации" },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="mx-auto min-w-fit" style={{ maxWidth: '90%' }}>
       <HorNavBar tabs={tabs} />
       <Outlet />
     </div>

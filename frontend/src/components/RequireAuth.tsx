@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 
-import { useUserStore } from "../hooks/useStore";
+import { useUserStore } from "../hooks/useUserStore";
 
 interface RequireAuthProps {
   children: ReactNode;

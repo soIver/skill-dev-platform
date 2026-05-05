@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useUserStore } from "../hooks/useStore";
+import { useUserStore } from "../hooks/useUserStore";
 
 import ProfileIcon from "../assets/icons/profile.svg?react";
 import TestsIcon from "../assets/icons/tests.svg?react";
@@ -16,7 +16,7 @@ const NAV_WIDTH = {
 };
 
 export default function VerNavBar() {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const location = useLocation();
   const user = useUserStore((state) => state.user);
 
@@ -35,8 +35,8 @@ export default function VerNavBar() {
         />
         <span
           className={`text-2xl font-bold whitespace-nowrap shrink-0 transition-all ${isExpanded
-              ? "ml-2 opacity-100 duration-400"
-              : "max-w-0 opacity-0 duration-200"
+            ? "ml-2 opacity-100 duration-400"
+            : "max-w-0 opacity-0 duration-200"
             }`}
         >
           IT-SKILL-DEV

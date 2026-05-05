@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { useUserStore, type User } from "./hooks/useStore";
+import { useUserStore, type User } from "./hooks/useUserStore";
 
 interface AuthResponse {
   token_type: string;

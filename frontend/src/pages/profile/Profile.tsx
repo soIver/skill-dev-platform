@@ -8,7 +8,7 @@ export default function Profile() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="mx-auto min-w-fit" style={{ maxWidth: '90%' }}>
       <HorNavBar tabs={tabs} />
       <Outlet />
     </div>

@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { authJson, logout } from "../../auth";
 import { useToast } from "../../components/ToastProvider";
-import { useUserStore, type GitHubProfile } from "../../hooks/useStore";
+import { useUserStore, type GitHubProfile } from "../../hooks/useUserStore";
 import GitHubIcon from "../../assets/icons/github.svg?react";
 
 export default function Credentials() {
