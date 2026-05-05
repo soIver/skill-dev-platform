@@ -11,7 +11,7 @@ import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
 import IsdLogo from "../assets/icons/isd-logo.svg?react";
 
 const NAV_WIDTH = {
-  expanded: "w-64",
+  expanded: "w-68",
   collapsed: "w-26",
 };
 
@@ -30,16 +30,14 @@ export default function VerNavBar() {
       {/* лого */}
       <div className="h-20 flex items-center px-6 overflow-hidden">
         <IsdLogo
-          className={`shrink-0 transition-all duration-300 ${
-            isExpanded ? "w-0 opacity-0" : "w-15 h-15 opacity-100"
-          }`}
+          className={`shrink-0 transition-all duration-300 ${isExpanded ? "w-0 opacity-0" : "w-15 h-15 opacity-100"
+            }`}
         />
         <span
-          className={`text-2xl font-bold whitespace-nowrap shrink-0 transition-all ${
-            isExpanded
+          className={`text-2xl font-bold whitespace-nowrap shrink-0 transition-all ${isExpanded
               ? "ml-2 opacity-100 duration-400"
               : "max-w-0 opacity-0 duration-200"
-          }`}
+            }`}
         >
           IT-SKILL-DEV
         </span>
@@ -98,9 +96,8 @@ export default function VerNavBar() {
           }}
         >
           <ArrowToggle
-            className={`w-6 h-6 transition-transform duration-300 ${
-              isExpanded ? "rotate-180" : ""
-            }`}
+            className={`w-6 h-6 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""
+              }`}
           />
         </button>
       </div>
@@ -135,9 +132,8 @@ function VerNavItem({
 
       {/* название раздела */}
       <div
-        className={`text-md overflow-hidden transition-all duration-300${
-          isExpanded ? "max-w-[200px] opacity-100 ml-2" : "max-w-0 opacity-0"
-        }`}
+        className={`text-md overflow-hidden transition-all duration-300${isExpanded ? "max-w-[200px] opacity-100 ml-2" : "max-w-0 opacity-0"
+          }`}
       >
         <span className="whitespace-nowrap">{label}</span>
       </div>
