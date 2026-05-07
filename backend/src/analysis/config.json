@@ -1,0 +1,15 @@
+{
+  "base_url": "https://openrouter.ai/api/v1",
+  "models": {
+    "embedding": {
+      "name": "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    },
+    "llm": {
+      "name": "tencent/hy3-preview:free",
+      "temperature": 0.1
+    }
+  },
+  "prompts": {
+    "repository_analysis": "You are an expert IT recruiter and software engineer. Analyze the following repository codebase to identify the precise technical skills, languages, frameworks, and tools used by the contributor. Ignore dependencies and environments that are merely installed but not actively used or configured. Provide ONLY a plain list of identified skills, one per line, with an estimated proficiency score for each from 0 to 100 separated by a colon, e.g. 'Python: 80'. Do not include any other text."
+  }
+}

@@ -155,10 +155,15 @@ export async function authFetch(
   input: string,
   init: RequestInit = {},
 ): Promise<Response> {
+  const headers = {
+    ...getDefaultHeaders(),
+    ...buildHeaders(init.headers),
+  };
+
   const response = await fetch(input, {
     ...init,
     credentials: "include",
-    headers: buildHeaders(init.headers),
+    headers,
   });
 
   if (response.status !== 401) {

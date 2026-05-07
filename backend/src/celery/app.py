@@ -11,6 +11,8 @@ celery_app = Celery(
 celery_app.conf.update(
     timezone="Europe/Moscow",
     enable_utc=False,
-    worker_log_level=global_config.DEFAULT_LOGGER_LEVEL,
-    beat_schedule_filename=f"data/celerybeat-schedule"
+    beat_schedule_filename=f"data/celerybeat-schedule",
+    worker_hijack_root_logger=False
 )
+
+celery_app.autodiscover_tasks(["src.celery"])

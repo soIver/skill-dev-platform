@@ -1,6 +1,7 @@
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, relationship
+from pgvector.sqlalchemy import Vector
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -63,15 +64,15 @@ class RepoSkill(Base):
         ForeignKey("user_repos.id", ondelete="CASCADE"),
         nullable=False,
     )
-    proficiency_id = Column(
+    skill_id = Column(
         Integer,
-        ForeignKey("proficiencies.id"),
+        ForeignKey("skills.id"),
         nullable=True,
     )
     score = Column(Integer, nullable=False)
 
     user_repo = relationship("UserRepo", lazy="select")
-    proficiency = relationship("Proficiency", lazy="select")
+    skill = relationship("Skill", lazy="select")
 
 
 class Skill(Base):
@@ -79,6 +80,7 @@ class Skill(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
+    embedding = Column(Vector(384), nullable=True)
 
 
 class Level(Base):
@@ -137,7 +139,7 @@ class Test(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    proficiency = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("Proficiency", lazy="select")
     author = relationship("User", lazy="select")
 
 
@@ -214,7 +216,7 @@ class UserProficiency(Base):
     repeated_date = Column(Date, nullable=True)
 
     user = relationship("User", lazy="select")
-    proficiency = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("Proficiency", lazy="select")
 
 
 class Vacancy(Base):
@@ -273,7 +275,7 @@ class VacancyProficiency(Base):
     )
 
     vacancy = relationship("Vacancy", lazy="select")
-    proficiency = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("Proficiency", lazy="select")
 
 
 class Recommendation(Base):
@@ -309,7 +311,7 @@ class SkillRecommendation(Base):
         nullable=False,
     )
 
-    proficiency = relationship("SkillLevel", lazy="select")
+    proficiency = relationship("Proficiency", lazy="select")
     recommendation = relationship("Recommendation", lazy="select")
 
 

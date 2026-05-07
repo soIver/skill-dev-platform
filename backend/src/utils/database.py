@@ -35,6 +35,8 @@ async def get_db() -> AsyncSession:
 
 async def init_tables():
     async with engine.begin() as conn:
+        from sqlalchemy import text
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
         logger.debug("Таблицы БД созданы")
 

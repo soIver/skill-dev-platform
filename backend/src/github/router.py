@@ -93,6 +93,20 @@ async def get_github_profile(
         "profile_url": profile.profile_url,
     }
 
+@router.get("/repos")
+async def get_github_repos(
+    claims: TokenClaims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        repos = await GitHubService(db).get_user_repositories(claims.user_id)
+        return repos
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
 
 @router.delete("/connection", response_model=GitHubDisconnectResponse)
 async def disconnect_github(

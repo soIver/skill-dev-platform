@@ -12,6 +12,7 @@ from .utils.database import init_database
 from .github.router import router as github_router
 from .skills.router import router as skills_router
 from .recommendations.router import router as recommendations_router
+from .analysis.router import router as analysis_router
 
 
 app = FastAPI()
@@ -26,6 +27,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(github_router, prefix="/api")
 app.include_router(skills_router, prefix="/api")
 app.include_router(recommendations_router, prefix="/api")
+app.include_router(analysis_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

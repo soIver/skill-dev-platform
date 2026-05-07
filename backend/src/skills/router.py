@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
+from .schemas import ProficiencyCreateRequest, ProficiencySearchResponse, ProficiencyItem
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
 from ..models import Skill, Level, Proficiency, UserProficiency
-from .schemas import ProficiencyCreateRequest, ProficiencySearchResponse, ProficiencyItem
+from ..analysis.utils import get_embedding
 
 router = APIRouter(tags=["Skills"])
 
@@ -81,7 +82,8 @@ async def create_proficiency(
     skill_obj = skill_result.scalar_one_or_none()
     
     if not skill_obj:
-        skill_obj = Skill(name=req.skill_name)
+        embedding = await get_embedding(req.skill_name)
+        skill_obj = Skill(name=req.skill_name, embedding=embedding)
         db.add(skill_obj)
         await db.flush()
         

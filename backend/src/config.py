@@ -60,6 +60,9 @@ class Config:
         "ALLOWED_ORIGINS", "http://localhost:5173, http://127.0.0.1:5173"
     ).split(",")
     RATE_LIMIT_RPM = 100 # запросов в минуту
+    
+    # LLM
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
     @classmethod
     def string_encryption_key(cls) -> bytes:
@@ -78,6 +81,7 @@ class Config:
     def validate(cls):
         if not all((cls.DATABASE_URL, cls.REDIS_URL, 
                     cls.JWT_SECRET_KEY, cls.STRING_ENCRYPTION_SECRET,
+                    cls.GITHUB_CLIENT_ID, cls.GITHUB_CLIENT_SECRET, cls.OPENROUTER_API_KEY,
                     cls.ADMIN_EMAIL, cls.ADMIN_PASSWORD)):
             print("Переменные среды требуют проверки")
             return False

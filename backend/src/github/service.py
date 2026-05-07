@@ -108,6 +108,53 @@ class GitHubService:
             await self.db.commit()
             return None
 
+    async def get_user_repositories(self, user_id: int) -> list[dict]:
+        user = await get_user_by_id(self.db, user_id)
+        if user is None or not user.github_token:
+            return []
+
+        try:
+            access_token = string_cipher.decrypt(user.github_token)
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    "https://api.github.com/user/repos?visibility=public&affiliation=owner",
+                    headers={
+                        "Accept": "application/vnd.github+json",
+                        "Authorization": f"Bearer {access_token}",
+                        "X-GitHub-Api-Version": global_config.GITHUB_API_VERSION,
+                    },
+                )
+                if response.status_code >= 400:
+                    logger.warning("Error fetching repos: %s", response.status_code)
+                    return []
+                    
+                repos = response.json()
+                result = []
+                for repo in repos:
+                    contrib_url = repo.get("contributors_url")
+                    if contrib_url:
+                        c_response = await client.get(
+                            contrib_url,
+                            headers={
+                                "Accept": "application/vnd.github+json",
+                                "Authorization": f"Bearer {access_token}",
+                                "X-GitHub-Api-Version": global_config.GITHUB_API_VERSION,
+                            },
+                        )
+                        if c_response.status_code == 200:
+                            contributors = c_response.json()
+                            if len(contributors) == 1 and contributors[0].get("login") == repo["owner"]["login"]:
+                                result.append({
+                                    "name": repo["name"],
+                                    "url": repo["html_url"],
+                                    "description": repo.get("description")
+                                })
+                return result
+        except Exception as exc:
+            logger.warning("Failed to fetch repositories for user %s: %s", user_id, exc)
+            return []
+
     async def disconnect(self, user_id: int) -> None:
         user = await get_user_by_id(self.db, user_id)
         if user is None or not user.github_token:
