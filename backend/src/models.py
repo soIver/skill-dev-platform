@@ -54,6 +54,26 @@ class UserRepo(Base):
     user = relationship("User", lazy="select")
 
 
+class RepoSkill(Base):
+    __tablename__ = "repo_skills"
+
+    id = Column(Integer, primary_key=True)
+    repo_id = Column(
+        Integer,
+        ForeignKey("user_repos.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    proficiency_id = Column(
+        Integer,
+        ForeignKey("proficiencies.id"),
+        nullable=True,
+    )
+    score = Column(Integer, nullable=False)
+
+    user_repo = relationship("UserRepo", lazy="select")
+    proficiency = relationship("Proficiency", lazy="select")
+
+
 class Skill(Base):
     __tablename__ = "skills"
 
@@ -68,7 +88,7 @@ class Level(Base):
     name = Column(String, unique=True, nullable=False)
 
 
-class SkillLevel(Base):
+class Proficiency(Base):
     __tablename__ = "proficiencies"
 
     id = Column(Integer, primary_key=True)
@@ -176,7 +196,7 @@ class UserTestAttempt(Base):
     test = relationship("Test", lazy="select")
 
 
-class UserSkill(Base):
+class UserProficiency(Base):
     __tablename__ = "user_proficiencies"
 
     id = Column(Integer, primary_key=True)
@@ -237,7 +257,7 @@ class VacancyKeyword(Base):
     keyword = relationship("Keyword", lazy="select")
 
 
-class VacancySkill(Base):
+class VacancyProficiency(Base):
     __tablename__ = "vacancy_proficiencies"
 
     id = Column(Integer, primary_key=True)

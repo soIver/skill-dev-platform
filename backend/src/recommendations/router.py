@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Recommendation, UserRecommendation, SkillRecommendation, SkillLevel, Skill, Level
+from ..models import Recommendation, UserRecommendation, SkillRecommendation, Proficiency, Skill, Level
 from .schemas import (
     RecommendationSearchResponse, 
     RecommendationItem, 
@@ -93,10 +93,10 @@ async def get_recommendation(
         raise HTTPException(status_code=404, detail="Recommendation not found")
         
     skills_query = (
-        select(SkillRecommendation, SkillLevel, Skill, Level)
-        .join(SkillLevel, SkillRecommendation.proficiency_id == SkillLevel.id)
-        .join(Skill, SkillLevel.skill_id == Skill.id)
-        .join(Level, SkillLevel.level_id == Level.id)
+        select(SkillRecommendation, Proficiency, Skill, Level)
+        .join(Proficiency, SkillRecommendation.proficiency_id == Proficiency.id)
+        .join(Skill, Proficiency.skill_id == Skill.id)
+        .join(Level, Proficiency.level_id == Level.id)
         .where(SkillRecommendation.recommendation_id == rec_id)
     )
     skills_result = await db.execute(skills_query)

@@ -5,7 +5,7 @@ from sqlalchemy import select, func, and_
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Skill, Level, SkillLevel, UserSkill
+from ..models import Skill, Level, Proficiency, UserProficiency
 from .schemas import ProficiencyCreateRequest, ProficiencySearchResponse, ProficiencyItem
 
 router = APIRouter(tags=["Skills"])
@@ -20,28 +20,28 @@ async def search_proficiencies(
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
     query = select(
-        SkillLevel.id,
+        Proficiency.id,
         Skill.name.label("skill_name"),
         Level.name.label("level_name"),
-        func.count(UserSkill.id).label("obtained_count")
-    ).join(Skill, SkillLevel.skill_id == Skill.id) \
-     .join(Level, SkillLevel.level_id == Level.id) \
-     .outerjoin(UserSkill, UserSkill.proficiency_id == SkillLevel.id)
+        func.count(UserProficiency.id).label("obtained_count")
+    ).join(Skill, Proficiency.skill_id == Skill.id) \
+     .join(Level, Proficiency.level_id == Level.id) \
+     .outerjoin(UserProficiency, UserProficiency.proficiency_id == Proficiency.id)
      
     if skill:
         query = query.where(Skill.name.ilike(f"%{skill}%"))
     if level:
         query = query.where(Level.name.ilike(f"%{level}%"))
 
-    query = query.group_by(SkillLevel.id, Skill.name, Level.name)
-    query = query.order_by(func.count(UserSkill.id).desc(), Skill.name, Level.name)
+    query = query.group_by(Proficiency.id, Skill.name, Level.name)
+    query = query.order_by(func.count(UserProficiency.id).desc(), Skill.name, Level.name)
 
     offset = (page - 1) * limit
     
     count_query = select(func.count()).select_from(
-        select(SkillLevel.id)
-        .join(Skill, SkillLevel.skill_id == Skill.id)
-        .join(Level, SkillLevel.level_id == Level.id)
+        select(Proficiency.id)
+        .join(Skill, Proficiency.skill_id == Skill.id)
+        .join(Level, Proficiency.level_id == Level.id)
     )
     if skill:
         count_query = count_query.where(Skill.name.ilike(f"%{skill}%"))
@@ -94,14 +94,14 @@ async def create_proficiency(
         await db.flush()
         
     prof_result = await db.execute(
-        select(SkillLevel).where(
-            and_(SkillLevel.skill_id == skill_obj.id, SkillLevel.level_id == level_obj.id)
+        select(Proficiency).where(
+            and_(Proficiency.skill_id == skill_obj.id, Proficiency.level_id == level_obj.id)
         )
     )
     prof_obj = prof_result.scalar_one_or_none()
     
     if prof_obj:
-        obtained_count = await db.scalar(select(func.count(UserSkill.id)).where(UserSkill.proficiency_id == prof_obj.id))
+        obtained_count = await db.scalar(select(func.count(UserProficiency.id)).where(UserProficiency.proficiency_id == prof_obj.id))
         return ProficiencyItem(
             id=prof_obj.id,
             skill_name=skill_obj.name,
@@ -110,12 +110,12 @@ async def create_proficiency(
         )
         
     max_idx_result = await db.execute(
-        select(func.max(SkillLevel.order_index)).where(SkillLevel.skill_id == skill_obj.id)
+        select(func.max(Proficiency.order_index)).where(Proficiency.skill_id == skill_obj.id)
     )
     max_idx = max_idx_result.scalar()
     new_order_index = (max_idx + 1) if max_idx is not None else 1
     
-    new_prof = SkillLevel(
+    new_prof = Proficiency(
         skill_id=skill_obj.id,
         level_id=level_obj.id,
         order_index=new_order_index,
