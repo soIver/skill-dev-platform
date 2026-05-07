@@ -16,6 +16,7 @@ interface PaginatedTableProps<T> {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  onRowClick?: (item: T) => void;
 }
 
 export function PaginatedTable<T extends { id: number | string }>({
@@ -26,6 +27,7 @@ export function PaginatedTable<T extends { id: number | string }>({
   currentPage,
   totalPages,
   onPageChange,
+  onRowClick,
 }: PaginatedTableProps<T>) {
   return (
     <>
@@ -48,7 +50,11 @@ export function PaginatedTable<T extends { id: number | string }>({
           <tbody className="divide-y divide-gray-200">
             {data.length > 0 ? (
               data.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                <tr 
+                  key={item.id} 
+                  className={`transition-colors ${onRowClick ? "cursor-pointer hover:bg-gray-100" : "hover:bg-gray-50"}`}
+                  onClick={() => onRowClick?.(item)}
+                >
                   {columns.map((col) => (
                     <td
                       key={col.key}

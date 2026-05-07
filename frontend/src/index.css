@@ -5,6 +5,8 @@
     --color-primary-hover: #2086ca;
     --color-danger: #ef4444;
     --color-danger-hover: #ef6161;
+    --color-success: #10b981;
+    --color-success-hover: #059669;
 }
 
 @layer components {
@@ -81,7 +83,8 @@
     }
 
     .toast-viewport {
-        @apply fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 pointer-events-none;
+        @apply fixed right-4 bottom-4 z-50 flex flex-col gap-3 pointer-events-none;
+        width: min(24rem, calc(100vw - 2rem));
     }
 
     .toast-item {
@@ -166,4 +169,20 @@ html,
 
 .input-field-error {
     animation: field-error-flash 2s ease-out;
+}
+
+@keyframes slide-in-right {
+    from {
+        opacity: 0;
+        transform: translate(10px, -50%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(0, -50%);
+    }
+}
+
+.animate-slide-in-right {
+    animation: slide-in-right 200ms ease-out forwards;
 }

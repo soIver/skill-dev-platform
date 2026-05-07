@@ -24,12 +24,31 @@ export interface RecommendationItem {
   status: string;
 }
 
+export interface SkillRecommendationItem {
+  proficiency_id: number;
+  skill_name: string;
+  level_name: string;
+}
+
+export interface RecommendationEditorData {
+  description: string;
+  check_repo: boolean;
+  is_published: boolean;
+  skills: SkillRecommendationItem[];
+}
+
 interface RecommendationsState {
   keywordInput: string;
   results: RecommendationItem[];
   currentPage: number;
   totalPages: number;
   lastSearch: { keyword: string; page: number };
+  
+  // Editor state
+  selectedId: number | "new" | null;
+  editorData: RecommendationEditorData;
+  hasUnsavedChanges: boolean;
+  pendingSelectId: number | "new" | null; // Used for "unsaved changes" intercept
 }
 
 const initialSkillsState: SkillsState = {
@@ -47,6 +66,10 @@ const initialRecommendationsState: RecommendationsState = {
   currentPage: 1,
   totalPages: 1,
   lastSearch: { keyword: "", page: 1 },
+  selectedId: null,
+  editorData: { description: "", check_repo: false, is_published: false, skills: [] },
+  hasUnsavedChanges: false,
+  pendingSelectId: null,
 };
 
 interface ContentStore {

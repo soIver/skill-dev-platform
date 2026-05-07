@@ -114,7 +114,7 @@ export default function SkillsAdmin() {
       align: "center",
       width: "w-1/3",
       render: (item) => (
-        <span className="inline-block px-2 py-1 bg-gray-100 rounded text-sm text-gray-800">
+        <span className="inline-block px-2 py-1 bg-gray-100 rounded-lg text-gray-800">
           {item.level_name}
         </span>
       ),
@@ -135,21 +135,21 @@ export default function SkillsAdmin() {
 
         <div className="flex gap-4 mb-6">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Название</label>
             <input
               type="text"
               value={skillInput}
               onChange={(e) => setSkillsState({ skillInput: e.target.value })}
               className="input-field"
+              placeholder="Название..."
             />
           </div>
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Уровень</label>
-            <input
+            < input
               type="text"
               value={levelInput}
               onChange={(e) => setSkillsState({ levelInput: e.target.value })}
               className="input-field"
+              placeholder="Уровень..."
             />
           </div>
           <div className="flex items-end">

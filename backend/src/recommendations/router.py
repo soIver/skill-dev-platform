@@ -1,12 +1,19 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
+from sqlalchemy.orm import selectinload
 
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Recommendation, UserRecommendation
-from .schemas import RecommendationSearchResponse, RecommendationItem
+from ..models import Recommendation, UserRecommendation, SkillRecommendation, SkillLevel, Skill, Level
+from .schemas import (
+    RecommendationSearchResponse, 
+    RecommendationItem, 
+    RecommendationDetail, 
+    SkillRecommendationItem, 
+    RecommendationCreateUpdate
+)
 
 router = APIRouter(tags=["Recommendations"])
 
@@ -71,3 +78,113 @@ async def search_recommendations(
         total_pages=total_pages,
         current_page=page,
     )
+
+@router.get("/recommendations/{rec_id}", response_model=RecommendationDetail)
+async def get_recommendation(
+    rec_id: int,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("curator", "admin")),
+):
+    query = select(Recommendation).where(Recommendation.id == rec_id)
+    result = await db.execute(query)
+    rec = result.scalar_one_or_none()
+    
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+        
+    skills_query = (
+        select(SkillRecommendation, SkillLevel, Skill, Level)
+        .join(SkillLevel, SkillRecommendation.proficiency_id == SkillLevel.id)
+        .join(Skill, SkillLevel.skill_id == Skill.id)
+        .join(Level, SkillLevel.level_id == Level.id)
+        .where(SkillRecommendation.recommendation_id == rec_id)
+    )
+    skills_result = await db.execute(skills_query)
+    
+    skills_items = []
+    for sr, sl, sk, lv in skills_result.all():
+        skills_items.append(SkillRecommendationItem(
+            proficiency_id=sl.id,
+            skill_name=sk.name,
+            level_name=lv.name
+        ))
+        
+    return RecommendationDetail(
+        id=rec.id,
+        description=rec.description,
+        check_repo=rec.check_repo,
+        is_published=rec.is_published,
+        skills=skills_items
+    )
+
+@router.post("/recommendations", response_model=RecommendationDetail)
+async def create_recommendation(
+    data: RecommendationCreateUpdate,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("curator", "admin")),
+):
+    rec = Recommendation(
+        description=data.description,
+        check_repo=data.check_repo,
+        is_published=data.is_published,
+        author_id=claims.user_id
+    )
+    db.add(rec)
+    await db.flush()
+    
+    for prof_id in data.proficiency_ids:
+        db.add(SkillRecommendation(
+            proficiency_id=prof_id,
+            recommendation_id=rec.id
+        ))
+        
+    await db.commit()
+    return await get_recommendation(rec.id, db, claims)
+
+@router.put("/recommendations/{rec_id}", response_model=RecommendationDetail)
+async def update_recommendation(
+    rec_id: int,
+    data: RecommendationCreateUpdate,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("curator", "admin")),
+):
+    query = select(Recommendation).where(Recommendation.id == rec_id)
+    result = await db.execute(query)
+    rec = result.scalar_one_or_none()
+    
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+        
+    rec.description = data.description
+    rec.check_repo = data.check_repo
+    rec.is_published = data.is_published
+    
+    # удаление старых навыков
+    await db.execute(delete(SkillRecommendation).where(SkillRecommendation.recommendation_id == rec_id))
+    
+    # добавление новых навыков
+    for prof_id in data.proficiency_ids:
+        db.add(SkillRecommendation(
+            proficiency_id=prof_id,
+            recommendation_id=rec.id
+        ))
+        
+    await db.commit()
+    return await get_recommendation(rec.id, db, claims)
+
+@router.delete("/recommendations/{rec_id}")
+async def delete_recommendation(
+    rec_id: int,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("curator", "admin")),
+):
+    query = select(Recommendation).where(Recommendation.id == rec_id)
+    result = await db.execute(query)
+    rec = result.scalar_one_or_none()
+    
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+        
+    await db.delete(rec)
+    await db.commit()
+    return {"status": "ok"}
