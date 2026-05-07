@@ -4,6 +4,7 @@ import { useContentStore, type RecommendationItem } from "../../hooks/useContent
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
+import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { useToast } from "../../components/ToastProvider";
 import { Profanease } from 'profanease';
 import ru from 'profanease/langs/ru';
@@ -43,24 +44,7 @@ export default function ContentRecommendations() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const [skillInput, setSkillInput] = useState("");
-  const [skillResults, setSkillResults] = useState<ProficiencyItem[]>([]);
-  const [isSkillSearching, setIsSkillSearching] = useState(false);
-  const [showSkillDropdown, setShowSkillDropdown] = useState(false);
-
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skillTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowSkillDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const fetchRecommendations = async (keyword: string, page: number) => {
     setIsSearching(true);
@@ -105,43 +89,10 @@ export default function ContentRecommendations() {
   }, [keywordInput]);
 
   const fetchProficiencies = async (query: string) => {
-    if (!query) {
-      setSkillResults([]);
-      setShowSkillDropdown(false);
-      return;
-    }
-    setIsSkillSearching(true);
-    try {
-      const params = new URLSearchParams({ skill: query, page: "1" });
-      const response = await authJson<ProfSearchResponse>(`/proficiencies?${params.toString()}`);
-      setSkillResults(response.items);
-      setShowSkillDropdown(true);
-    } catch (error) {
-      console.error("Failed to fetch skills", error);
-    } finally {
-      setIsSkillSearching(false);
-    }
+    const params = new URLSearchParams({ skill: query, page: "1" });
+    const response = await authJson<ProfSearchResponse>(`/proficiencies?${params.toString()}`);
+    return response.items;
   };
-
-  useEffect(() => {
-    if (skillTimerRef.current) clearTimeout(skillTimerRef.current);
-
-    const exactMatch = skillResults.some(p => `${p.skill_name} - ${p.level_name}` === skillInput);
-    if (exactMatch) return;
-
-    if (skillInput) {
-      skillTimerRef.current = setTimeout(() => {
-        fetchProficiencies(skillInput);
-      }, 2000);
-    } else {
-      setSkillResults([]);
-      setShowSkillDropdown(false);
-    }
-
-    return () => {
-      if (skillTimerRef.current) clearTimeout(skillTimerRef.current);
-    };
-  }, [skillInput]);
 
   const loadRecommendation = async (id: number) => {
     try {
@@ -267,12 +218,7 @@ export default function ContentRecommendations() {
     });
   };
 
-  const handleAddSkill = () => {
-    const selectedItem = skillResults.find(p => `${p.skill_name} - ${p.level_name}` === skillInput);
-    if (!selectedItem) return;
-
-    if (editorData.skills.some(s => s.proficiency_id === selectedItem.id)) return;
-
+  const handleAddSkill = (selectedItem: ProficiencyItem) => {
     updateEditorData({
       skills: [...editorData.skills, {
         proficiency_id: selectedItem.id,
@@ -280,7 +226,6 @@ export default function ContentRecommendations() {
         level_name: selectedItem.level_name
       }]
     });
-    setSkillInput("");
   };
 
   const handleRemoveSkill = (profId: number) => {
@@ -289,8 +234,8 @@ export default function ContentRecommendations() {
     });
   };
 
-  const isAddSkillDisabled = !skillResults.some(p => `${p.skill_name} - ${p.level_name}` === skillInput) ||
-    editorData.skills.some(s => skillResults.find(p => `${p.skill_name} - ${p.level_name}` === skillInput)?.id === s.proficiency_id);
+  const isSkillAlreadySelected = (item: ProficiencyItem) => 
+    editorData.skills.some(s => s.proficiency_id === item.id);
 
   const isDescriptionValid = editorData.description.length >= 32 && editorData.description.length <= 1024;
   const profanityAnalysis = profanityFilter.analyze(editorData.description);
@@ -513,46 +458,20 @@ export default function ContentRecommendations() {
             <div className="mb-4">
               <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Связанные навыки</h3>
 
-              <div className="flex gap-2 items-start relative" ref={dropdownRef}>
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={skillInput}
-                    onChange={(e) => {
-                      setSkillInput(e.target.value);
-                      setShowSkillDropdown(true);
-                    }}
-                    onFocus={() => { if (skillResults.length > 0) setShowSkillDropdown(true); }}
-                    className="input-field mt-0!"
-                    placeholder="Название навыка..."
-                  />
-                  {showSkillDropdown && skillResults.length > 0 && (
-                    <ul className="absolute z-10 w-full bg-white border border-gray-200 mt-1 rounded-lg shadow-lg max-h-60 overflow-auto">
-                      {skillResults.map(p => (
-                        <li
-                          key={p.id}
-                          className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm"
-                          onClick={() => {
-                            setSkillInput(`${p.skill_name} - ${p.level_name}`);
-                            setShowSkillDropdown(false);
-                          }}
-                        >
-                          {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {isSkillSearching && <span className="absolute right-3 top-2 text-xs text-gray-400">Поиск...</span>}
-                </div>
-                <button
-                  disabled={isAddSkillDisabled}
-                  onClick={handleAddSkill}
-                  className={`px-4 py-2 rounded-lg font-medium text-white transition-colors ${isAddSkillDisabled ? "bg-gray-300 cursor-not-allowed" : "bg-primary hover:bg-primary-hover"
-                    }`}
-                >
-                  Добавить
-                </button>
-              </div>
+              <AutocompleteSearch<ProficiencyItem>
+                onSearch={fetchProficiencies}
+                onSelect={handleAddSkill}
+                itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
+                renderItem={(p) => (
+                  <>
+                    {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
+                  </>
+                )}
+                placeholder="Название навыка..."
+                buttonText="Добавить"
+                isItemDisabled={isSkillAlreadySelected}
+                debounceMs={2000}
+              />
 
               <div className="mt-4 flex flex-col gap-2">
                 {editorData.skills.length === 0 ? (
