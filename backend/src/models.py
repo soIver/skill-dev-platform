@@ -212,6 +212,7 @@ class UserProficiency(Base):
         ForeignKey("proficiencies.id"),
         nullable=True,
     )
+    encountered_count = Column(Integer, default=0)
     obtained_date = Column(Date, server_default=func.current_date())
     repeated_date = Column(Date, nullable=True)
 

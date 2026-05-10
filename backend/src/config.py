@@ -61,8 +61,12 @@ class Config:
     ).split(",")
     RATE_LIMIT_RPM = 100 # запросов в минуту
     
-    # LLM
+    # анализ
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    REPO_SKILL_COUNT_FOR_UPDATE = 5 # количество встреч навыка для обновления уровня
+    MAX_DECAY_DAYS = 15 # максимальный возраст навыка репозитория, учитывающегося при оценке уровня
+    DECAY_INTERVAL = 3 # интервал в днях для вычисления коэффициента снижения оценки
+    DECAY_FACTOR = 0.1 # коэффициент снижения оценки за 1 интервал
 
     @classmethod
     def string_encryption_key(cls) -> bytes:

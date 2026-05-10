@@ -1,3 +1,4 @@
+import json
 from typing import List, Tuple, Dict
 
 from sqlalchemy import select
@@ -33,24 +34,28 @@ class RepoAnalyzer:
         if not content:
             return []
 
-        skills = []
-        for line in content.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
+        try:
+            # Очистка от возможных markdown-тегов ```json ... ```
+            content = content.strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
             
-            parts = line.split(":")
-            if len(parts) == 2:
-                name = parts[0].strip()
-                try:
-                    score = int(parts[1].strip())
-                    if 0 <= score <= 100:
-                        skills.append((name, score))
-                except ValueError:
-                    pass
-        
-        logger.debug(f"Извлечено {len(skills)} навыков")
-        return skills
+            data = json.loads(content)
+            skills = []
+            for item in data.get("skills", []):
+                name = item.get("name")
+                score = item.get("score")
+                if name and isinstance(score, int) and 0 <= score <= 100:
+                    skills.append((name, score))
+            
+            logger.debug(f"Извлечено {len(skills)} навыков")
+            return skills
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.error(f"Ошибка при парсинге JSON от LLM: {e}")
+            logger.debug(f"Raw content: {content}")
+            return []
 
     async def match_skills(self, db: AsyncSession, extracted_skills: List[Tuple[str, int]], threshold: float = 0.2) -> List[Dict]:
         matched = []

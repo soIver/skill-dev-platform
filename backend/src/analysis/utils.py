@@ -1,15 +1,16 @@
-import json
 from pathlib import Path
 from typing import List
+
+import yaml
 
 from openai import AsyncOpenAI
 
 from ..config import global_config
 
-CONFIG_PATH = Path(__file__).parent / "config.json"
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
-with open(CONFIG_PATH, "r") as f:
-    analysis_config = json.load(f)
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    analysis_config = yaml.safe_load(f)
 
 client = AsyncOpenAI(
     base_url=analysis_config["base_url"],
@@ -40,5 +41,4 @@ async def get_completion(prompt: str, payload: str, model: str = None, temperatu
         ],
         temperature=temperature,
     )
-    print(response)
     return response.choices[0].message.content

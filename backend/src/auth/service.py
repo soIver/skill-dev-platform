@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import HTTPException, status
-from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +12,7 @@ from ..config import global_config
 from ..models import User, Role
 from ..utils.crypto import Hasher, JwtCodec
 from ..utils.logger import get_logger
+from ..utils.redis import get_redis
 
 logger = get_logger("auth.service")
 password_hasher = Hasher(
@@ -31,7 +31,6 @@ class TokenPair:
 
 
 class TokenService:
-    _redis: Redis | None = None
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -158,9 +157,7 @@ class TokenService:
         if ttl_seconds <= 0:
             return
 
-        redis = self._get_redis()
-        if redis is None:
-            return
+        redis = get_redis()
 
         try:
             await redis.setex(f"blacklist:access:{token_jti}", ttl_seconds, "1")
@@ -168,7 +165,7 @@ class TokenService:
             logger.warning("Не удалось записать access token в Redis blacklist: %s", exc)
 
     async def _revoke_active_device_tokens(self, user_id: int, device_id: str) -> None:
-        redis = self._require_redis()
+        redis = get_redis()
         active_jti = await redis.get(self._device_key(user_id, device_id))
         if not active_jti:
             return
@@ -185,7 +182,7 @@ class TokenService:
         device_id: str,
         expires_at: datetime,
     ) -> None:
-        redis = self._require_redis()
+        redis = get_redis()
         ttl_seconds = int((expires_at - self._now()).total_seconds())
         if ttl_seconds <= 0:
             raise self._invalid_token_error()
@@ -206,14 +203,14 @@ class TokenService:
     async def _get_refresh_token_data(
         self, user_id: int, jti: str
     ) -> dict[str, str] | None:
-        redis = self._require_redis()
+        redis = get_redis()
         refresh_token_data = await redis.hgetall(self._refresh_key(user_id, jti))
         if not refresh_token_data:
             return None
         return refresh_token_data
 
     async def _delete_refresh_token(self, user_id: int, jti: str, device_id: str) -> None:
-        redis = self._require_redis()
+        redis = get_redis()
         async with redis.pipeline(transaction=True) as pipeline:
             pipeline.delete(self._refresh_key(user_id, jti))
             pipeline.delete(self._device_key(user_id, device_id))
@@ -226,24 +223,8 @@ class TokenService:
             raise self._invalid_token_error() from exc
 
     @classmethod
-    def _get_redis(cls) -> Redis | None:
-        if not global_config.REDIS_URL:
-            return None
-        if cls._redis is None:
-            cls._redis = from_url(
-                global_config.REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=2,
-                socket_timeout=2,
-            )
-        return cls._redis
-
-    @classmethod
-    def _require_redis(cls) -> Redis:
-        redis = cls._get_redis()
-        if redis is None:
-            raise RuntimeError("Redis не настроен для хранения токенов обновления")
-        return redis
+    def _get_redis(cls):
+        return get_redis()
 
     @staticmethod
     def _refresh_key(user_id: int, jti: str) -> str:

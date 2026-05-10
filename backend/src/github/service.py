@@ -4,13 +4,13 @@ from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from redis.asyncio import Redis, from_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.service import TokenClaims
 from ..config import global_config
 from ..utils.crypto import Cipher, Hasher, generate_urlsafe_token
 from ..utils.logger import get_logger
+from ..utils.redis import get_redis
 from .utils import (
     build_github_authorization_url,
     get_user_by_id,
@@ -32,14 +32,13 @@ class GitHubProfile:
 
 
 class GitHubService:
-    _redis: Redis | None = None
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def create_authorization_url(self, claims: TokenClaims) -> str:
         self._validate_config()
-        redis = self._require_redis()
+        redis = get_redis()
         state = generate_urlsafe_token(32)
         code_verifier = generate_urlsafe_token(64)
         state_payload = json.dumps(
@@ -69,7 +68,7 @@ class GitHubService:
 
     async def handle_callback(self, code: str, state: str) -> str:
         self._validate_config()
-        redis = self._require_redis()
+        redis = get_redis()
         try:
             raw_state = await redis.getdel(self._state_key(state))
         except Exception as exc:
@@ -271,24 +270,8 @@ class GitHubService:
             )
 
     @classmethod
-    def _get_redis(cls) -> Redis | None:
-        if not global_config.REDIS_URL:
-            return None
-        if cls._redis is None:
-            cls._redis = from_url(
-                global_config.REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=2,
-                socket_timeout=2,
-            )
-        return cls._redis
-
-    @classmethod
-    def _require_redis(cls) -> Redis:
-        redis = cls._get_redis()
-        if redis is None:
-            raise RuntimeError("Redis не настроен для GitHub OAuth")
-        return redis
+    def _get_redis(cls):
+        return get_redis()
 
     @staticmethod
     def _state_key(state: str) -> str:

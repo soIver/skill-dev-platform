@@ -3,10 +3,17 @@ import AuthBootstrap from "./components/AuthBootstrap";
 import ToastViewport from "./components/ToastViewport";
 import VerNavBar from "./components/VerNavBar";
 import { ToastProvider } from "./components/ToastProvider";
+import { useNotifications } from "./hooks/useNotifications";
+
+function NotificationManager() {
+  useNotifications();
+  return null;
+}
 
 export default function Layout() {
   return (
     <ToastProvider>
+      <NotificationManager />
       <div className="flex min-h-screen bg-gray-50">
         <AuthBootstrap />
         <VerNavBar />

@@ -13,6 +13,7 @@ from .github.router import router as github_router
 from .skills.router import router as skills_router
 from .recommendations.router import router as recommendations_router
 from .analysis.router import router as analysis_router
+from .notifications.router import router as notifications_router
 
 
 app = FastAPI()
@@ -28,6 +29,7 @@ app.include_router(github_router, prefix="/api")
 app.include_router(skills_router, prefix="/api")
 app.include_router(recommendations_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
