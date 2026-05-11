@@ -2,14 +2,18 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
-from .schemas import ProficiencyCreateRequest, ProficiencySearchResponse, ProficiencyItem
-from ..auth.utils import require_role
+from .schemas import (
+    ProficiencyCreateRequest, ProficiencySearchResponse, ProficiencyItem,
+    UserProficiencyResponse, UserProficiencyItem
+)
+from .utils import calculate_adjusted_score, calculate_confidence
+from ..auth.utils import require_role, get_current_user
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Skill, Level, Proficiency, UserProficiency
+from ..models import Skill, Level, Proficiency, UserProficiency, RepoSkill, UserRepo
 from ..analysis.utils import get_embedding
 
-router = APIRouter(tags=["Skills"])
+router = APIRouter(prefix="/skills", tags=["Skills"])
 
 @router.get("/proficiencies", response_model=ProficiencySearchResponse)
 async def search_proficiencies(
@@ -132,4 +136,77 @@ async def create_proficiency(
         skill_name=skill_obj.name,
         level_name=level_obj.name,
         obtained_count=0
+    )
+
+@router.get("/me", response_model=UserProficiencyResponse)
+async def get_my_proficiencies(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: TokenClaims = Depends(get_current_user),
+):
+    # Fetch user proficiencies
+    query = select(UserProficiency).where(UserProficiency.user_id == user.user_id)
+    
+    # Count total
+    count_query = select(func.count()).select_from(UserProficiency).where(UserProficiency.user_id == user.user_id)
+    total_count = await db.scalar(count_query)
+    total_pages = (total_count + limit - 1) // limit if total_count else 1
+    
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
+    result = await db.execute(query)
+    user_profs = result.scalars().all()
+    
+    items = []
+    for up in user_profs:
+        # Get skill and current level
+        prof_result = await db.execute(
+            select(Proficiency, Skill, Level)
+            .join(Skill, Proficiency.skill_id == Skill.id)
+            .join(Level, Proficiency.level_id == Level.id)
+            .where(Proficiency.id == up.proficiency_id)
+        )
+        prof_data = prof_result.first()
+        if not prof_data:
+            continue
+            
+        current_prof, skill, level = prof_data
+        
+        # Get total levels for this skill
+        total_levels = await db.scalar(
+            select(func.count(Proficiency.id)).where(Proficiency.skill_id == skill.id)
+        )
+        
+        # Get next level order index
+        next_level_order = current_prof.order_index + 1
+        
+        # Fetch last 5 repo skills
+        repo_skills_result = await db.execute(
+            select(RepoSkill, UserRepo.analyzed_at)
+            .join(UserRepo, RepoSkill.repo_id == UserRepo.id)
+            .where(UserRepo.user_id == user.user_id, RepoSkill.skill_id == skill.id)
+            .order_by(UserRepo.analyzed_at.desc())
+            .limit(5)
+        )
+        repo_skills_data = repo_skills_result.all()
+        
+        adjusted_scores = []
+        for rs, analyzed_at in repo_skills_data:
+            adj = calculate_adjusted_score(rs.score, analyzed_at)
+            adjusted_scores.append(adj)
+            
+        confidence = calculate_confidence(adjusted_scores, total_levels, next_level_order)
+        
+        items.append(UserProficiencyItem(
+            id=up.id,
+            skill_name=skill.name,
+            level_name=level.name,
+            confidence=round(confidence, 2)
+        ))
+        
+    return UserProficiencyResponse(
+        items=items,
+        total_pages=total_pages,
+        current_page=page
     )

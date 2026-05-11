@@ -14,3 +14,14 @@ class ProficiencySearchResponse(BaseModel):
     items: list[ProficiencyItem]
     total_pages: int
     current_page: int
+
+class UserProficiencyItem(BaseModel):
+    id: int
+    skill_name: str
+    level_name: str
+    confidence: float
+
+class UserProficiencyResponse(BaseModel):
+    items: list[UserProficiencyItem]
+    total_pages: int
+    current_page: int

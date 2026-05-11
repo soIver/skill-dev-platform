@@ -1,10 +1,12 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import Registration from "./pages/Registration";
 import Login from "./pages/Login";
 import Profile from "./pages/profile/Profile";
 import Credentials from "./pages/profile/Credentials";
 import Skills from "./pages/profile/Skills";
+import Repositories from "./pages/profile/Repositories";
+import Recommendations from "./pages/profile/Recommendations";
 import Tests from "./pages/Tests";
 import Vacancies from "./pages/vacancies/Vacancies";
 import VacancyMatching from "./pages/vacancies/Matching";
@@ -18,6 +20,8 @@ import Management from "./pages/admin/Management";
 import Statistics from "./pages/admin/Statistics";
 import RequireAuth from "./components/RequireAuth";
 import RootRedirect from "./components/RootRedirect";
+import { TabRedirect } from "./components/TabTracker";
+
 
 export default function AppRoutes() {
   return (
@@ -34,8 +38,10 @@ export default function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="skills" replace />} />
+        <Route index element={<TabRedirect section="profile" defaultTab="skills" />} />
         <Route path="skills" element={<Skills />} />
+        <Route path="repositories" element={<Repositories />} />
+        <Route path="recommendations" element={<Recommendations />} />
         <Route path="credentials" element={<Credentials />} />
       </Route>
       <Route
@@ -54,7 +60,7 @@ export default function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="matching" replace />} />
+        <Route index element={<TabRedirect section="vacancies" defaultTab="matching" />} />
         <Route path="matching" element={<VacancyMatching />} />
         <Route path="analysis" element={<VacancyAnalysis />} />
       </Route>
@@ -66,7 +72,7 @@ export default function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="skills" replace />} />
+        <Route index element={<TabRedirect section="content" defaultTab="skills" />} />
         <Route path="skills" element={<ContentSkills />} />
         <Route path="tests" element={<ContentTests />} />
         <Route path="recommendations" element={<ContentRecommendations />} />
@@ -79,7 +85,7 @@ export default function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="management" replace />} />
+        <Route index element={<TabRedirect section="admin" defaultTab="management" />} />
         <Route path="management" element={<Management />} />
         <Route path="statistics" element={<Statistics />} />
       </Route>

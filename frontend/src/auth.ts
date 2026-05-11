@@ -1,5 +1,6 @@
 import { config } from "./config";
 import { useUserStore, type User } from "./hooks/useUserStore";
+import { toast } from "./hooks/useToastStore";
 
 interface AuthResponse {
   token_type: string;
@@ -34,8 +35,8 @@ function buildHeaders(headers?: HeadersInit): Record<string, string> {
 
 async function readApiError(response: Response): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string };
-    return payload.detail || payload.message || "Ошибка запроса";
+    const payload = (await response.json()) as { detail?: string; message?: string; error?: string };
+    return payload.detail || payload.message || payload.error || "Ошибка запроса";
   } catch {
     return "Ошибка запроса";
   }
@@ -192,7 +193,9 @@ export async function authJson<T>(
 ): Promise<T> {
   const response = await authFetch(`${config.apiBaseUrl}${path}`, init);
   if (!response.ok) {
-    throw new Error(await readApiError(response));
+    const errorMsg = await readApiError(response);
+    toast.error("Ошибка запроса", errorMsg);
+    throw new Error(errorMsg);
   }
 
   if (response.status === 204) {

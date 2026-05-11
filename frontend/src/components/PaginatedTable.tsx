@@ -2,7 +2,7 @@ import React from "react";
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   render?: (item: T) => React.ReactNode;
   align?: "left" | "center" | "right";
   width?: string;
@@ -12,7 +12,7 @@ interface PaginatedTableProps<T> {
   columns: Column<T>[];
   data: T[];
   isLoading: boolean;
-  emptyMessage: string;
+  emptyMessage: React.ReactNode;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
@@ -60,7 +60,7 @@ export function PaginatedTable<T extends { id: number | string }>({
                       key={col.key}
                       className={`py-3 px-4 ${
                         col.align === "center" ? "text-center" : col.align === "right" ? "text-right" : "text-left"
-                      }`}
+                      } ${col.width || ""}`}
                     >
                       {col.render ? col.render(item) : (item as any)[col.key]}
                     </td>

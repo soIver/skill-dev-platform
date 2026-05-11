@@ -46,21 +46,16 @@ app.state.limiter = Limiter(
 )
 
 
-async def rate_limit_exceeded_handler(request: Request, exc: Exception):
-    if isinstance(exc, RateLimitExceeded):
-        return JSONResponse(
-            status_code=429,
-            content={"error": f"Rate limit exceeded: {exc.detail}"},
-        )
-
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(
-        status_code=503,
-        content={"error": "Rate limiter storage is unavailable"},
+        status_code=429,
+        content={"detail": "Вы сделали слишком много запросов за последнюю минуту. Повторите попытку позже"},
     )
 
 
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.state.limiter._route_exceeded_handler = rate_limit_exceeded_handler
 
 
 @app.get("/api")

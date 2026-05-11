@@ -26,7 +26,7 @@ export default function SkillsAdmin() {
       if (skill) params.append("skill", skill);
       if (level) params.append("level", level);
 
-      const response = await authJson<SearchResponse>(`/proficiencies?${params.toString()}`);
+      const response = await authJson<SearchResponse>(`/skills/proficiencies?${params.toString()}`);
       setSkillsState({
         results: response.items,
         totalPages: response.total_pages,
@@ -76,7 +76,7 @@ export default function SkillsAdmin() {
 
     setIsCreating(true);
     try {
-      await authJson("/proficiencies", {
+      await authJson("/skills/proficiencies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

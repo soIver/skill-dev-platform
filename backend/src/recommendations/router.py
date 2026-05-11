@@ -55,7 +55,7 @@ async def search_recommendations(
     items = []
     for row in rows:
         desc = row.description or ""
-        desc_preview = desc[:30] + ("..." if len(desc) > 30 else "")
+        desc_preview = desc
         
         avg_rating = row.average_rating
         if avg_rating is None or avg_rating == 0:

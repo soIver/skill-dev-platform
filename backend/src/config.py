@@ -59,7 +59,7 @@ class Config:
     ALLOWED_ORIGINS = os.environ.get(
         "ALLOWED_ORIGINS", "http://localhost:5173, http://127.0.0.1:5173"
     ).split(",")
-    RATE_LIMIT_RPM = 100 # запросов в минуту
+    RATE_LIMIT_RPM = 30 # запросов в минуту
     
     # анализ
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

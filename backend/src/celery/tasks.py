@@ -13,6 +13,7 @@ from ..models import UserRepo, RepoSkill, Skill, Proficiency, UserProficiency
 from ..config import global_config
 from ..utils.logger import get_logger
 from ..utils.redis import get_redis
+from ..skills.utils import calculate_adjusted_score
 
 logger = get_logger("celery.tasks")
 
@@ -72,15 +73,9 @@ async def _process_repository(user_id: int, repo_name: str, repo_url: str):
                     if d:
                         last_seen = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
-            n = 0
-            if last_seen:
-                delta_days = (datetime.now(timezone.utc) - last_seen).days
-                n = max(0, delta_days // global_config.DECAY_INTERVAL)
-
-            decay_factor = max(1.0 - global_config.DECAY_FACTOR * n, 0.2)
-            adjusted_score = int(raw_score * decay_factor)
+            adjusted_score = calculate_adjusted_score(raw_score, last_seen)
             
-            logger.debug(f"Skill {skill_id}: raw={raw_score}, n={n}, decay={decay_factor}, adjusted={adjusted_score}")
+            logger.debug(f"Skill {skill_id}: raw={raw_score}, adjusted={adjusted_score}")
 
             # присвоение навыка репозиторию
             repo_skill = RepoSkill(

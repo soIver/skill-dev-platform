@@ -1,5 +1,4 @@
-import { Outlet } from "react-router-dom";
-import HorNavBar from "../../components/HorNavBar";
+import { TabTracker } from "../../components/TabTracker";
 
 export default function Admin() {
   const tabs = [
@@ -7,10 +6,5 @@ export default function Admin() {
     { to: "statistics", label: "Статистика" },
   ];
 
-  return (
-    <div className="mx-auto min-w-fit" style={{ maxWidth: '90%' }}>
-      <HorNavBar tabs={tabs} />
-      <Outlet />
-    </div>
-  );
+  return <TabTracker section="admin" tabs={tabs} />;
 }

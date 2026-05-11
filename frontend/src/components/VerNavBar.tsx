@@ -24,8 +24,7 @@ export default function VerNavBar() {
 
   return (
     <aside
-      className={`bg-white border border-gray-300 h-screen flex flex-col transition-all duration-300
-      ${isExpanded ? NAV_WIDTH.expanded : NAV_WIDTH.collapsed}`}
+      className={`ver-nav-bar ${isExpanded ? NAV_WIDTH.expanded : NAV_WIDTH.collapsed}`}
     >
       {/* лого */}
       <div className="h-20 flex items-center px-6 overflow-hidden">

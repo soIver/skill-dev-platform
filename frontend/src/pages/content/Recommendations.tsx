@@ -90,7 +90,7 @@ export default function ContentRecommendations() {
 
   const fetchProficiencies = async (query: string) => {
     const params = new URLSearchParams({ skill: query, page: "1" });
-    const response = await authJson<ProfSearchResponse>(`/proficiencies?${params.toString()}`);
+    const response = await authJson<ProfSearchResponse>(`/skills/proficiencies?${params.toString()}`);
     return response.items;
   };
 
@@ -241,6 +241,7 @@ export default function ContentRecommendations() {
   const profanityAnalysis = profanityFilter.analyze(editorData.description);
   const hasProfanity = profanityAnalysis.isProfane;
   const canSave = hasUnsavedChanges && isDescriptionValid && !hasProfanity;
+  const canTogglePublish = isDescriptionValid && !hasProfanity;
 
   const columns: Column<RecommendationItem>[] = [
     {
@@ -249,7 +250,11 @@ export default function ContentRecommendations() {
       align: "left",
       width: "w-2/5",
       render: (item) => (
-        <span className="text-gray-900">{item.description_preview}</span>
+        <div className="w-full max-w-0 min-w-full">
+          <span className="text-gray-900 block truncate" title={item.description_preview}>
+            {item.description_preview}
+          </span>
+        </div>
       ),
     },
     {
@@ -389,7 +394,7 @@ export default function ContentRecommendations() {
                   iconSrc={editorData.is_published ? "/src/assets/icons/unpublish.svg" : "/src/assets/icons/publish.svg"}
                   altText={editorData.is_published ? "Снять с публикации" : "Опубликовать"}
                   onClick={() => handleSave(!editorData.is_published)}
-                  disabled={!canSave}
+                  disabled={!canTogglePublish}
                   color="success"
                 />
               </div>

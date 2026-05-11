@@ -24,8 +24,11 @@ export function EditorConfirmModal({
   }[confirmVariant];
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center rounded-xl backdrop-blur-[10px]">
-      <div className="bg-white rounded-xl shadow-xl p-4 max-w-sm w-full mx-4 border border-gray-200">
+    <div 
+      className="fixed inset-0 z-40 flex items-center justify-center modal-overlay-animate"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="bg-white rounded-xl shadow-xl p-4 max-w-sm w-full mx-4 border border-gray-200 modal-content-animate">
         <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">{title}</h3>
         <p className="text-gray-600 mb-6 whitespace-pre-line text-center">{message}</p>
         <div className="flex gap-3 justify-around">

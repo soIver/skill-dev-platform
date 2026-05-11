@@ -22,8 +22,10 @@ interface UserStore {
   deviceId: string;
   isHydrated: boolean;
   isAuthChecked: boolean;
+  activeTabs: Record<string, string | null>;
   setSession: (user: User) => void;
   setGitHubProfile: (githubProfile: GitHubProfile | null) => void;
+  setActiveTab: (section: string, tab: string) => void;
   clearSession: () => void;
   setHydrated: (isHydrated: boolean) => void;
   setAuthChecked: (isAuthChecked: boolean) => void;
@@ -42,12 +44,17 @@ export const useUserStore = create<UserStore>()(
         deviceId: createDeviceId(),
         isHydrated: false,
         isAuthChecked: false,
+        activeTabs: {},
         setSession: (user) =>
           set({
             user,
             isAuthChecked: true,
           }),
         setGitHubProfile: (githubProfile) => set({ githubProfile }),
+        setActiveTab: (section, tab) => 
+          set((state) => ({ 
+            activeTabs: { ...state.activeTabs, [section]: tab } 
+          })),
         clearSession: () =>
           set({
             user: null,
