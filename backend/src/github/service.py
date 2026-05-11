@@ -15,6 +15,9 @@ from .utils import (
     build_github_authorization_url,
     get_user_by_id,
 )
+from ..models import User
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 logger = get_logger("github.service")
 string_cipher = Cipher(
@@ -43,6 +46,7 @@ class GitHubService:
         code_verifier = generate_urlsafe_token(64)
         state_payload = json.dumps(
             {
+                "type": "connect",
                 "user_id": claims.user_id,
                 "code_verifier": code_verifier,
             }
@@ -66,6 +70,33 @@ class GitHubService:
             code_challenge=Hasher.sha256_base64url(code_verifier),
         )
 
+    async def create_login_url(self) -> str:
+        self._validate_config()
+        redis = get_redis()
+        state = generate_urlsafe_token(32)
+        code_verifier = generate_urlsafe_token(64)
+        state_payload = json.dumps(
+            {
+                "type": "login",
+                "code_verifier": code_verifier,
+            }
+        )
+
+        try:
+            await redis.setex(
+                self._state_key(state),
+                global_config.GITHUB_OAUTH_STATE_TTL_SECONDS,
+                state_payload,
+            )
+        except Exception as exc:
+            logger.exception("Не удалось сохранить состояние GitHub OAuth в Redis для логина")
+            raise RuntimeError("Не удалось начать авторизацию GitHub.") from exc
+
+        return build_github_authorization_url(
+            state=state,
+            code_challenge=Hasher.sha256_base64url(code_verifier),
+        )
+
     async def handle_callback(self, code: str, state: str) -> str:
         self._validate_config()
         redis = get_redis()
@@ -78,20 +109,43 @@ class GitHubService:
             raise ValueError("Состояние OAuth устарело или недействительно")
 
         payload = json.loads(raw_state)
-        user_id = int(payload["user_id"])
+        action_type = payload.get("type", "connect")
         code_verifier = payload["code_verifier"]
 
         access_token = await self._exchange_code_for_token(code, code_verifier)
         profile = await self._fetch_github_profile(access_token)
 
-        user = await get_user_by_id(self.db, user_id)
-        if user is None:
-            raise ValueError("Пользователь не найден")
+        if action_type == "connect":
+            user_id = int(payload["user_id"])
+            user = await get_user_by_id(self.db, user_id)
+            if user is None:
+                raise ValueError("Пользователь не найден")
 
-        user.github_token = string_cipher.encrypt(access_token)
-        await self.db.commit()
-
-        return self._build_frontend_redirect_url(status="connected", login=profile.login)
+            user.github_token = string_cipher.encrypt(access_token)
+            await self.db.commit()
+            return ("connect", self._build_frontend_redirect_url(status="connected", login=profile.login))
+        
+        elif action_type == "login":
+            email = await self._fetch_github_email(access_token)
+            result = await self.db.execute(
+                select(User).options(joinedload(User.role)).where(User.email == email)
+            )
+            user = result.unique().scalar_one_or_none()
+            
+            encrypted_token = string_cipher.encrypt(access_token)
+            
+            if user:
+                user.github_token = encrypted_token
+                await self.db.commit()
+                return ("login", user)
+            else:
+                return ("register", {
+                    "email": email,
+                    "login": profile.login,
+                    "gh_token_enc": encrypted_token,
+                })
+        
+        raise ValueError("Неизвестный тип действия OAuth")
 
     async def get_connection_profile(self, user_id: int) -> GitHubProfile | None:
         user = await get_user_by_id(self.db, user_id)
@@ -243,6 +297,46 @@ class GitHubService:
             avatar_url=payload.get("avatar_url"),
             profile_url=payload.get("html_url"),
         )
+
+    async def _fetch_github_email(self, access_token: str) -> str:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://api.github.com/user/emails",
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {access_token}",
+                    "X-GitHub-Api-Version": global_config.GITHUB_API_VERSION,
+                },
+            )
+
+        if response.status_code >= 400:
+            logger.warning(
+                "Ошибка при загрузке email GitHub: status=%s body=%s",
+                response.status_code,
+                response.text,
+            )
+            raise httpx.HTTPStatusError(
+                "GitHub emails request failed",
+                request=response.request,
+                response=response,
+            )
+
+        emails = response.json()
+        primary_email = next(
+            (e["email"] for e in emails if e.get("primary") and e.get("verified")),
+            None
+        )
+        if not primary_email:
+            # Fallback to any verified email if no primary verified is found
+            primary_email = next(
+                (e["email"] for e in emails if e.get("verified")),
+                None
+            )
+        
+        if not primary_email:
+            raise ValueError("Не найден подтвержденный email в профиле GitHub")
+        
+        return primary_email
 
     async def _revoke_github_authorization(self, access_token: str) -> None:
         async with httpx.AsyncClient(timeout=10.0) as client:

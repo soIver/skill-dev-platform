@@ -43,7 +43,7 @@ class Config:
         "GITHUB_FRONTEND_REDIRECT_URL",
         "http://localhost:5173/profile/credentials",
     )
-    GITHUB_SCOPE = "read:user"
+    GITHUB_SCOPE = "read:user user:email"
     GITHUB_OAUTH_STATE_TTL_SECONDS = 600
 
     GITHUB_API_VERSION = "2026-03-10"

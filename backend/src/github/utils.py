@@ -1,6 +1,7 @@
 from urllib.parse import urlencode
 
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import global_config
@@ -21,5 +22,7 @@ def build_github_authorization_url(state: str, code_challenge: str) -> str:
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User).options(joinedload(User.role)).where(User.id == user_id)
+    )
     return result.scalar_one_or_none()

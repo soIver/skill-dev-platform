@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { login } from "../auth";
 import { useToast } from "../components/ToastProvider";
+import GitHubIcon from "../assets/icons/github.svg?react";
 
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
@@ -34,8 +35,19 @@ export default function Login() {
     }
   };
 
-  const handleGitHubLogin = () => {
-    console.log("Вход через GitHub");
+  const handleGitHubLogin = async () => {
+    try {
+      const response = await fetch("/api/github/login-url");
+      if (!response.ok) throw new Error("Failed to fetch login URL");
+      const data = await response.json();
+      window.location.assign(data.authorization_url);
+    } catch (error) {
+      showToast({
+        title: "Ошибка GitHub",
+        message: "Не удалось начать авторизацию GitHub.",
+        variant: "error",
+      });
+    }
   };
 
   return (
@@ -53,7 +65,7 @@ export default function Login() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="input-field"
-              placeholder="you@example.com или username"
+              placeholder="you@example.com"
               required
             />
           </div>
@@ -88,9 +100,11 @@ export default function Login() {
 
         <button
           onClick={handleGitHubLogin}
-          className="primary-button bg-gray-800"
+          type="button"
+          className="github-connect-button justify-center"
         >
-          Войти через GitHub
+          <GitHubIcon className="w-7 h-7" />
+          <span className="font-medium">Войти через GitHub</span>
         </button>
 
         <div className="mt-4 text-center text-sm text-gray-600">

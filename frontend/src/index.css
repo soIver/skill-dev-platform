@@ -51,7 +51,7 @@
     }
 
     .github-connect-button {
-        @apply flex items-center gap-3 px-6 py-4 cursor-pointer border border-gray-300 rounded-2xl w-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:border-gray-300 hover:shadow-md hover:gap-4;
+        @apply flex items-center gap-3 px-6 py-2 cursor-pointer border border-gray-300 rounded-2xl w-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:border-gray-300 hover:shadow-md;
     }
 
     .hyperlink {
@@ -184,6 +184,7 @@ html,
         backdrop-filter: blur(0);
         background-color: transparent;
     }
+
     to {
         backdrop-filter: blur(10px);
         background-color: rgba(0, 0, 0, 0.1);
@@ -195,6 +196,7 @@ html,
         opacity: 0;
         transform: translateY(30px) scale(0.98);
     }
+
     to {
         opacity: 1;
         transform: translateY(0) scale(1);

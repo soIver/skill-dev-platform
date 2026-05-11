@@ -273,7 +273,7 @@ class AuthService:
             return None
         return user
 
-    async def register(self, username: str, email: str, password: str) -> User:
+    async def register(self, username: str, email: str, password: str, github_token: str | None = None) -> User:
         existing_user = await self.db.execute(
             select(User).where(or_(User.email == email, User.username == username))
         )
@@ -293,6 +293,7 @@ class AuthService:
             email=email,
             password_hash=password_hasher.hash(password),
             role=user_role,
+            github_token=github_token,
         )
         self.db.add(new_user)
         await self.db.commit()

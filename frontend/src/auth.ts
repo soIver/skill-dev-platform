@@ -16,6 +16,7 @@ interface RegistrationCredentials {
   username: string;
   email: string;
   password: string;
+  github_token?: string;
 }
 
 const DEVICE_ID_HEADER = "X-Device-Id";

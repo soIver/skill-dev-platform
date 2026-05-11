@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { register } from "../auth";
 import { useToast } from "../components/ToastProvider";
@@ -45,8 +45,13 @@ function flashField(el: HTMLInputElement | null) {
 }
 
 export default function Registration() {
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const ghEmail = searchParams.get("gh_email") || "";
+  const ghLogin = searchParams.get("gh_login") || "";
+  const ghTokenEnc = searchParams.get("gh_token_enc") || "";
+
+  const [username, setUsername] = useState(ghLogin);
+  const [email, setEmail] = useState(ghEmail);
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
 
@@ -96,7 +101,12 @@ export default function Registration() {
     }
 
     try {
-      await register({ username, email, password });
+      await register({
+        username,
+        email,
+        password,
+        ...(ghTokenEnc ? { github_token: ghTokenEnc } : {}),
+      });
       showToast({
         title: "Регистрация завершена",
         message: "Аккаунт успешно создан.",
@@ -160,9 +170,10 @@ export default function Registration() {
               onChange={(e) => setEmail(e.target.value)}
               onFocus={() => setActiveField("email")}
               onBlur={() => setActiveField(null)}
-              className="input-field"
+              className="input-field disabled:bg-gray-100 disabled:text-gray-500"
               placeholder="you@example.com"
               required
+              disabled={!!ghEmail}
             />
             <FieldRequirements
               visible={activeField === "email"}

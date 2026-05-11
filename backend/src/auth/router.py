@@ -10,8 +10,13 @@ from .schemas import (
     RegistrationCredentials,
     UserResponse,
 )
-from .service import AuthService, TokenPair
-from .utils import TokenClaims, get_current_user
+from .service import AuthService
+from .utils import (
+    TokenClaims,
+    get_current_user,
+    set_auth_cookies,
+    clear_auth_cookies,
+)
 
 router = APIRouter(prefix="/auth")
 
@@ -29,7 +34,7 @@ async def login(
         credentials.password,
         device_id,
     )
-    _set_auth_cookies(response, token_pair)
+    set_auth_cookies(response, token_pair)
     return _build_auth_response(user)
 
 
@@ -45,9 +50,10 @@ async def register(
         credentials.username,
         credentials.email,
         credentials.password,
+        credentials.github_token,
     )
     user, token_pair = await auth.login(credentials.email, credentials.password, device_id)
-    _set_auth_cookies(response, token_pair)
+    set_auth_cookies(response, token_pair)
     return _build_auth_response(user)
 
 
@@ -63,7 +69,7 @@ async def refresh_tokens(
 ):
     auth = AuthService(db)
     user, token_pair = await auth.refresh(refresh_token, device_id)
-    _set_auth_cookies(response, token_pair)
+    set_auth_cookies(response, token_pair)
     return _build_auth_response(user)
 
 
@@ -93,7 +99,7 @@ async def logout(
 ):
     auth = AuthService(db)
     await auth.logout(access_token, refresh_token, device_id)
-    _clear_auth_cookies(response)
+    clear_auth_cookies(response)
     return MessageResponse(message="Сессия завершена")
 
 
@@ -108,44 +114,4 @@ def _build_auth_response(user) -> AuthResponse:
             "email": user.email,
             "role": role_name,
         }
-    )
-
-
-def _set_auth_cookies(response: Response, token_pair: TokenPair) -> None:
-    secure = global_config.auth_cookie_secure()
-    response.set_cookie(
-        key=global_config.AUTH_ACCESS_COOKIE_NAME,
-        value=token_pair.access_token,
-        max_age=global_config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        httponly=global_config.AUTH_COOKIE_HTTPONLY,
-        secure=secure,
-        samesite="lax",
-        path=global_config.AUTH_ACCESS_COOKIE_PATH,
-    )
-    response.set_cookie(
-        key=global_config.AUTH_REFRESH_COOKIE_NAME,
-        value=token_pair.refresh_token,
-        max_age=global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES * 60,
-        httponly=global_config.AUTH_COOKIE_HTTPONLY,
-        secure=secure,
-        samesite="strict",
-        path=global_config.AUTH_REFRESH_COOKIE_PATH,
-    )
-
-
-def _clear_auth_cookies(response: Response) -> None:
-    secure = global_config.auth_cookie_secure()
-    response.delete_cookie(
-        key=global_config.AUTH_ACCESS_COOKIE_NAME,
-        path=global_config.AUTH_ACCESS_COOKIE_PATH,
-        httponly=global_config.AUTH_COOKIE_HTTPONLY,
-        secure=secure,
-        samesite="lax",
-    )
-    response.delete_cookie(
-        key=global_config.AUTH_REFRESH_COOKIE_NAME,
-        path=global_config.AUTH_REFRESH_COOKIE_PATH,
-        httponly=global_config.AUTH_COOKIE_HTTPONLY,
-        secure=secure,
-        samesite="strict",
     )
