@@ -3,10 +3,13 @@ import { Link, useLocation } from "react-router-dom";
 import { useUserStore } from "../hooks/useUserStore";
 
 import ProfileIcon from "../assets/icons/profile.svg?react";
+import RecommendationsIcon from "../assets/icons/recomendations.svg?react";
+import TasksIcon from "../assets/icons/tasks.svg?react";
 import TestsIcon from "../assets/icons/tests.svg?react";
 import VacanciesIcon from "../assets/icons/vacancies.svg?react";
 import ContentIcon from "../assets/icons/content.svg?react";
-import AdminIcon from "../assets/icons/admin.svg?react";
+import ManagementIcon from "../assets/icons/management.svg?react";
+import StatisticsIcon from "../assets/icons/statistics.svg?react";
 import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
 import IsdLogo from "../assets/icons/isd-logo.svg?react";
 
@@ -52,6 +55,20 @@ export default function VerNavBar() {
           isActive={location.pathname.startsWith("/profile")}
         />
         <VerNavItem
+          to="/recommendations"
+          icon={RecommendationsIcon}
+          label="Рекомендации"
+          isExpanded={isExpanded}
+          isActive={location.pathname.startsWith("/recommendations")}
+        />
+        <VerNavItem
+          to="/tasks"
+          icon={TasksIcon}
+          label="Задания"
+          isExpanded={isExpanded}
+          isActive={location.pathname.startsWith("/tasks")}
+        />
+        <VerNavItem
           to="/tests"
           icon={TestsIcon}
           label="Тесты"
@@ -75,13 +92,22 @@ export default function VerNavBar() {
           />
         )}
         {user.role === "admin" && (
-          <VerNavItem
-            to="/admin"
-            icon={AdminIcon}
-            label="Администрирование"
-            isExpanded={isExpanded}
-            isActive={location.pathname.startsWith("/admin")}
-          />
+          <>
+            <VerNavItem
+              to="/management"
+              icon={ManagementIcon}
+              label="Управление"
+              isExpanded={isExpanded}
+              isActive={location.pathname.startsWith("/management")}
+            />
+            <VerNavItem
+              to="/statistics"
+              icon={StatisticsIcon}
+              label="Статистика"
+              isExpanded={isExpanded}
+              isActive={location.pathname.startsWith("/statistics")}
+            />
+          </>
         )}
       </nav>
 

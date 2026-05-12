@@ -10,20 +10,24 @@ export const config = {
     : API_BASE_URL,
 };
 
-export const RECOMMENDATION = {
+export const TASK = {
   DESCRIPTION: {
     MIN_LENGTH: 32,
     MAX_LENGTH: 2048,
+  },
+  SEARCH_KEYWORDS: {
+    MAX_LENGTH: 32,
+
   }
 } as const;
 
 export const PROFICIENCY = {
-  SKILL_NAME: {
+  SEARCH_SKILL: {
     MAX_LENGTH: 32,
   },
-  LEVEL_NAME: {
+  SEARCH_LEVEL: {
     MAX_LENGTH: 32,
   },
 } as const;
 
-export const SEARCH_DEBOUNCE_MS = 2000;
+export const SEARCH_DEBOUNCE_MS = 1000;

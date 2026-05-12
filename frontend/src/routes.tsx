@@ -6,7 +6,8 @@ import Profile from "./pages/profile/Profile";
 import Credentials from "./pages/profile/Credentials";
 import Skills from "./pages/profile/Skills";
 import Repositories from "./pages/profile/Repositories";
-import Recommendations from "./pages/profile/Recommendations";
+import Recommendations from "./pages/Recommendations";
+import Tasks from "./pages/Tasks";
 import Tests from "./pages/Tests";
 import Vacancies from "./pages/vacancies/Vacancies";
 import VacancyMatching from "./pages/vacancies/Matching";
@@ -15,7 +16,6 @@ import Content from "./pages/content/Content";
 import ContentSkills from "./pages/content/Skills";
 import ContentTests from "./pages/content/Tests";
 import ContentTasks from "./pages/content/Tasks";
-import Admin from "./pages/admin/Admin";
 import Management from "./pages/admin/Management";
 import Statistics from "./pages/admin/Statistics";
 import RequireAuth from "./components/RequireAuth";
@@ -41,9 +41,24 @@ export default function AppRoutes() {
         <Route index element={<TabRedirect section="profile" defaultTab="skills" />} />
         <Route path="skills" element={<Skills />} />
         <Route path="repositories" element={<Repositories />} />
-        <Route path="recommendations" element={<Recommendations />} />
         <Route path="credentials" element={<Credentials />} />
       </Route>
+      <Route
+        path="/recommendations"
+        element={
+          <RequireAuth>
+            <Recommendations />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tasks"
+        element={
+          <RequireAuth>
+            <Tasks />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/tests"
         element={
@@ -78,17 +93,21 @@ export default function AppRoutes() {
         <Route path="tasks" element={<ContentTasks />} />
       </Route>
       <Route
-        path="/admin"
+        path="/management"
         element={
           <RequireAuth allowedRoles={["admin"]}>
-            <Admin />
+            <Management />
           </RequireAuth>
         }
-      >
-        <Route index element={<TabRedirect section="admin" defaultTab="management" />} />
-        <Route path="management" element={<Management />} />
-        <Route path="statistics" element={<Statistics />} />
-      </Route>
+      />
+      <Route
+        path="/statistics"
+        element={
+          <RequireAuth allowedRoles={["admin"]}>
+            <Statistics />
+          </RequireAuth>
+        }
+      />
     </Routes>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
+import { PROFICIENCY, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useContentStore, type ProficiencyItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 
@@ -58,7 +59,7 @@ export default function SkillsAdmin() {
         return;
       }
       fetchProficiencies(skillInput, levelInput, 1);
-    }, 2000);
+    }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -139,15 +140,17 @@ export default function SkillsAdmin() {
               type="text"
               value={skillInput}
               onChange={(e) => setSkillsState({ skillInput: e.target.value })}
+              maxLength={PROFICIENCY.SEARCH_SKILL.MAX_LENGTH}
               className="input-field"
               placeholder="Поиск по названию"
             />
           </div>
           <div className="flex-1">
-            < input
+            <input
               type="text"
               value={levelInput}
               onChange={(e) => setSkillsState({ levelInput: e.target.value })}
+              maxLength={PROFICIENCY.SEARCH_LEVEL.MAX_LENGTH}
               className="input-field"
               placeholder="Поиск по уровню"
             />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
+import { TASK, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useContentStore, type TaskItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
@@ -72,7 +73,7 @@ export default function ContentTasks() {
         return;
       }
       fetchTasks(keywordInput, 1);
-    }, 2000);
+    }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -228,7 +229,7 @@ export default function ContentTasks() {
   const isSkillAlreadySelected = (item: ProficiencyItem) =>
     editorData.skills.some(s => s.proficiency_id === item.id);
 
-  const isDescriptionValid = editorData.description.length >= 32 && editorData.description.length <= 1024;
+  const isDescriptionValid = editorData.description.length >= TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length <= TASK.DESCRIPTION.MAX_LENGTH;
   const canSave = hasUnsavedChanges && isDescriptionValid;
   const canTogglePublish = isDescriptionValid;
 
@@ -318,6 +319,7 @@ export default function ContentTasks() {
               type="text"
               value={keywordInput}
               onChange={(e) => setTasksState({ keywordInput: e.target.value })}
+              maxLength={TASK.SEARCH_KEYWORDS.MAX_LENGTH}
               className="input-field"
               placeholder="Поиск по ключевым словам"
             />
@@ -405,9 +407,9 @@ export default function ContentTasks() {
 
             <div className="text-xs flex flex-col mb-2 gap-1">
               <div className="text-gray-500 flex justify-between">
-                <span>{editorData.description.length < 32 && editorData.description.length > 0 ? "Слишком короткое описание" : ""}</span>
-                <span className={editorData.description.length > 1024 ? "text-danger" : ""}>
-                  {editorData.description.length}/1024
+                <span>{editorData.description.length < TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length > 0 ? "Слишком короткое описание" : ""}</span>
+                <span className={editorData.description.length > TASK.DESCRIPTION.MAX_LENGTH ? "text-danger" : ""}>
+                  {editorData.description.length}/{TASK.DESCRIPTION.MAX_LENGTH}
                 </span>
               </div>
             </div>
@@ -437,7 +439,7 @@ export default function ContentTasks() {
                 placeholder="Поиск по названию"
                 buttonText="Добавить"
                 isItemDisabled={isSkillAlreadySelected}
-                debounceMs={2000}
+                debounceMs={SEARCH_DEBOUNCE_MS}
               />
 
               <div className="mt-4 flex flex-col gap-2">
