@@ -14,7 +14,7 @@ import VacancyAnalysis from "./pages/vacancies/Analysis";
 import Content from "./pages/content/Content";
 import ContentSkills from "./pages/content/Skills";
 import ContentTests from "./pages/content/Tests";
-import ContentRecommendations from "./pages/content/Recommendations";
+import ContentTasks from "./pages/content/Tasks";
 import Admin from "./pages/admin/Admin";
 import Management from "./pages/admin/Management";
 import Statistics from "./pages/admin/Statistics";
@@ -75,7 +75,7 @@ export default function AppRoutes() {
         <Route index element={<TabRedirect section="content" defaultTab="skills" />} />
         <Route path="skills" element={<ContentSkills />} />
         <Route path="tests" element={<ContentTests />} />
-        <Route path="recommendations" element={<ContentRecommendations />} />
+        <Route path="tasks" element={<ContentTasks />} />
       </Route>
       <Route
         path="/admin"

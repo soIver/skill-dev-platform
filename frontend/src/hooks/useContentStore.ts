@@ -16,7 +16,7 @@ interface SkillsState {
   lastSearch: { skill: string; level: string; page: number };
 }
 
-export interface RecommendationItem {
+export interface TaskItem {
   id: number;
   description_preview: string;
   issued_count: number;
@@ -24,29 +24,29 @@ export interface RecommendationItem {
   status: string;
 }
 
-export interface SkillRecommendationItem {
+export interface SkillTaskItem {
   proficiency_id: number;
   skill_name: string;
   level_name: string;
 }
 
-export interface RecommendationEditorData {
+export interface TaskEditorData {
   description: string;
   check_repo: boolean;
   is_published: boolean;
-  skills: SkillRecommendationItem[];
+  skills: SkillTaskItem[];
 }
 
-interface RecommendationsState {
+interface TasksState {
   keywordInput: string;
-  results: RecommendationItem[];
+  results: TaskItem[];
   currentPage: number;
   totalPages: number;
   lastSearch: { keyword: string; page: number };
   
   // Editor state
   selectedId: number | "new" | null;
-  editorData: RecommendationEditorData;
+  editorData: TaskEditorData;
   hasUnsavedChanges: boolean;
   pendingSelectId: number | "new" | null; // Used for "unsaved changes" intercept
 }
@@ -60,7 +60,7 @@ const initialSkillsState: SkillsState = {
   lastSearch: { skill: "", level: "", page: 1 },
 };
 
-const initialRecommendationsState: RecommendationsState = {
+const initialTasksState: TasksState = {
   keywordInput: "",
   results: [],
   currentPage: 1,
@@ -74,24 +74,24 @@ const initialRecommendationsState: RecommendationsState = {
 
 interface ContentStore {
   skills: SkillsState;
-  recommendations: RecommendationsState;
+  tasks: TasksState;
   setSkillsState: (state: Partial<SkillsState>) => void;
   resetSkillsState: () => void;
-  setRecommendationsState: (state: Partial<RecommendationsState>) => void;
-  resetRecommendationsState: () => void;
+  setTasksState: (state: Partial<TasksState>) => void;
+  resetTasksState: () => void;
 }
 
 export const useContentStore = create<ContentStore>((set) => ({
   skills: initialSkillsState,
-  recommendations: initialRecommendationsState,
+  tasks: initialTasksState,
   setSkillsState: (newState) =>
     set((state) => ({
       skills: { ...state.skills, ...newState },
     })),
   resetSkillsState: () => set({ skills: initialSkillsState }),
-  setRecommendationsState: (newState) =>
+  setTasksState: (newState) =>
     set((state) => ({
-      recommendations: { ...state.recommendations, ...newState },
+      tasks: { ...state.tasks, ...newState },
     })),
-  resetRecommendationsState: () => set({ recommendations: initialRecommendationsState }),
+  resetTasksState: () => set({ tasks: initialTasksState }),
 }));

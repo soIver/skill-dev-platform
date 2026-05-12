@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
-import { useContentStore, type RecommendationItem } from "../../hooks/useContentStore";
+import { useContentStore, type TaskItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { useToast } from "../../components/ToastProvider";
 interface SearchResponse {
-  items: RecommendationItem[];
+  items: TaskItem[];
   total_pages: number;
   current_page: number;
 }
@@ -25,9 +25,9 @@ interface ProfSearchResponse {
   current_page: number;
 }
 
-export default function ContentRecommendations() {
-  const { recommendations, setRecommendationsState } = useContentStore();
-  const { keywordInput, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = recommendations;
+export default function ContentTasks() {
+  const { tasks, setTasksState } = useContentStore();
+  const { keywordInput, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
   const { showToast } = useToast();
 
   const [isSearching, setIsSearching] = useState(false);
@@ -37,21 +37,21 @@ export default function ContentRecommendations() {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchRecommendations = async (keyword: string, page: number) => {
+  const fetchTasks = async (keyword: string, page: number) => {
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ page: page.toString() });
       if (keyword) params.append("keyword", keyword);
 
-      const response = await authJson<SearchResponse>(`/recommendations?${params.toString()}`);
-      setRecommendationsState({
+      const response = await authJson<SearchResponse>(`/tasks?${params.toString()}`);
+      setTasksState({
         results: response.items,
         totalPages: response.total_pages,
         currentPage: response.current_page,
         lastSearch: { keyword, page }
       });
     } catch (error) {
-      console.error("Failed to fetch recommendations", error);
+      console.error("Failed to fetch tasks", error);
     } finally {
       setIsSearching(false);
       setIsDebouncing(false);
@@ -71,7 +71,7 @@ export default function ContentRecommendations() {
         setIsDebouncing(false);
         return;
       }
-      fetchRecommendations(keywordInput, 1);
+      fetchTasks(keywordInput, 1);
     }, 2000);
 
     return () => {
@@ -85,10 +85,10 @@ export default function ContentRecommendations() {
     return response.items;
   };
 
-  const loadRecommendation = async (id: number) => {
+  const loadTask = async (id: number) => {
     try {
-      const response = await authJson<any>(`/recommendations/${id}`);
-      setRecommendationsState({
+      const response = await authJson<any>(`/tasks/${id}`);
+      setTasksState({
         selectedId: id,
         editorData: {
           description: response.description || "",
@@ -100,26 +100,26 @@ export default function ContentRecommendations() {
         pendingSelectId: null
       });
     } catch (error) {
-      console.error("Failed to load recommendation", error);
-      showToast({ title: "Ошибка", message: "Не удалось загрузить рекомендацию", variant: "error" });
+      console.error("Failed to load task", error);
+      showToast({ title: "Ошибка", message: "Не удалось загрузить задачу", variant: "error" });
     }
   };
 
-  const handleRowClick = (item: RecommendationItem) => {
+  const handleRowClick = (item: TaskItem) => {
     if (item.id === selectedId) return;
     if (hasUnsavedChanges) {
-      setRecommendationsState({ pendingSelectId: item.id });
+      setTasksState({ pendingSelectId: item.id });
     } else {
-      loadRecommendation(item.id);
+      loadTask(item.id);
     }
   };
 
   const handleCreate = () => {
     if (selectedId === "new") return;
     if (hasUnsavedChanges) {
-      setRecommendationsState({ pendingSelectId: "new" });
+      setTasksState({ pendingSelectId: "new" });
     } else {
-      setRecommendationsState({
+      setTasksState({
         selectedId: "new",
         editorData: { description: "", check_repo: false, is_published: false, skills: [] },
         hasUnsavedChanges: true,
@@ -131,7 +131,7 @@ export default function ContentRecommendations() {
   const handleSave = async (publishStatus?: boolean) => {
     const isNew = selectedId === "new";
     const method = isNew ? "POST" : "PUT";
-    const url = isNew ? "/recommendations" : `/recommendations/${selectedId}`;
+    const url = isNew ? "/tasks" : `/tasks/${selectedId}`;
     const newPublishStatus = publishStatus !== undefined ? publishStatus : editorData.is_published;
 
     try {
@@ -148,7 +148,7 @@ export default function ContentRecommendations() {
         body: JSON.stringify(payload)
       });
 
-      setRecommendationsState({
+      setTasksState({
         selectedId: response.id,
         editorData: {
           description: response.description || "",
@@ -159,8 +159,8 @@ export default function ContentRecommendations() {
         hasUnsavedChanges: false
       });
 
-      showToast({ title: "Успех", message: "Рекомендация сохранена", variant: "success" });
-      fetchRecommendations(lastSearch.keyword, currentPage); // refresh table
+      showToast({ title: "Успех", message: "Задача сохранена", variant: "success" });
+      fetchTasks(lastSearch.keyword, currentPage); // refresh table
       return response.id;
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось сохранить", variant: "error" });
@@ -170,15 +170,15 @@ export default function ContentRecommendations() {
 
   const handleDelete = async () => {
     if (selectedId === "new") {
-      setRecommendationsState({ selectedId: null, hasUnsavedChanges: false });
+      setTasksState({ selectedId: null, hasUnsavedChanges: false });
       return;
     }
 
     try {
-      await authJson(`/recommendations/${selectedId}`, { method: "DELETE" });
-      setRecommendationsState({ selectedId: null, hasUnsavedChanges: false });
-      showToast({ title: "Успех", message: "Рекомендация удалена", variant: "success" });
-      fetchRecommendations(lastSearch.keyword, currentPage);
+      await authJson(`/tasks/${selectedId}`, { method: "DELETE" });
+      setTasksState({ selectedId: null, hasUnsavedChanges: false });
+      showToast({ title: "Успех", message: "Задача удалена", variant: "success" });
+      fetchTasks(lastSearch.keyword, currentPage);
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось удалить", variant: "error" });
     }
@@ -187,23 +187,23 @@ export default function ContentRecommendations() {
   const handleDiscardAndContinue = () => {
     if (!pendingSelectId) return;
     if (pendingSelectId === "new") {
-      setRecommendationsState({
+      setTasksState({
         selectedId: "new",
         editorData: { description: "", check_repo: false, is_published: false, skills: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
     } else {
-      loadRecommendation(pendingSelectId);
+      loadTask(pendingSelectId);
     }
   };
 
   const handleCancelNavigation = () => {
-    setRecommendationsState({ pendingSelectId: null });
+    setTasksState({ pendingSelectId: null });
   };
 
   const updateEditorData = (changes: Partial<typeof editorData>) => {
-    setRecommendationsState({
+    setTasksState({
       editorData: { ...editorData, ...changes },
       hasUnsavedChanges: true
     });
@@ -232,10 +232,10 @@ export default function ContentRecommendations() {
   const canSave = hasUnsavedChanges && isDescriptionValid;
   const canTogglePublish = isDescriptionValid;
 
-  const columns: Column<RecommendationItem>[] = [
+  const columns: Column<TaskItem>[] = [
     {
       key: "description_preview",
-      header: "Рекомендация",
+      header: "Задача",
       align: "left",
       width: "w-2/5",
       render: (item) => (
@@ -276,7 +276,7 @@ export default function ContentRecommendations() {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchRecommendations(lastSearch.keyword, newPage);
+      fetchTasks(lastSearch.keyword, newPage);
     }
   };
 
@@ -285,7 +285,7 @@ export default function ContentRecommendations() {
       {pendingSelectId !== null && (
         <EditorConfirmModal
           title="Несохранённые изменения"
-          message={`Есть несохранённые изменения для рекомендации #${selectedId}.`}
+          message={`Есть несохранённые изменения для задачи #${selectedId}.`}
           cancelText="Вернуться"
           confirmText="Отменить изменения"
           confirmVariant="danger"
@@ -297,7 +297,7 @@ export default function ContentRecommendations() {
       {showDeleteConfirm && selectedId !== null && (
         <EditorConfirmModal
           title="Подтверждение удаления"
-          message={`Вы уверены, что хотите удалить рекомендацию #${selectedId}?`}
+          message={`Вы уверены, что хотите удалить задачу #${selectedId}?`}
           confirmText="Да, удалить навсегда"
           confirmVariant="danger"
           onCancel={() => setShowDeleteConfirm(false)}
@@ -310,14 +310,14 @@ export default function ContentRecommendations() {
 
       {/* левая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full">
-        <h2 className="workspace-panel-header mb-4">Список рекомендаций</h2>
+        <h2 className="workspace-panel-header mb-4">Список задач</h2>
 
         <div className="flex gap-4 mb-6">
           <div className="flex-1">
             <input
               type="text"
               value={keywordInput}
-              onChange={(e) => setRecommendationsState({ keywordInput: e.target.value })}
+              onChange={(e) => setTasksState({ keywordInput: e.target.value })}
               className="input-field"
               placeholder="Поиск по ключевым словам"
             />
@@ -336,7 +336,7 @@ export default function ContentRecommendations() {
           columns={columns}
           data={results}
           isLoading={isSearching || isDebouncing}
-          emptyMessage="Рекомендации не найдены"
+          emptyMessage="Задачи не найдены"
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={handlePageChange}
@@ -346,13 +346,13 @@ export default function ContentRecommendations() {
 
       {/* правая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full relative">
-        <h2 className="workspace-panel-header">Редактор рекомендаций</h2>
+        <h2 className="workspace-panel-header">Редактор задач</h2>
 
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1">
             <div className="flex ml-1 items-center justify-between gap-4 mb-4">
               <span className="font-medium text-xl">
-                {selectedId === "new" ? "Новая рекомендация" : `Рекомендация #${selectedId}`}
+                {selectedId === "new" ? "Новая задача" : `Задача #${selectedId}`}
               </span>
 
               <div className="flex items-center gap-2">
@@ -393,7 +393,7 @@ export default function ContentRecommendations() {
               <textarea
                 className="input-field min-h-[150px] resize-y mb-1 relative"
                 style={{ font: 'inherit' }}
-                placeholder="Описание рекомендации..."
+                placeholder="Описание задачи..."
                 value={editorData.description}
                 onChange={(e) => updateEditorData({ description: e.target.value })}
                 onScroll={(e) => {
@@ -463,7 +463,7 @@ export default function ContentRecommendations() {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-500">Выберите рекомендацию для редактирования...</p>
+            <p className="text-gray-500">Выберите задачу для редактирования...</p>
           </div>
         )}
       </div>

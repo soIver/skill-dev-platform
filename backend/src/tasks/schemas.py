@@ -1,31 +1,31 @@
 from pydantic import BaseModel
 from typing import Optional
 
-class RecommendationItem(BaseModel):
+class TaskItem(BaseModel):
     id: int
     description_preview: str
     issued_count: int
     average_rating: str
     status: str
 
-class RecommendationSearchResponse(BaseModel):
-    items: list[RecommendationItem]
+class TaskSearchResponse(BaseModel):
+    items: list[TaskItem]
     total_pages: int
     current_page: int
 
-class SkillRecommendationItem(BaseModel):
+class SkillTaskItem(BaseModel):
     proficiency_id: int
     skill_name: str
     level_name: str
 
-class RecommendationDetail(BaseModel):
+class TaskDetail(BaseModel):
     id: int
     description: Optional[str]
     check_repo: bool
     is_published: bool
-    skills: list[SkillRecommendationItem]
+    skills: list[SkillTaskItem]
 
-class RecommendationCreateUpdate(BaseModel):
+class TaskCreateUpdate(BaseModel):
     description: Optional[str]
     check_repo: bool
     is_published: bool

@@ -4,7 +4,7 @@ export default function Content() {
   const tabs = [
     { to: "tests", label: "Тесты" },
     { to: "skills", label: "Навыки" },
-    { to: "recommendations", label: "Рекомендации" },
+    { to: "tasks", label: "Задачи" },
   ];
 
   return <TabTracker section="content" tabs={tabs} />;

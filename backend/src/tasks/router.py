@@ -6,44 +6,46 @@ from sqlalchemy.orm import selectinload
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Recommendation, UserRecommendation, SkillRecommendation, Proficiency, Skill, Level
+from ..models import Task, UserRecommendation, TaskScore, SkillTask, Proficiency, Skill, Level
 from .schemas import (
-    RecommendationSearchResponse, 
-    RecommendationItem, 
-    RecommendationDetail, 
-    SkillRecommendationItem, 
-    RecommendationCreateUpdate
+    TaskSearchResponse, 
+    TaskItem, 
+    TaskDetail, 
+    SkillTaskItem, 
+    TaskCreateUpdate
 )
 
-router = APIRouter(tags=["Recommendations"])
+router = APIRouter(tags=["tasks"])
 
-@router.get("/recommendations", response_model=RecommendationSearchResponse)
-async def search_recommendations(
+@router.get("/tasks", response_model=TaskSearchResponse)
+async def search_tasks(
     keyword: str = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
+    issued_count_sq = select(func.count(UserRecommendation.id)).where(UserRecommendation.task_id == Task.id).scalar_subquery()
+    average_rating_sq = select(func.avg(TaskScore.score)).where(TaskScore.task_id == Task.id).scalar_subquery()
+
     query = select(
-        Recommendation.id,
-        Recommendation.description,
-        Recommendation.is_published,
-        func.count(UserRecommendation.id).label("issued_count"),
-        func.avg(UserRecommendation.rating).label("average_rating")
-    ).outerjoin(UserRecommendation, UserRecommendation.recommendation_id == Recommendation.id)
+        Task.id,
+        Task.description,
+        Task.is_published,
+        issued_count_sq.label("issued_count"),
+        average_rating_sq.label("average_rating")
+    )
     
     if keyword:
-        query = query.where(Recommendation.description.ilike(f"%{keyword}%"))
+        query = query.where(Task.description.ilike(f"%{keyword}%"))
 
-    query = query.group_by(Recommendation.id)
-    query = query.order_by(func.count(UserRecommendation.id).desc(), Recommendation.id)
+    query = query.order_by(issued_count_sq.desc(), Task.id)
 
     offset = (page - 1) * limit
     
-    count_query = select(func.count()).select_from(Recommendation)
+    count_query = select(func.count()).select_from(Task)
     if keyword:
-        count_query = count_query.where(Recommendation.description.ilike(f"%{keyword}%"))
+        count_query = count_query.where(Task.description.ilike(f"%{keyword}%"))
         
     total_count = await db.scalar(count_query)
     total_pages = (total_count + limit - 1) // limit if total_count else 1
@@ -65,7 +67,7 @@ async def search_recommendations(
             
         status = "Опубликовано" if row.is_published else "Сохранено"
         
-        items.append(RecommendationItem(
+        items.append(TaskItem(
             id=row.id,
             description_preview=desc_preview,
             issued_count=row.issued_count,
@@ -73,43 +75,43 @@ async def search_recommendations(
             status=status
         ))
 
-    return RecommendationSearchResponse(
+    return TaskSearchResponse(
         items=items,
         total_pages=total_pages,
         current_page=page,
     )
 
-@router.get("/recommendations/{rec_id}", response_model=RecommendationDetail)
-async def get_recommendation(
+@router.get("/tasks/{rec_id}", response_model=TaskDetail)
+async def get_task(
     rec_id: int,
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
-    query = select(Recommendation).where(Recommendation.id == rec_id)
+    query = select(Task).where(Task.id == rec_id)
     result = await db.execute(query)
     rec = result.scalar_one_or_none()
     
     if not rec:
-        raise HTTPException(status_code=404, detail="Recommendation not found")
+        raise HTTPException(status_code=404, detail="Task not found")
         
     skills_query = (
-        select(SkillRecommendation, Proficiency, Skill, Level)
-        .join(Proficiency, SkillRecommendation.proficiency_id == Proficiency.id)
+        select(SkillTask, Proficiency, Skill, Level)
+        .join(Proficiency, SkillTask.proficiency_id == Proficiency.id)
         .join(Skill, Proficiency.skill_id == Skill.id)
         .join(Level, Proficiency.level_id == Level.id)
-        .where(SkillRecommendation.recommendation_id == rec_id)
+        .where(SkillTask.task_id == rec_id)
     )
     skills_result = await db.execute(skills_query)
     
     skills_items = []
     for sr, sl, sk, lv in skills_result.all():
-        skills_items.append(SkillRecommendationItem(
+        skills_items.append(SkillTaskItem(
             proficiency_id=sl.id,
             skill_name=sk.name,
             level_name=lv.name
         ))
         
-    return RecommendationDetail(
+    return TaskDetail(
         id=rec.id,
         description=rec.description,
         check_repo=rec.check_repo,
@@ -117,13 +119,13 @@ async def get_recommendation(
         skills=skills_items
     )
 
-@router.post("/recommendations", response_model=RecommendationDetail)
-async def create_recommendation(
-    data: RecommendationCreateUpdate,
+@router.post("/tasks", response_model=TaskDetail)
+async def create_task(
+    data: TaskCreateUpdate,
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
-    rec = Recommendation(
+    rec = Task(
         description=data.description,
         check_repo=data.check_repo,
         is_published=data.is_published,
@@ -133,57 +135,57 @@ async def create_recommendation(
     await db.flush()
     
     for prof_id in data.proficiency_ids:
-        db.add(SkillRecommendation(
+        db.add(SkillTask(
             proficiency_id=prof_id,
-            recommendation_id=rec.id
+            task_id=rec.id
         ))
         
     await db.commit()
-    return await get_recommendation(rec.id, db, claims)
+    return await get_task(rec.id, db, claims)
 
-@router.put("/recommendations/{rec_id}", response_model=RecommendationDetail)
-async def update_recommendation(
+@router.put("/tasks/{rec_id}", response_model=TaskDetail)
+async def update_task(
     rec_id: int,
-    data: RecommendationCreateUpdate,
+    data: TaskCreateUpdate,
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
-    query = select(Recommendation).where(Recommendation.id == rec_id)
+    query = select(Task).where(Task.id == rec_id)
     result = await db.execute(query)
     rec = result.scalar_one_or_none()
     
     if not rec:
-        raise HTTPException(status_code=404, detail="Recommendation not found")
+        raise HTTPException(status_code=404, detail="Task not found")
         
     rec.description = data.description
     rec.check_repo = data.check_repo
     rec.is_published = data.is_published
     
     # удаление старых навыков
-    await db.execute(delete(SkillRecommendation).where(SkillRecommendation.recommendation_id == rec_id))
+    await db.execute(delete(SkillTask).where(SkillTask.task_id == rec_id))
     
     # добавление новых навыков
     for prof_id in data.proficiency_ids:
-        db.add(SkillRecommendation(
+        db.add(SkillTask(
             proficiency_id=prof_id,
-            recommendation_id=rec.id
+            task_id=rec.id
         ))
         
     await db.commit()
-    return await get_recommendation(rec.id, db, claims)
+    return await get_task(rec.id, db, claims)
 
-@router.delete("/recommendations/{rec_id}")
-async def delete_recommendation(
+@router.delete("/tasks/{rec_id}")
+async def delete_task(
     rec_id: int,
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
-    query = select(Recommendation).where(Recommendation.id == rec_id)
+    query = select(Task).where(Task.id == rec_id)
     result = await db.execute(query)
     rec = result.scalar_one_or_none()
     
     if not rec:
-        raise HTTPException(status_code=404, detail="Recommendation not found")
+        raise HTTPException(status_code=404, detail="Task not found")
         
     await db.delete(rec)
     await db.commit()

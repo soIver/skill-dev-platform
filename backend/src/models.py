@@ -280,8 +280,8 @@ class VacancyProficiency(Base):
     proficiency = relationship("Proficiency", lazy="select")
 
 
-class Recommendation(Base):
-    __tablename__ = "recommendations"
+class Task(Base):
+    __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True)
     description = Column(Text, nullable=True)
@@ -298,8 +298,30 @@ class Recommendation(Base):
     author = relationship("User", lazy="select")
 
 
-class SkillRecommendation(Base):
-    __tablename__ = "skill_recommendations"
+class TaskScore(Base):
+    __tablename__ = "task_scores"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    score = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    user = relationship("User", lazy="select")
+    task = relationship("Task", lazy="select")
+
+
+class SkillTask(Base):
+    __tablename__ = "skill_tasks"
 
     id = Column(Integer, primary_key=True)
     proficiency_id = Column(
@@ -307,14 +329,14 @@ class SkillRecommendation(Base):
         ForeignKey("proficiencies.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recommendation_id = Column(
+    task_id = Column(
         Integer,
-        ForeignKey("recommendations.id", ondelete="CASCADE"),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
         nullable=False,
     )
 
     proficiency = relationship("Proficiency", lazy="select")
-    recommendation = relationship("Recommendation", lazy="select")
+    task = relationship("Task", lazy="select")
 
 
 class UserRecommendation(Base):
@@ -326,17 +348,40 @@ class UserRecommendation(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recommendation_id = Column(
+    task_id = Column(
         Integer,
-        ForeignKey("recommendations.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=True,
     )
-    rating = Column(Integer, nullable=True)
+    test_id = Column(
+        Integer,
+        ForeignKey("tests.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    vacancy_id = Column(
+        Integer,
+        ForeignKey("vacancies.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    proficiency_id = Column(
+        Integer,
+        ForeignKey("user_proficiencies.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    repo_id = Column(
+        Integer,
+        ForeignKey("user_repos.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
     completed = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", lazy="select")
-    recommendation = relationship("Recommendation", lazy="select")
+    task = relationship("Task", lazy="select")
+    test = relationship("Test", lazy="select")
+    vacancy = relationship("Vacancy", lazy="select")
+    proficiency = relationship("UserProficiency", lazy="select")
 
 
 class UserVacancy(Base):
