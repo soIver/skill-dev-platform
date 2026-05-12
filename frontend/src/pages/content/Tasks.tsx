@@ -102,7 +102,7 @@ export default function ContentTasks() {
       });
     } catch (error) {
       console.error("Failed to load task", error);
-      showToast({ title: "Ошибка", message: "Не удалось загрузить задачу", variant: "error" });
+      showToast({ title: "Ошибка", message: "Не удалось загрузить задание", variant: "error" });
     }
   };
 
@@ -160,7 +160,7 @@ export default function ContentTasks() {
         hasUnsavedChanges: false
       });
 
-      showToast({ title: "Успех", message: "Задача сохранена", variant: "success" });
+      showToast({ title: "Успех", message: "Задание сохранена", variant: "success" });
       fetchTasks(lastSearch.keyword, currentPage); // refresh table
       return response.id;
     } catch (error) {
@@ -178,10 +178,10 @@ export default function ContentTasks() {
     try {
       await authJson(`/tasks/${selectedId}`, { method: "DELETE" });
       setTasksState({ selectedId: null, hasUnsavedChanges: false });
-      showToast({ title: "Успех", message: "Задача удалена", variant: "success" });
+      showToast({ title: "Успех", message: "Задание удалено", variant: "success" });
       fetchTasks(lastSearch.keyword, currentPage);
     } catch (error) {
-      showToast({ title: "Ошибка", message: "Не удалось удалить", variant: "error" });
+      showToast({ title: "Ошибка", message: "Не удалось удалить задание", variant: "error" });
     }
   };
 
@@ -236,7 +236,7 @@ export default function ContentTasks() {
   const columns: Column<TaskItem>[] = [
     {
       key: "description_preview",
-      header: "Задача",
+      header: "Задание",
       align: "left",
       width: "w-2/5",
       render: (item) => (
@@ -286,7 +286,7 @@ export default function ContentTasks() {
       {pendingSelectId !== null && (
         <EditorConfirmModal
           title="Несохранённые изменения"
-          message={`Есть несохранённые изменения для задачи #${selectedId}.`}
+          message={`Есть несохранённые изменения для задания #${selectedId}.`}
           cancelText="Вернуться"
           confirmText="Отменить изменения"
           confirmVariant="danger"
@@ -298,7 +298,7 @@ export default function ContentTasks() {
       {showDeleteConfirm && selectedId !== null && (
         <EditorConfirmModal
           title="Подтверждение удаления"
-          message={`Вы уверены, что хотите удалить задачу #${selectedId}?`}
+          message={`Вы уверены, что хотите удалить задание #${selectedId}?`}
           confirmText="Да, удалить навсегда"
           confirmVariant="danger"
           onCancel={() => setShowDeleteConfirm(false)}
@@ -311,7 +311,7 @@ export default function ContentTasks() {
 
       {/* левая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full">
-        <h2 className="workspace-panel-header mb-4">Список задач</h2>
+        <h2 className="workspace-panel-header mb-4">Список заданий</h2>
 
         <div className="flex gap-4 mb-6">
           <div className="flex-1">
@@ -338,7 +338,7 @@ export default function ContentTasks() {
           columns={columns}
           data={results}
           isLoading={isSearching || isDebouncing}
-          emptyMessage="Задачи не найдены"
+          emptyMessage="Задания не найдены"
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={handlePageChange}
@@ -348,13 +348,13 @@ export default function ContentTasks() {
 
       {/* правая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full relative">
-        <h2 className="workspace-panel-header">Редактор задач</h2>
+        <h2 className="workspace-panel-header">Редактор заданий</h2>
 
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1">
             <div className="flex ml-1 items-center justify-between gap-4 mb-4">
               <span className="font-medium text-xl">
-                {selectedId === "new" ? "Новая задача" : `Задача #${selectedId}`}
+                {selectedId === "new" ? "Новое задание" : `Задание #${selectedId}`}
               </span>
 
               <div className="flex items-center gap-2">
@@ -395,7 +395,7 @@ export default function ContentTasks() {
               <textarea
                 className="input-field min-h-[150px] resize-y mb-1 relative"
                 style={{ font: 'inherit' }}
-                placeholder="Описание задачи..."
+                placeholder="Описание задания..."
                 value={editorData.description}
                 onChange={(e) => updateEditorData({ description: e.target.value })}
                 onScroll={(e) => {
@@ -465,7 +465,7 @@ export default function ContentTasks() {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-500">Выберите задачу для редактирования...</p>
+            <p className="text-gray-500">Выберите задание для редактирования...</p>
           </div>
         )}
       </div>

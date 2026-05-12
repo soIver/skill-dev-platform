@@ -3,16 +3,9 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { authJson, logout } from "../../auth";
 import { useToast } from "../../components/ToastProvider";
-import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { useUserStore, type GitHubProfile } from "../../hooks/useUserStore";
 import GitHubIcon from "../../assets/icons/github.svg?react";
 
-interface Repo {
-  id: string;
-  name: string;
-  url: string;
-  description: string;
-}
 
 export default function Credentials() {
   const location = useLocation();
@@ -25,7 +18,6 @@ export default function Credentials() {
   const setGitHubProfile = useUserStore((state) => state.setGitHubProfile);
   const [isGitHubLoading, setIsGitHubLoading] = useState(!githubConnection);
   const [isGitHubSubmitting, setIsGitHubSubmitting] = useState(false);
-  const [cachedRepos, setCachedRepos] = useState<Repo[] | null>(null);
   const { showToast } = useToast();
 
   const handleLogout = async () => {
@@ -185,36 +177,6 @@ export default function Credentials() {
   const githubDisplayName =
     githubConnection?.name || githubConnection?.login || "GitHub профиль";
 
-  const handleSearchRepos = async (query: string): Promise<Repo[]> => {
-    let currentRepos = cachedRepos;
-    if (!currentRepos) {
-      const data = await authJson<any[]>("/github/repos");
-      currentRepos = data.map(r => ({ ...r, id: r.url }));
-      setCachedRepos(currentRepos);
-    }
-    if (!query) return currentRepos.slice(0, 5);
-    return currentRepos.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
-  };
-
-  const handleAnalyzeRepo = async (repo: Repo) => {
-    try {
-      await authJson("/analysis/repository", {
-        method: "POST",
-        body: JSON.stringify({ repo_name: repo.name, repo_url: repo.url }),
-      });
-      showToast({
-        title: "Анализ запущен",
-        message: `Репозиторий ${repo.name} поставлен в очередь на обработку.`,
-        variant: "success",
-      });
-    } catch (err) {
-      showToast({
-        title: "Ошибка",
-        message: err instanceof Error && err.message ? err.message : "Не удалось запустить анализ",
-        variant: "error",
-      });
-    }
-  };
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -311,30 +273,6 @@ export default function Credentials() {
               </button>
             )}
 
-            {githubConnection?.connected && (
-              <div className="mt-8">
-                <h3 className="text-lg font-medium mb-4">Анализ репозитория</h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Выберите публичный репозиторий, в котором вы являетесь единственным контрибьютором,
-                  чтобы проанализировать ваши навыки.
-                </p>
-                <AutocompleteSearch<Repo>
-                  onSearch={handleSearchRepos}
-                  onSelect={handleAnalyzeRepo}
-                  itemToString={(repo) => repo.name}
-                  placeholder="Начните вводить название репозитория..."
-                  buttonText="Анализировать"
-                  renderItem={(repo) => (
-                    <div>
-                      <div className="font-medium">{repo.name}</div>
-                      {repo.description && (
-                        <div className="text-xs text-gray-500 truncate">{repo.description}</div>
-                      )}
-                    </div>
-                  )}
-                />
-              </div>
-            )}
           </div>
         </div>
       </div>

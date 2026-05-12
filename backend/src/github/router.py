@@ -142,12 +142,14 @@ async def get_github_profile(
 
 @router.get("/repos")
 async def get_github_repos(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
     claims: TokenClaims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        repos = await GitHubService(db).get_user_repositories(claims.user_id)
-        return repos
+        repos_data = await GitHubService(db).get_user_repositories(claims.user_id, page=page, limit=limit)
+        return repos_data
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

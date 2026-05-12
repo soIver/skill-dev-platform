@@ -31,3 +31,5 @@ export const PROFICIENCY = {
 } as const;
 
 export const SEARCH_DEBOUNCE_MS = 1000;
+
+export const REPOSITORIES_PER_PAGE = 10;

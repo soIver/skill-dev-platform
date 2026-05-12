@@ -185,52 +185,150 @@ class GitHubService:
             await self.db.commit()
             return None
 
-    async def get_user_repositories(self, user_id: int) -> list[dict]:
+    async def get_user_repositories(self, user_id: int, page: int = 1, limit: int = 10) -> dict:
+        from ..models import UserRepo
+        import math
+        import asyncio
+        from datetime import datetime
+
         user = await get_user_by_id(self.db, user_id)
         if user is None or not user.github_token:
-            return []
+            return {"items": [], "total_pages": 0, "current_page": page, "total_items": 0}
 
         try:
             access_token = string_cipher.decrypt(user.github_token)
             
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    "https://api.github.com/user/repos?visibility=public&affiliation=owner",
-                    headers={
-                        "Accept": "application/vnd.github+json",
-                        "Authorization": f"Bearer {access_token}",
-                        "X-GitHub-Api-Version": global_config.GITHUB_API_VERSION,
-                    },
-                )
-                if response.status_code >= 400:
-                    logger.warning("Error fetching repos: %s", response.status_code)
-                    return []
+            redis = get_redis()
+            cache_key = f"github:repos:{user_id}"
+            
+            cached_data = None
+            if redis:
+                cached_data = await redis.get(cache_key)
+                
+            if cached_data:
+                cache_obj = json.loads(cached_data)
+                viewer_login = cache_obj.get("viewer_login")
+                all_repos = cache_obj.get("repos", [])
+            else:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    query = """
+                    query {
+                      viewer {
+                        login
+                        repositories(first: 100, ownerAffiliations: [OWNER], privacy: PUBLIC, orderBy: {field: PUSHED_AT, direction: DESC}) {
+                          nodes {
+                            name
+                            url
+                            description
+                            defaultBranchRef {
+                              target {
+                                ... on Commit {
+                                  authoredDate
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    """
+                    response = await client.post(
+                        "https://api.github.com/graphql",
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        json={"query": query}
+                    )
                     
-                repos = response.json()
-                result = []
-                for repo in repos:
-                    contrib_url = repo.get("contributors_url")
-                    if contrib_url:
-                        c_response = await client.get(
-                            contrib_url,
-                            headers={
-                                "Accept": "application/vnd.github+json",
-                                "Authorization": f"Bearer {access_token}",
-                                "X-GitHub-Api-Version": global_config.GITHUB_API_VERSION,
-                            },
-                        )
-                        if c_response.status_code == 200:
-                            contributors = c_response.json()
-                            if len(contributors) == 1 and contributors[0].get("login") == repo["owner"]["login"]:
-                                result.append({
-                                    "name": repo["name"],
-                                    "url": repo["html_url"],
-                                    "description": repo.get("description")
-                                })
-                return result
+                    if response.status_code >= 400:
+                        logger.warning("Error fetching repos via GraphQL: %s", response.status_code)
+                        return {"items": [], "total_pages": 0, "current_page": page, "total_items": 0}
+                        
+                    data = response.json()
+                    viewer_node = data.get("data", {}).get("viewer", {})
+                    viewer_login = viewer_node.get("login")
+                    nodes = viewer_node.get("repositories", {}).get("nodes", [])
+                    
+                    all_repos = []
+                    for node in nodes:
+                        last_commit = None
+                        if node.get("defaultBranchRef") and node["defaultBranchRef"].get("target"):
+                            last_commit = node["defaultBranchRef"]["target"].get("authoredDate")
+                            
+                        all_repos.append({
+                            "name": node["name"],
+                            "url": node["url"],
+                            "description": node.get("description"),
+                            "last_commit_date": last_commit
+                        })
+                        
+                if redis:
+                    await redis.setex(cache_key, 300, json.dumps({"viewer_login": viewer_login, "repos": all_repos}))
+                    
+            total_items = len(all_repos)
+            total_pages = max(1, math.ceil(total_items / limit))
+            start_idx = (page - 1) * limit
+            end_idx = start_idx + limit
+            page_repos = all_repos[start_idx:end_idx]
+
+            # Fetch DB repos for this page
+            repo_names = [r["name"] for r in page_repos]
+            db_repos_query = select(UserRepo).where(UserRepo.user_id == user_id, UserRepo.name.in_(repo_names))
+            db_repos_result = await self.db.execute(db_repos_query)
+            db_repos = db_repos_result.scalars().all()
+            user_repo_map = {r.name: r for r in db_repos}
+
+            async def check_repo_status(repo, client):
+                status = "Доступен"
+                try:
+                    c_response = await client.get(
+                        f"https://api.github.com/repos/{viewer_login}/{repo['name']}/contributors?per_page=2",
+                        headers={
+                            "Accept": "application/vnd.github+json",
+                            "Authorization": f"Bearer {access_token}",
+                            "X-GitHub-Api-Version": global_config.GITHUB_API_VERSION,
+                        }
+                    )
+                    if c_response.status_code == 200:
+                        contributors = c_response.json()
+                        if len(contributors) > 1 or (len(contributors) == 1 and contributors[0].get("login") != viewer_login):
+                            status = "Недоступен"
+                except Exception:
+                    pass
+                
+                analyzed_at_str = None
+                if repo["name"] in user_repo_map:
+                    db_repo = user_repo_map[repo["name"]]
+                    analyzed_at_str = db_repo.analyzed_at.isoformat() if db_repo.analyzed_at else None
+                    
+                    if db_repo.analyzed_at is None:
+                        status = "В процессе..."
+                    elif status != "Недоступен" and repo["last_commit_date"]:
+                        try:
+                            commit_dt = datetime.fromisoformat(repo["last_commit_date"].replace('Z', '+00:00'))
+                            if db_repo.analyzed_at >= commit_dt:
+                                status = "Проверен"
+                        except Exception:
+                            pass
+
+                return {
+                    **repo,
+                    "analyzed_at": analyzed_at_str,
+                    "status": status
+                }
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                tasks = [check_repo_status(repo, client) for repo in page_repos]
+                enriched_repos = await asyncio.gather(*tasks)
+
+            return {
+                "items": enriched_repos,
+                "total_pages": total_pages,
+                "current_page": page,
+                "total_items": total_items
+            }
+            
         except Exception as exc:
             logger.warning("Failed to fetch repositories for user %s: %s", user_id, exc)
-            return []
+            return {"items": [], "total_pages": 0, "current_page": page, "total_items": 0}
 
     async def disconnect(self, user_id: int) -> None:
         user = await get_user_by_id(self.db, user_id)

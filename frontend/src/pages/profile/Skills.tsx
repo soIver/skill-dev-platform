@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { ActionMenu } from "../../components/ActionMenu";
 import { authJson } from "../../auth";
 import { InfoModal } from "../../components/InfoModal";
 
@@ -80,11 +81,24 @@ export default function Skills() {
         </div>
       ),
     },
+    {
+      key: "action",
+      header: "Действие",
+      align: "center",
+      render: () => (
+        <ActionMenu
+          items={[
+            { label: "Найти задания", to: "/tasks" },
+            { label: "Найти тест", to: "/tests" },
+          ]}
+        />
+      ),
+    },
   ];
 
   return (
-    <div className="flex gap-8">
-      <div className="workspace-panel flex-1 relative">
+    <div className="max-w-4xl mx-auto">
+      <div className="workspace-panel relative">
         {showInfo && (
           <InfoModal
             title="Как рассчитывается уверенность?"
@@ -97,14 +111,14 @@ export default function Skills() {
           />
         )}
         <h2 className="workspace-panel-header">Мои навыки</h2>
-        <div className="flex flex-col h-[500px]">
+        <div className="flex flex-col">
           <PaginatedTable
             columns={columns}
             data={data}
             isLoading={isLoading}
             emptyMessage={
               <>
-                Вы можете <Link to="/tests" className="hyperlink">пройти тест</Link> или <Link to="/profile/repositories" className="hyperlink">загрузить репозиторий</Link>,<br />чтобы получить первые навыки.
+                Вы можете <Link to="/tests" className="hyperlink">пройти тест</Link>, <Link to="/tasks" className="hyperlink">выполнить задание</Link> <br />или <Link to="/profile/repositories" className="hyperlink">загрузить репозиторий</Link>, чтобы получить первые навыки.
               </>
             }
             currentPage={currentPage}
@@ -113,9 +127,6 @@ export default function Skills() {
           />
         </div>
       </div>
-
-      {/* Заглушка для правой части (будет заполнена позже) */}
-      <div className="flex-1" />
     </div>
   );
 }

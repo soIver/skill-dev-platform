@@ -29,14 +29,11 @@ async def _process_repository(user_id: int, repo_name: str, repo_url: str):
                 user_id=user_id,
                 gh_id=0, # We might need actual gh_id, but for now 0
                 name=repo_name,
-                analyzed_at=datetime.now(timezone.utc)
+                analyzed_at=None
             )
             db.add(repo)
             await db.commit()
             await db.refresh(repo)
-        else:
-            repo.analyzed_at = datetime.now(timezone.utc)
-            await db.commit()
 
         # Analyze
         extracted_skills = await analyzer.analyze(repo_url, db)
@@ -160,6 +157,9 @@ async def _process_repository(user_id: int, repo_name: str, repo_url: str):
                             logger.debug(f"Уровень навыка {skill_id} пользователя {user_id} подтверждён (avg: {avg_score:.2f})")
                 
             await db.commit()
+
+        repo.analyzed_at = datetime.now(timezone.utc)
+        await db.commit()
 
         # публикация уведомления для клиента о завершении анализа
         redis = get_redis()
