@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../auth";
 import { useToast } from "../components/ToastProvider";
 import FieldRequirements from "../components/FieldRequirements";
+import { Eye, EyeOff } from "lucide-react";
 
 // regexp для обнаружения букв не из латиницы/кириллицы
 const OTHER_ALPHA_RE = /(?:(?![a-zA-Zа-яА-ЯёЁ])\p{L})/u;
@@ -49,14 +50,17 @@ export default function Registration() {
   const ghEmail = searchParams.get("gh_email") || "";
   const ghLogin = searchParams.get("gh_login") || "";
   const ghTokenEnc = searchParams.get("gh_token_enc") || "";
+  const ghId = searchParams.get("gh_id") || "";
 
   const [username, setUsername] = useState(ghLogin);
   const [email, setEmail] = useState(ghEmail);
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRepeatPassword, setShowRepeatPassword] = useState(false);
 
   // какое поле сейчас активно
-  const [activeField, setActiveField] = useState<"username" | "email" | "password" | null>(null);
+  const [activeField, setActiveField] = useState<"username" | "email" | "password" | "repeatPassword" | null>(null);
 
   // refs для доступа к DOM-элементам инпутов
   const usernameRef = React.useRef<HTMLInputElement>(null);
@@ -106,6 +110,7 @@ export default function Registration() {
         email,
         password,
         ...(ghTokenEnc ? { github_token: ghTokenEnc } : {}),
+        ...(ghId ? { github_id: parseInt(ghId, 10) } : {}),
       });
       showToast({
         title: "Регистрация завершена",
@@ -188,17 +193,27 @@ export default function Registration() {
             <label className="block text-sm font-medium text-gray-700">
               Пароль
             </label>
-            <input
-              ref={passwordRef}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={() => setActiveField("password")}
-              onBlur={() => setActiveField(null)}
-              className="input-field"
-              placeholder="Ваш пароль"
-              required
-            />
+            <div className="password-field-wrapper">
+              <input
+                ref={passwordRef}
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setActiveField("password")}
+                onBlur={() => setActiveField(null)}
+                className="input-field pr-10"
+                placeholder="Ваш пароль"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="password-toggle-btn"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
             <FieldRequirements
               visible={activeField === "password"}
               requirements={[
@@ -215,14 +230,32 @@ export default function Registration() {
             <label className="block text-sm font-medium text-gray-700">
               Повторите пароль
             </label>
-            <input
-              ref={repeatPasswordRef}
-              type="password"
-              value={repeatPassword}
-              onChange={(e) => setRepeatPassword(e.target.value)}
-              className="input-field"
-              placeholder="Ваш пароль ещё раз"
-              required
+            <div className="password-field-wrapper">
+              <input
+                ref={repeatPasswordRef}
+                type={showRepeatPassword ? "text" : "password"}
+                value={repeatPassword}
+                onChange={(e) => setRepeatPassword(e.target.value)}
+                onFocus={() => setActiveField("repeatPassword")}
+                onBlur={() => setActiveField(null)}
+                className="input-field pr-10"
+                placeholder="Ваш пароль ещё раз"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowRepeatPassword(!showRepeatPassword)}
+                className="password-toggle-btn"
+                tabIndex={-1}
+              >
+                {showRepeatPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            <FieldRequirements
+              visible={activeField === "repeatPassword"}
+              requirements={[
+                { text: "Пароли совпадают", met: password === repeatPassword && repeatPassword.length > 0 },
+              ]}
             />
           </div>
 

@@ -4,10 +4,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { login } from "../auth";
 import { useToast } from "../components/ToastProvider";
 import GitHubIcon from "../assets/icons/github.svg?react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -74,14 +76,24 @@ export default function Login() {
             <label className="block text-sm font-medium text-gray-700">
               Пароль
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              placeholder="Ваш пароль"
-              required
-            />
+            <div className="password-field-wrapper">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-field pr-10"
+                placeholder="Ваш пароль"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="password-toggle-btn"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="primary-button mt-5">

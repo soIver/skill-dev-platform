@@ -6,15 +6,6 @@ import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { useToast } from "../../components/ToastProvider";
-import { Profanease } from 'profanease';
-import ru from 'profanease/langs/ru';
-import en from 'profanease/langs/en';
-
-const profanityFilter = new Profanease({
-  languages: [ru, en],
-  normalize: 'none'
-});
-
 interface SearchResponse {
   items: RecommendationItem[];
   total_pages: number;
@@ -234,14 +225,12 @@ export default function ContentRecommendations() {
     });
   };
 
-  const isSkillAlreadySelected = (item: ProficiencyItem) => 
+  const isSkillAlreadySelected = (item: ProficiencyItem) =>
     editorData.skills.some(s => s.proficiency_id === item.id);
 
   const isDescriptionValid = editorData.description.length >= 32 && editorData.description.length <= 1024;
-  const profanityAnalysis = profanityFilter.analyze(editorData.description);
-  const hasProfanity = profanityAnalysis.isProfane;
-  const canSave = hasUnsavedChanges && isDescriptionValid && !hasProfanity;
-  const canTogglePublish = isDescriptionValid && !hasProfanity;
+  const canSave = hasUnsavedChanges && isDescriptionValid;
+  const canTogglePublish = isDescriptionValid;
 
   const columns: Column<RecommendationItem>[] = [
     {
@@ -330,7 +319,7 @@ export default function ContentRecommendations() {
               value={keywordInput}
               onChange={(e) => setRecommendationsState({ keywordInput: e.target.value })}
               className="input-field"
-              placeholder="Ключевые слова..."
+              placeholder="Поиск по ключевым словам"
             />
           </div>
           <div className="flex items-end">
@@ -400,31 +389,9 @@ export default function ContentRecommendations() {
               </div>
             </div>
 
-            <div className="relative w-full">
-              {/* Highlighting Overlay */}
-              <div
-                className="input-field min-h-[150px] absolute inset-0 pointer-events-none whitespace-pre-wrap break-word overflow-hidden text-transparent"
-                style={{
-                  zIndex: 0,
-                  font: 'inherit',
-                  borderColor: 'transparent'
-                }}
-              >
-                {editorData.description.split(/(\s+)/).map((part, i) => {
-                  const isProfane = profanityFilter.check(part.trim());
-                  return (
-                    <span
-                      key={i}
-                      className={isProfane && part.trim() ? "bg-red-200 text-transparent rounded" : ""}
-                    >
-                      {part}
-                    </span>
-                  );
-                })}
-              </div>
-
+            <div className="w-full">
               <textarea
-                className="input-field min-h-[150px] resize-y mb-1 relative bg-transparent z-10"
+                className="input-field min-h-[150px] resize-y mb-1 relative"
                 style={{ font: 'inherit' }}
                 placeholder="Описание рекомендации..."
                 value={editorData.description}
@@ -437,11 +404,6 @@ export default function ContentRecommendations() {
             </div>
 
             <div className="text-xs flex flex-col mb-2 gap-1">
-              {hasProfanity && (
-                <div className="text-danger font-medium">
-                  Обнаружена нецензурная лексика
-                </div>
-              )}
               <div className="text-gray-500 flex justify-between">
                 <span>{editorData.description.length < 32 && editorData.description.length > 0 ? "Слишком короткое описание" : ""}</span>
                 <span className={editorData.description.length > 1024 ? "text-danger" : ""}>
@@ -450,12 +412,12 @@ export default function ContentRecommendations() {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer mb-6">
+            <label className="flex items-center gap-2 cursor-pointer ml-1 mb-6">
               <input
                 type="checkbox"
                 checked={editorData.check_repo}
                 onChange={(e) => updateEditorData({ check_repo: e.target.checked })}
-                className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
+                className="w-4 h-4 cursor-pointer text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
               />
               <span className="text-sm font-medium text-gray-700">Требует проверку репозитория</span>
             </label>
@@ -472,7 +434,7 @@ export default function ContentRecommendations() {
                     {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
                   </>
                 )}
-                placeholder="Название навыка..."
+                placeholder="Поиск по названию"
                 buttonText="Добавить"
                 isItemDisabled={isSkillAlreadySelected}
                 debounceMs={2000}
@@ -480,7 +442,7 @@ export default function ContentRecommendations() {
 
               <div className="mt-4 flex flex-col gap-2">
                 {editorData.skills.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Связанные навыки отсутствуют.</p>
+                  <p className="text-gray-500 text-sm ml-1">Связанные навыки отсутствуют.</p>
                 ) : (
                   editorData.skills.map(s => (
                     <div key={s.proficiency_id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">

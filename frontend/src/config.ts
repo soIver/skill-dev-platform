@@ -9,3 +9,21 @@ export const config = {
     ? API_BASE_URL.slice(0, -1)
     : API_BASE_URL,
 };
+
+export const RECOMMENDATION = {
+  DESCRIPTION: {
+    MIN_LENGTH: 32,
+    MAX_LENGTH: 2048,
+  }
+} as const;
+
+export const PROFICIENCY = {
+  SKILL_NAME: {
+    MAX_LENGTH: 32,
+  },
+  LEVEL_NAME: {
+    MAX_LENGTH: 32,
+  },
+} as const;
+
+export const SEARCH_DEBOUNCE_MS = 2000;

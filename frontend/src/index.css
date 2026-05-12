@@ -42,6 +42,18 @@
         }
     }
 
+    .password-field-wrapper {
+        @apply relative mt-1;
+    }
+
+    .password-toggle-btn {
+        @apply absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary cursor-pointer p-1 transition-colors;
+
+        svg {
+            @apply w-5 h-5;
+        }
+    }
+
     .danger-button {
         @apply w-full px-4 py-2 text-white rounded-xl font-medium cursor-pointer transition-colors bg-danger hover:bg-danger-hover;
     }

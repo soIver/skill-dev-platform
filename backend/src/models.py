@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, relationship
 from pgvector.sqlalchemy import Vector
@@ -22,6 +22,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
+    github_id = Column(BigInteger, unique=True, nullable=True)
     github_token = Column(String, nullable=True)
     role_id = Column(
         Integer,

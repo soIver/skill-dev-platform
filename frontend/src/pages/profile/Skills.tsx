@@ -84,7 +84,6 @@ export default function Skills() {
 
   return (
     <div className="flex gap-8">
-      {/* Ваши навыки */}
       <div className="workspace-panel flex-1 relative">
         {showInfo && (
           <InfoModal
@@ -97,7 +96,7 @@ export default function Skills() {
             onClose={() => setShowInfo(false)}
           />
         )}
-        <h2 className="workspace-panel-header">Ваши навыки</h2>
+        <h2 className="workspace-panel-header">Мои навыки</h2>
         <div className="flex flex-col h-[500px]">
           <PaginatedTable
             columns={columns}

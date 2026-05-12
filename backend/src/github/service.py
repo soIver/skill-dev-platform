@@ -28,6 +28,7 @@ string_cipher = Cipher(
 
 @dataclass(slots=True)
 class GitHubProfile:
+    id: int
     login: str
     name: str | None
     avatar_url: str | None
@@ -121,25 +122,48 @@ class GitHubService:
             if user is None:
                 raise ValueError("Пользователь не найден")
 
+            # Проверка, не привязан ли этот профиль GitHub к другому аккаунту
+            duplicate_result = await self.db.execute(
+                select(User).where(User.github_id == profile.id, User.id != user_id)
+            )
+            if duplicate_result.scalar_one_or_none():
+                return ("connect_error", "Этот профиль GitHub уже привязан к другому аккаунту")
+
+            user.github_id = profile.id
             user.github_token = string_cipher.encrypt(access_token)
             await self.db.commit()
             return ("connect", self._build_frontend_redirect_url(status="connected", login=profile.login))
         
         elif action_type == "login":
-            email = await self._fetch_github_email(access_token)
+            # Сначала пытаемся найти по github_id
             result = await self.db.execute(
-                select(User).options(joinedload(User.role)).where(User.email == email)
+                select(User).options(joinedload(User.role)).where(User.github_id == profile.id)
             )
             user = result.unique().scalar_one_or_none()
+            
+            email = None
+            if not user:
+                # Если не нашли по ID, ищем по email
+                email = await self._fetch_github_email(access_token)
+                result = await self.db.execute(
+                    select(User).options(joinedload(User.role)).where(User.email == email)
+                )
+                user = result.unique().scalar_one_or_none()
             
             encrypted_token = string_cipher.encrypt(access_token)
             
             if user:
+                # Обновляем ID и токен
+                user.github_id = profile.id
                 user.github_token = encrypted_token
                 await self.db.commit()
                 return ("login", user)
             else:
+                # Если пользователя нет, переходим к регистрации
+                if not email:
+                    email = await self._fetch_github_email(access_token)
                 return ("register", {
+                    "gh_id": profile.id,
                     "email": email,
                     "login": profile.login,
                     "gh_token_enc": encrypted_token,
@@ -220,6 +244,7 @@ class GitHubService:
         except ValueError:
             logger.exception("Не удалось расшифровать GitHub token при отвязке для пользователя %s", user_id)
             user.github_token = None
+            user.github_id = None
             await self.db.commit()
             return
 
@@ -234,6 +259,7 @@ class GitHubService:
             raise RuntimeError("Не удалось отвязать профиль GitHub.")
 
         user.github_token = None
+        user.github_id = None
         await self.db.commit()
 
     async def _exchange_code_for_token(self, code: str, code_verifier: str) -> str:
@@ -292,6 +318,7 @@ class GitHubService:
 
         payload = response.json()
         return GitHubProfile(
+            id=payload["id"],
             login=payload["login"],
             name=payload.get("name"),
             avatar_url=payload.get("avatar_url"),

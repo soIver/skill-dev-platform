@@ -51,6 +51,7 @@ async def register(
         credentials.email,
         credentials.password,
         credentials.github_token,
+        credentials.github_id,
     )
     user, token_pair = await auth.login(credentials.email, credentials.password, device_id)
     set_auth_cookies(response, token_pair)

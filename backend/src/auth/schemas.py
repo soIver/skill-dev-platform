@@ -19,6 +19,7 @@ class RegistrationCredentials(BaseModel):
     email: str
     password: str
     github_token: str | None = None
+    github_id: int | None = None
 
     @field_validator('username')
     @classmethod

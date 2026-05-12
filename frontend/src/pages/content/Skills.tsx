@@ -140,7 +140,7 @@ export default function SkillsAdmin() {
               value={skillInput}
               onChange={(e) => setSkillsState({ skillInput: e.target.value })}
               className="input-field"
-              placeholder="Название..."
+              placeholder="Поиск по названию"
             />
           </div>
           <div className="flex-1">
@@ -149,7 +149,7 @@ export default function SkillsAdmin() {
               value={levelInput}
               onChange={(e) => setSkillsState({ levelInput: e.target.value })}
               className="input-field"
-              placeholder="Уровень..."
+              placeholder="Поиск по уровню"
             />
           </div>
           <div className="flex items-end">

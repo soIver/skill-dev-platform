@@ -84,6 +84,8 @@ async def github_callback(
             action, data = result
             if action == "connect":
                 redirect_url = data
+            elif action == "connect_error":
+                redirect_url = service._build_frontend_redirect_url(status="error", message=data)
             elif action == "login":
                 user = data
                 token_service = TokenService(db)
@@ -95,6 +97,7 @@ async def github_callback(
                 return redirect_response
             elif action == "register":
                 query = {
+                    "gh_id": str(data["gh_id"]),
                     "gh_email": data["email"],
                     "gh_login": data["login"],
                     "gh_token_enc": data["gh_token_enc"],
