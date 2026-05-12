@@ -6,6 +6,7 @@ export interface Column<T> {
   render?: (item: T) => React.ReactNode;
   align?: "left" | "center" | "right";
   width?: string;
+  showProgressBar?: boolean;
 }
 
 interface PaginatedTableProps<T> {
@@ -30,7 +31,7 @@ export function PaginatedTable<T extends { id: number | string }>({
   onRowClick,
 }: PaginatedTableProps<T>) {
   return (
-    <>
+    <div className="flex-1 min-h-0 flex flex-col w-full">
       <div className="flex-1 min-h-0 overflow-auto border border-gray-200 rounded-lg bg-white">
         <table className="w-full text-left border-collapse">
           <thead className="bg-gray-50 sticky top-0 shadow-sm z-10">
@@ -38,9 +39,8 @@ export function PaginatedTable<T extends { id: number | string }>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`py-3 px-4 font-medium text-gray-700 ${
-                    col.align === "center" ? "text-center" : col.align === "right" ? "text-right" : "text-left"
-                  } ${col.width || ""}`}
+                  className={`py-3 px-4 font-medium text-gray-700 ${col.align === "center" ? "text-center" : col.align === "right" ? "text-right" : "text-left"
+                    } ${col.width || ""}`}
                 >
                   {col.header}
                 </th>
@@ -50,19 +50,28 @@ export function PaginatedTable<T extends { id: number | string }>({
           <tbody className="divide-y divide-gray-200">
             {data.length > 0 ? (
               data.map((item) => (
-                <tr 
-                  key={item.id} 
+                <tr
+                  key={item.id}
                   className={`transition-colors ${onRowClick ? "cursor-pointer hover:bg-gray-100" : "hover:bg-gray-50"}`}
                   onClick={() => onRowClick?.(item)}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`py-3 px-4 ${
-                        col.align === "center" ? "text-center" : col.align === "right" ? "text-right" : "text-left"
-                      } ${col.width || ""}`}
+                      className={`py-3 px-4 ${col.align === "center" ? "text-center" : col.align === "right" ? "text-right" : "text-left"
+                        } ${col.width || ""}`}
                     >
-                      {col.render ? col.render(item) : (item as any)[col.key]}
+                      {col.showProgressBar ? (
+                        <div className={`flex items-center gap-2 ${col.align === "center" ? "justify-center" : col.align === "right" ? "justify-end" : "justify-start"}`}>
+                          <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden shrink-0">
+                            <div
+                              className="h-full bg-primary transition-all duration-500"
+                              style={{ width: `${Math.min(100, Number((item as any)[col.key]) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-600 shrink-0">{(Number((item as any)[col.key]) * 100).toFixed(0)}%</span>
+                        </div>
+                      ) : col.render ? col.render(item) : (item as any)[col.key]}
                     </td>
                   ))}
                 </tr>
@@ -79,9 +88,8 @@ export function PaginatedTable<T extends { id: number | string }>({
       </div>
 
       <div
-        className={`flex justify-center items-center gap-4 mt-4 transition-opacity duration-300 ${
-          totalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        className={`flex justify-center items-center gap-4 mt-4 transition-opacity duration-300 ${totalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
       >
         <button
           onClick={() => onPageChange(currentPage - 1)}
@@ -101,6 +109,6 @@ export function PaginatedTable<T extends { id: number | string }>({
           →
         </button>
       </div>
-    </>
+    </div>
   );
 }

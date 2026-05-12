@@ -11,62 +11,52 @@ logger = get_logger("notifications.router")
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
+# глобальный сигнал остановки, устанавливается при shutdown FastAPI
+shutdown_event = asyncio.Event()
+
+
 async def event_generator(request: Request, user_id: int):
     redis = get_redis()
     pubsub = redis.pubsub()
     channel = f"notifications:{user_id}"
     await pubsub.subscribe(channel)
-    
+
     logger.info(f"User {user_id} connected to notifications stream")
 
     try:
-        # Включаем прослушивание сообщений
-        # В FastAPI StreamingResponse ожидает генератор
-        
-        # Создаем задачу для прослушивания Redis
-        async def listen():
-            async for message in pubsub.listen():
-                if message["type"] == "message":
-                    data = message["data"]
-                    if isinstance(data, bytes):
-                        data = data.decode("utf-8")
-                    yield f"data: {data}\n\n"
-
-        # Мы хотим также отправлять heartbeat, чтобы соединение не закрывалось прокси-серверами
-        # и проверять, не отключился ли клиент.
-        
-        listener = listen()
-        
-        while True:
+        while not shutdown_event.is_set():
             if await request.is_disconnected():
                 logger.info(f"User {user_id} disconnected from notifications stream")
                 break
-            
+
             try:
-                # Пытаемся получить сообщение с коротким таймаутом
-                # Так как listen() блокирует, нам нужно что-то более гибкое
-                # или использовать asyncio.wait
-                
-                # Используем get_message вместо listen для более простого управления циклом
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=0.5
+                )
                 if message:
                     data = message["data"]
                     if isinstance(data, bytes):
                         data = data.decode("utf-8")
                     yield f"data: {data}\n\n"
                 else:
-                    # Отправляем комментарий в качестве heartbeat
+                    # heartbeat для поддержания соединения
                     yield ": heartbeat\n\n"
-                    
+
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 logger.error(f"Error in notification stream for user {user_id}: {e}")
                 break
-                
+
     except asyncio.CancelledError:
         logger.debug(f"Notification stream for user {user_id} cancelled")
     finally:
-        await pubsub.unsubscribe(channel)
-        await pubsub.close()
+        try:
+            await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
+        except Exception:
+            pass
+
 
 @router.get("/stream")
 async def stream_notifications(
@@ -79,6 +69,6 @@ async def stream_notifications(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no", # Важно для Nginx
-        }
+            "X-Accel-Buffering": "no",  # важно для Nginx
+        },
     )

@@ -27,7 +27,7 @@ export function TabTracker({ section, tabs }: TabTrackerProps) {
   }, [location.pathname, section, tabs, setActiveTab]);
 
   return (
-    <div className="mx-auto min-w-fit" style={{ maxWidth: '90%' }}>
+    <div className="mx-auto min-w-fit w-full flex-1 flex flex-col min-h-0" style={{ maxWidth: '90%' }}>
       <HorNavBar tabs={tabs} />
       <Outlet />
     </div>

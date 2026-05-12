@@ -3,6 +3,7 @@ import { authJson } from "../../auth";
 import { PROFICIENCY, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useContentStore, type ProficiencyItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { useToast } from "../../components/ToastProvider";
 
 interface SearchResponse {
   items: ProficiencyItem[];
@@ -13,6 +14,7 @@ interface SearchResponse {
 export default function SkillsAdmin() {
   const { skills, setSkillsState } = useContentStore();
   const { skillInput, levelInput, results, currentPage, totalPages, lastSearch } = skills;
+  const { showToast } = useToast();
 
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -85,9 +87,12 @@ export default function SkillsAdmin() {
           level_name: levelInput
         })
       });
-      fetchProficiencies(skillInput, levelInput, 1);
+      fetchProficiencies("", "", 1);
+      setSkillsState({ skillInput: "", levelInput: "" });
+      showToast({ title: "Успех", message: "Навык успешно создан", variant: "success" });
     } catch (error) {
       console.error("Failed to create proficiency", error);
+      showToast({ title: "Ошибка", message: "Не удалось создать навык", variant: "error" });
     } finally {
       setIsCreating(false);
     }
@@ -159,7 +164,7 @@ export default function SkillsAdmin() {
             <button
               onClick={handleCreate}
               disabled={!canCreate}
-              className={`primary-button ${!canCreate ? "opacity-50 cursor-not-allowed" : ""
+              className={`primary-button ${!canCreate ? "bg-gray-300 cursor-not-allowed" : ""
                 }`}
             >
               Создать
@@ -180,7 +185,7 @@ export default function SkillsAdmin() {
 
       <div className="workspace-panel flex-1 flex flex-col h-full">
         <h2 className="workspace-panel-header">Редактор навыков</h2>
-        <div className="flex-1 overflow-auto mt-4">
+        <div className="flex-1 flex items-center justify-center">
           <p className="text-gray-500">Выберите навык для редактирования...</p>
         </div>
       </div>

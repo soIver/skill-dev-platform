@@ -18,7 +18,7 @@ export default function Layout() {
         <AuthBootstrap />
         <VerNavBar />
         <div className="flex-1 flex flex-col min-w-0">
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto flex flex-col">
             <AppRoutes />
           </main>
         </div>

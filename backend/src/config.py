@@ -59,14 +59,18 @@ class Config:
     ALLOWED_ORIGINS = os.environ.get(
         "ALLOWED_ORIGINS", "http://localhost:5173, http://127.0.0.1:5173"
     ).split(",")
+
+    # лимиты
     RATE_LIMIT_RPM = 30 # запросов в минуту
-    
+    DAYS_FOR_TEST_ATTEMPT = 7 # количество дней перед новой попыткой сдать тест
+    DAYS_FOR_EMAIL_CHANGE = 30 # количество дней перед новой попыткой сменить почту
+
     # анализ
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-    REPO_SKILL_COUNT_FOR_UPDATE = 5 # количество встреч навыка для обновления уровня
-    MAX_DECAY_DAYS = 15 # максимальный возраст навыка репозитория, учитывающегося при оценке уровня
-    DECAY_INTERVAL = 3 # интервал в днях для вычисления коэффициента снижения оценки
-    DECAY_FACTOR = 0.1 # коэффициент снижения оценки за 1 интервал
+    REPO_SKILL_COUNT_FOR_UPDATE = 10 # количество встреч навыка для обновления уровня
+    SKILL_SCORE_DECAY_MAX_DAYS = 15 # максимальный возраст в днях навыка репозитория, учитывающегося при оценке уровня
+    SKILL_SCORE_DECAY_INTERVAL = 3 # интервал в днях для вычисления коэффициента снижения оценки
+    SKILL_SCORE_DECAY_FACTOR = 0.1 # коэффициент снижения оценки за 1 интервал
 
     @classmethod
     def string_encryption_key(cls) -> bytes:

@@ -179,7 +179,7 @@ export default function Credentials() {
 
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto w-full">
       <div className="space-y-8">
         {/* Основные */}
         <div className="workspace-panel">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { ActionMenu } from "../../components/ActionMenu";
@@ -50,7 +51,8 @@ export default function Repositories() {
     if (data) {
       // Точный расчет страниц на основе реального количества элементов
       const computedTotalPages = Math.max(1, Math.ceil(data.total_items / REPOSITORIES_PER_PAGE));
-      setReposData(data.items, computedTotalPages, [1, 2]);
+      const itemsWithId = data.items.map(item => ({ ...item, id: item.name }));
+      setReposData(itemsWithId, computedTotalPages, [1, 2]);
     }
     setIsLoading(false);
   }, [fetchPage, isInitialized, setReposData]);
@@ -66,7 +68,8 @@ export default function Repositories() {
     if (nextPage <= totalPages && !fetchedPages.includes(nextPage)) {
       const data = await fetchPage(nextPage, REPOSITORIES_PER_PAGE);
       if (data) {
-        addRepos(data.items, nextPage);
+        const itemsWithId = data.items.map(item => ({ ...item, id: item.name }));
+        addRepos(itemsWithId, nextPage);
       }
     }
   }, [addRepos, fetchPage, fetchedPages, totalPages]);
@@ -75,7 +78,11 @@ export default function Repositories() {
     try {
       await authJson("/analysis/repository", {
         method: "POST",
-        body: JSON.stringify({ repo_name: repo.name, repo_url: repo.url }),
+        body: JSON.stringify({
+          repo_name: repo.name,
+          repo_url: repo.url,
+          last_commit_date: repo.last_commit_date,
+        }),
       });
       showToast({
         title: "Анализ запущен",
@@ -156,7 +163,7 @@ export default function Repositories() {
             {
               label: "Проверить",
               onClick: () => handleAnalyze(item),
-              disabled: item.status === "Недоступен" || item.status === "В процессе..."
+              disabled: item.status !== "Доступен"
             },
             {
               label: "Открыть",
@@ -174,19 +181,25 @@ export default function Repositories() {
   );
 
   return (
-    <div className="workspace-panel h-full flex flex-col">
-      <h2 className="workspace-panel-header shrink-0">Мои репозитории</h2>
+    <div className="max-w-5xl mx-auto mb-10 w-full h-full">
+      <div className="workspace-panel h-full flex flex-col">
+        <h2 className="workspace-panel-header shrink-0">Мои репозитории</h2>
 
-      <div className="flex-1 min-h-0">
-        <PaginatedTable
-          columns={columns}
-          data={currentItems}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-          isLoading={isLoading}
-          emptyMessage="У вас пока нет публичных репозиториев."
-        />
+        <div className="flex-1 min-h-0 flex flex-col">
+          <PaginatedTable
+            columns={columns}
+            data={currentItems}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            isLoading={isLoading}
+            emptyMessage={
+              <>
+                Привяжите профиль GitHub в <Link to="/profile/credentials" className="hyperlink">настройках интеграций</Link>,<br/>чтобы получить возможность загружать свои репозитории.
+              </>
+            }
+          />
+        </div>
       </div>
     </div>
   );

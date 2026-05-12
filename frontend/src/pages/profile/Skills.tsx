@@ -69,17 +69,7 @@ export default function Skills() {
         </div>
       ),
       align: "center",
-      render: (item) => (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden max-w-[100px]">
-            <div
-              className="h-full bg-indigo-600 transition-all duration-500"
-              style={{ width: `${Math.min(100, item.confidence * 100)}%` }}
-            />
-          </div>
-          <span className="text-sm text-gray-600">{(item.confidence * 100).toFixed(0)}%</span>
-        </div>
-      ),
+      showProgressBar: true,
     },
     {
       key: "action",
@@ -97,21 +87,21 @@ export default function Skills() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto mb-10 w-full h-full">
       <div className="workspace-panel relative">
         {showInfo && (
           <InfoModal
             title="Как рассчитывается уверенность?"
             message={`Показатель уверенности отражает соответствие Ваших знаний и умений навыку определённого уровня. 
 
-Оценка формируется на основе Ваших последних действий в системе. Чем выше качество выполнения рекомендаций и прохождения тестов по этому навыку, тем выше процент уверенности.
+  Оценка формируется на основе Ваших последних действий в системе. Чем выше качество выполнения заданий и прохождения тестов по этому навыку, тем выше процент уверенности.
 
-Обратите внимание: навыки имеют свойство «забываться» со временем. Чем дольше Вы не подтверждали уровень владения навыком в системе, тем ниже будет уверенность в нём.`}
+  Обратите внимание: навыки имеют свойство «забываться» со временем. Чем дольше Вы не подтверждали уровень владения навыком в системе, тем ниже будет уверенность в нём.`}
             onClose={() => setShowInfo(false)}
           />
         )}
         <h2 className="workspace-panel-header">Мои навыки</h2>
-        <div className="flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col">
           <PaginatedTable
             columns={columns}
             data={data}

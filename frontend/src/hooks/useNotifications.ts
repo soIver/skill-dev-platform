@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "./useUserStore";
+import { useRepositoriesStore } from "./useRepositoriesStore";
 
 export function useNotifications() {
   const { showToast } = useToast();
   const user = useUserStore((state) => state.user);
+  const updateRepoStatus = useRepositoriesStore((state) => state.updateRepoStatus);
 
   useEffect(() => {
     if (!user) return;
@@ -26,6 +28,16 @@ export function useNotifications() {
             message: data.message,
             variant: "success",
           });
+          // Обновляем статус репозитория в сторе без перезагрузки страницы
+          updateRepoStatus(data.repo_name, "Проверен");
+        } else if (data.type === "repository_analysis_failed") {
+          showToast({
+            title: "Ошибка анализа",
+            message: data.message,
+            variant: "error",
+          });
+          // Возвращаем статус в «Доступен», чтобы можно было повторить
+          updateRepoStatus(data.repo_name, "Доступен");
         }
       } catch (err) {
         console.error("Failed to parse notification", err);
@@ -40,5 +52,5 @@ export function useNotifications() {
     return () => {
       eventSource.close();
     };
-  }, [showToast, user]);
+  }, [showToast, user, updateRepoStatus]);
 }

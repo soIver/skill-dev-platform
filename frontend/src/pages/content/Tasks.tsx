@@ -117,6 +117,9 @@ export default function ContentTasks() {
 
   const handleCreate = () => {
     if (selectedId === "new") return;
+    
+    setTasksState({ keywordInput: "" });
+    
     if (hasUnsavedChanges) {
       setTasksState({ pendingSelectId: "new" });
     } else {

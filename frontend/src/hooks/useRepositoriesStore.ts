@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 export interface RepoItem {
+  id: string;
   name: string;
   url: string;
   description?: string;

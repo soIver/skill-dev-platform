@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
+import { SEARCH_DEBOUNCE_MS } from "../config";
 
 interface AutocompleteSearchProps<T> {
   onSearch: (query: string) => Promise<T[]>;
   onSelect: (item: T) => void;
+  onInputChange?: (value: string) => void;
   itemToString: (item: T) => string;
   renderItem?: (item: T) => React.ReactNode;
   placeholder?: string;
@@ -20,8 +22,9 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   placeholder = "Поиск...",
   buttonText = "Добавить",
   isItemDisabled,
-  debounceMs = 1000,
+  debounceMs = SEARCH_DEBOUNCE_MS,
   className = "",
+  onInputChange,
 }: AutocompleteSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [results, setResults] = useState<T[]>([]);
@@ -81,6 +84,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
     if (selectedItem) {
       onSelect(selectedItem);
       setInputValue("");
+      if (onInputChange) onInputChange("");
       setSelectedItem(null);
     }
   };
@@ -88,7 +92,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   const isBtnDisabled = !selectedItem || (isItemDisabled && isItemDisabled(selectedItem));
 
   return (
-    <div className={`flex gap-2 items-start relative ${className}`} ref={dropdownRef}>
+    <div className={`flex gap-4 items-start relative ${className}`} ref={dropdownRef}>
       <div className="flex-1 relative">
         <input
           type="text"
@@ -96,6 +100,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
           onChange={(e) => {
             setInputValue(e.target.value);
             setShowDropdown(true);
+            if (onInputChange) onInputChange(e.target.value);
           }}
           onFocus={() => {
             if (results.length > 0) setShowDropdown(true);
@@ -110,11 +115,10 @@ export function AutocompleteSearch<T extends { id: number | string }>({
               return (
                 <li
                   key={item.id}
-                  className={`px-4 py-2 text-sm transition-colors ${
-                    disabled
-                      ? "opacity-50 cursor-not-allowed bg-gray-50"
-                      : "hover:bg-gray-50 cursor-pointer text-gray-900"
-                  }`}
+                  className={`px-4 py-2 text-sm transition-colors ${disabled
+                    ? "opacity-50 cursor-not-allowed bg-gray-50"
+                    : "hover:bg-gray-50 cursor-pointer text-gray-900"
+                    }`}
                   onClick={() => !disabled && handleItemClick(item)}
                 >
                   {renderItem ? renderItem(item) : itemToString(item)}
@@ -132,9 +136,8 @@ export function AutocompleteSearch<T extends { id: number | string }>({
       <button
         disabled={isBtnDisabled}
         onClick={handleButtonClick}
-        className={`px-4 py-2 rounded-lg font-medium text-white transition-colors h-[42px] ${
-          isBtnDisabled ? "bg-gray-300 cursor-not-allowed" : "bg-primary hover:bg-primary-hover"
-        }`}
+        className={`px-4 py-2 rounded-xl font-medium text-white transition-colors h-[42px] ${isBtnDisabled ? "bg-gray-300 cursor-not-allowed" : "bg-primary hover:bg-primary-hover"
+          }`}
       >
         {buttonText}
       </button>

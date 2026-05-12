@@ -12,11 +12,13 @@ from .utils import get_embedding, get_completion, analysis_config
 logger = get_logger("analysis.models")
 
 class RepoAnalyzer:
+    DISTANCE_TRESHOLD = 0.3
+
     def __init__(self):
         self.config = analysis_config
 
     async def ingest_repository(self, url: str) -> str:
-        logger.info(f"Ingesting repository {url}...")
+        logger.info(f"Обработка репозитория {url}...")
         ignore_patterns = [
             "*.md", "*.txt", "package.json", "package-lock.json",
             "poetry.lock", "Pipfile*", "node_modules", ".env*",
@@ -35,7 +37,7 @@ class RepoAnalyzer:
             return []
 
         try:
-            # Очистка от возможных markdown-тегов ```json ... ```
+            # очистка от возможных markdown-тегов
             content = content.strip()
             if content.startswith("```"):
                 content = content.split("```")[1]
@@ -51,40 +53,40 @@ class RepoAnalyzer:
                     skills.append((name, score))
             
             logger.debug(f"Извлечено {len(skills)} навыков")
+            logger.debug(skills)
             return skills
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.error(f"Ошибка при парсинге JSON от LLM: {e}")
             logger.debug(f"Raw content: {content}")
             return []
 
-    async def match_skills(self, db: AsyncSession, extracted_skills: List[Tuple[str, int]], threshold: float = 0.2) -> List[Dict]:
+    async def match_skills(self, db: AsyncSession, extracted_skills: List[Tuple[str, int]], threshold: float) -> List[Dict]:
         matched = []
         for skill_name, score in extracted_skills:
             vector = await get_embedding(skill_name)
             
-            # Using pgvector <-> operator for cosine distance.
-            # We want to find the closest skill in DB.
-            # distance = cosine_distance = 1 - cosine_similarity
+            # используем pgvector <-> оператор для вычисления косинусного расстояния
+            # чтобы найти ближайший по смыслу навык в БД
             query = select(Skill).order_by(Skill.embedding.cosine_distance(vector)).limit(1)
             result = await db.execute(query)
             closest_skill = result.scalar_one_or_none()
 
             if closest_skill and closest_skill.embedding is not None:
-                # We need to also fetch the actual distance to check against threshold
+                # получаем конкретное значение расстояния, чтобы применить порог
                 dist_query = select(Skill.embedding.cosine_distance(vector)).where(Skill.id == closest_skill.id)
                 dist_result = await db.execute(dist_query)
                 dist = dist_result.scalar_one_or_none()
                 
                 if dist is not None and dist <= threshold:
-                    logger.debug(f"Matched '{skill_name}' to '{closest_skill.name}' (dist: {dist:.3f})")
+                    logger.debug(f"Сопоставлен '{skill_name}' с '{closest_skill.name}' (расстояние: {dist:.3f})")
                     matched.append({
                         "skill_id": closest_skill.id,
                         "score": score
                     })
                 else:
-                    logger.debug(f"Discarded '{skill_name}' (closest: '{closest_skill.name}', dist: {dist:.3f} > {threshold})")
+                    logger.debug(f"Отсеян '{skill_name}' по порогу (ближайший: '{closest_skill.name}', расстояние: {dist:.3f} > {threshold})")
             else:
-                 logger.debug(f"Discarded '{skill_name}' (no skills with embeddings in DB)")
+                 logger.debug(f"Отклонён '{skill_name}' (эмбеддинги не найдены в БД)")
 
         return matched
 
@@ -95,6 +97,6 @@ class RepoAnalyzer:
         if not extracted:
             return []
             
-        return await self.match_skills(db, extracted)
+        return await self.match_skills(db, extracted, self.DISTANCE_TRESHOLD)
 
 analyzer = RepoAnalyzer()

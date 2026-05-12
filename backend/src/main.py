@@ -14,6 +14,9 @@ from .skills.router import router as skills_router
 from .tasks.router import router as tasks_router
 from .analysis.router import router as analysis_router
 from .notifications.router import router as notifications_router
+from .notifications.router import shutdown_event as notifications_shutdown_event
+from .tests.router import router as tests_router
+from .utils.redis import RedisClient
 
 
 app = FastAPI()
@@ -24,12 +27,21 @@ async def on_startup():
     await init_database()
 
 
+@app.on_event("shutdown")
+async def on_shutdown():
+    # сигнализируем SSE-генераторам о завершении
+    notifications_shutdown_event.set()
+    # закрываем Redis-клиент
+    await RedisClient.close()
+
+
 app.include_router(auth_router, prefix="/api")
 app.include_router(github_router, prefix="/api")
 app.include_router(skills_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
+app.include_router(tests_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

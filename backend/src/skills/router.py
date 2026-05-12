@@ -10,8 +10,10 @@ from .utils import calculate_adjusted_score, calculate_confidence
 from ..auth.utils import require_role, get_current_user
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Skill, Level, Proficiency, UserProficiency, RepoSkill, UserRepo
+from ..models import Skill, Level, Proficiency, UserProficiency, RepoSkill, UserRepo, TestAttempt, Test
 from ..analysis.utils import get_embedding
+from ..config import global_config
+from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/skills", tags=["Skills"])
 
@@ -197,6 +199,37 @@ async def get_my_proficiencies(
             adjusted_scores.append(adj)
             
         confidence = calculate_confidence(adjusted_scores, total_levels, next_level_order)
+
+        # 2. Штраф/бонус за количество встреч навыка
+        n_query = select(func.count(RepoSkill.id)).join(UserRepo).where(
+            UserRepo.user_id == user.user_id,
+            RepoSkill.skill_id == skill.id
+        )
+        n = await db.scalar(n_query)
+        a = (global_config.REPO_SKILL_COUNT_FOR_UPDATE / 2) - (n or 0)
+        if a > 0:
+            confidence = confidence * (1 - 0.1 * a)
+
+        # 3. Множитель на основе попыток прохождения тестов
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=global_config.DAYS_FOR_TEST_ATTEMPT * 2)
+        test_attempt_query = select(TestAttempt, Test).join(Test, TestAttempt.test_id == Test.id).where(
+            TestAttempt.user_id == user.user_id,
+            Test.proficiency_id == current_prof.id,
+            TestAttempt.completed_at >= cutoff_date
+        ).order_by(TestAttempt.completed_at.desc()).limit(1)
+        
+        test_attempt_res = await db.execute(test_attempt_query)
+        test_attempt_data = test_attempt_res.first()
+
+        if test_attempt_data:
+            ta, test = test_attempt_data
+            m = ta.score / test.threshold_score if test.threshold_score else 1.0
+            confidence = confidence * m
+        else:
+            confidence = confidence * 0.7
+
+        # 4. Ограничение уверенности до 1.0
+        confidence = min(1.0, max(0.0, confidence))
         
         items.append(UserProficiencyItem(
             id=up.id,

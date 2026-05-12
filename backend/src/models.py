@@ -178,8 +178,8 @@ class QuestionAnswer(Base):
     question = relationship("TestQuestion", lazy="select")
 
 
-class UserTestAttempt(Base):
-    __tablename__ = "user_test_attempts"
+class TestAttempt(Base):
+    __tablename__ = "test_attempts"
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
