@@ -5,7 +5,7 @@ import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { ActionMenu } from "../../components/ActionMenu";
 import { authJson } from "../../auth";
 import { useToast } from "../../components/ToastProvider";
-import { REPOSITORIES_PER_PAGE } from "../../config";
+import { ITEMS_PER_TABLE_PAGE } from "../../config";
 import { useRepositoriesStore, type RepoItem } from "../../hooks/useRepositoriesStore";
 
 export default function Repositories() {
@@ -46,11 +46,11 @@ export default function Repositories() {
     }
 
     setIsLoading(true);
-    // Initial fetch for first 2 pages (REPOSITORIES_PER_PAGE * 2 items)
-    const data = await fetchPage(1, REPOSITORIES_PER_PAGE * 2);
+    // инициальная подгрузка первых двух страниц (ITEMS_PER_PAGE * 2 объектов)
+    const data = await fetchPage(1, ITEMS_PER_TABLE_PAGE.REPOS * 2);
     if (data) {
-      // Точный расчет страниц на основе реального количества элементов
-      const computedTotalPages = Math.max(1, Math.ceil(data.total_items / REPOSITORIES_PER_PAGE));
+      // точный расчет страниц на основе реального количества элементов
+      const computedTotalPages = Math.max(1, Math.ceil(data.total_items / ITEMS_PER_TABLE_PAGE.REPOS));
       const itemsWithId = data.items.map(item => ({ ...item, id: item.name }));
       setReposData(itemsWithId, computedTotalPages, [1, 2]);
     }
@@ -58,15 +58,18 @@ export default function Repositories() {
   }, [fetchPage, isInitialized, setReposData]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
   }, [loadData]);
 
-  // Pre-fetch next page logic
-  const handlePageChange = useCallback(async (newPage: number) => {
+  const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage);
-    const nextPage = newPage + 1;
+  }, []);
+
+  // функция предзагрузки следующей страницы
+  const handlePreload = useCallback(async (nextPage: number) => {
     if (nextPage <= totalPages && !fetchedPages.includes(nextPage)) {
-      const data = await fetchPage(nextPage, REPOSITORIES_PER_PAGE);
+      const data = await fetchPage(nextPage, ITEMS_PER_TABLE_PAGE.REPOS);
       if (data) {
         const itemsWithId = data.items.map(item => ({ ...item, id: item.name }));
         addRepos(itemsWithId, nextPage);
@@ -175,11 +178,6 @@ export default function Repositories() {
     }
   ];
 
-  const currentItems = repos.slice(
-    (currentPage - 1) * REPOSITORIES_PER_PAGE,
-    currentPage * REPOSITORIES_PER_PAGE
-  );
-
   return (
     <div className="max-w-5xl mx-auto mb-10 w-full h-full">
       <div className="workspace-panel h-full flex flex-col">
@@ -188,10 +186,12 @@ export default function Repositories() {
         <div className="flex-1 min-h-0 flex flex-col">
           <PaginatedTable
             columns={columns}
-            data={currentItems}
+            data={repos}
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={handlePageChange}
+            itemsPerPage={ITEMS_PER_TABLE_PAGE.REPOS}
+            onPreload={handlePreload}
             isLoading={isLoading}
             emptyMessage={
               <>

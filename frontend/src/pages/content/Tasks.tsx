@@ -13,15 +13,15 @@ interface SearchResponse {
   current_page: number;
 }
 
-interface ProficiencyItem {
+interface SkillLevelItemLocal {
   id: number;
   skill_name: string;
   level_name: string;
   obtained_count: number;
 }
 
-interface ProfSearchResponse {
-  items: ProficiencyItem[];
+interface SkillLevelSearchResponse {
+  items: SkillLevelItemLocal[];
   total_pages: number;
   current_page: number;
 }
@@ -82,7 +82,7 @@ export default function ContentTasks() {
 
   const fetchProficiencies = async (query: string) => {
     const params = new URLSearchParams({ skill: query, page: "1" });
-    const response = await authJson<ProfSearchResponse>(`/skills/proficiencies?${params.toString()}`);
+    const response = await authJson<SkillLevelSearchResponse>(`/skills/skill_levels?${params.toString()}`);
     return response.items;
   };
 
@@ -143,7 +143,7 @@ export default function ContentTasks() {
         description: editorData.description,
         check_repo: editorData.check_repo,
         is_published: newPublishStatus,
-        proficiency_ids: editorData.skills.map(s => s.proficiency_id)
+        skill_level_ids: editorData.skills.map(s => s.skill_level_id)
       };
 
       const response = await authJson<any>(url, {
@@ -163,11 +163,11 @@ export default function ContentTasks() {
         hasUnsavedChanges: false
       });
 
-      showToast({ title: "Успех", message: "Задание сохранена", variant: "success" });
-      fetchTasks(lastSearch.keyword, currentPage); // refresh table
+      showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
+      fetchTasks(lastSearch.keyword, currentPage); // обновление таблицы после сохранения
       return response.id;
     } catch (error) {
-      showToast({ title: "Ошибка", message: "Не удалось сохранить", variant: "error" });
+      showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
       throw error;
     }
   };
@@ -213,24 +213,24 @@ export default function ContentTasks() {
     });
   };
 
-  const handleAddSkill = (selectedItem: ProficiencyItem) => {
+  const handleAddSkill = (selectedItem: SkillLevelItemLocal) => {
     updateEditorData({
       skills: [...editorData.skills, {
-        proficiency_id: selectedItem.id,
+        skill_level_id: selectedItem.id,
         skill_name: selectedItem.skill_name,
         level_name: selectedItem.level_name
       }]
     });
   };
 
-  const handleRemoveSkill = (profId: number) => {
+  const handleRemoveSkill = (slId: number) => {
     updateEditorData({
-      skills: editorData.skills.filter(s => s.proficiency_id !== profId)
+      skills: editorData.skills.filter(s => s.skill_level_id !== slId)
     });
   };
 
-  const isSkillAlreadySelected = (item: ProficiencyItem) =>
-    editorData.skills.some(s => s.proficiency_id === item.id);
+  const isSkillAlreadySelected = (item: SkillLevelItemLocal) =>
+    editorData.skills.some(s => s.skill_level_id === item.id);
 
   const isDescriptionValid = editorData.description.length >= TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length <= TASK.DESCRIPTION.MAX_LENGTH;
   const canSave = hasUnsavedChanges && isDescriptionValid;
@@ -252,7 +252,7 @@ export default function ContentTasks() {
     },
     {
       key: "issued_count",
-      header: "Выдана",
+      header: "Выполнено",
       align: "center",
       width: "w-1/5",
       render: (item) => <span className="text-gray-900">{item.issued_count}</span>,
@@ -300,7 +300,7 @@ export default function ContentTasks() {
 
       {showDeleteConfirm && selectedId !== null && (
         <EditorConfirmModal
-          title="Подтверждение удаления"
+          title="Требуется подтверждение"
           message={`Вы уверены, что хотите удалить задание #${selectedId}?`}
           confirmText="Да, удалить навсегда"
           confirmVariant="danger"
@@ -430,7 +430,7 @@ export default function ContentTasks() {
             <div className="mb-4">
               <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Связанные навыки</h3>
 
-              <AutocompleteSearch<ProficiencyItem>
+              <AutocompleteSearch<SkillLevelItemLocal>
                 onSearch={fetchProficiencies}
                 onSelect={handleAddSkill}
                 itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
@@ -450,12 +450,12 @@ export default function ContentTasks() {
                   <p className="text-gray-500 text-sm ml-1">Связанные навыки отсутствуют.</p>
                 ) : (
                   editorData.skills.map(s => (
-                    <div key={s.proficiency_id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div key={s.skill_level_id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">
                       <span className="text-md text-gray-800 font-medium">
                         {s.skill_name} - <span className="text-gray-500 font-normal">{s.level_name}</span>
                       </span>
                       <button
-                        onClick={() => handleRemoveSkill(s.proficiency_id)}
+                        onClick={() => handleRemoveSkill(s.skill_level_id)}
                         className="text-sm font-medium text-danger hover:text-danger-hover px-2 py-1"
                       >
                         Отвязать

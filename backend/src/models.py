@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Date, func
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Float, String, Text, Date, func
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, relationship
 from pgvector.sqlalchemy import Vector
@@ -84,6 +84,23 @@ class Skill(Base):
     embedding = Column(Vector(384), nullable=True)
 
 
+class SkillRelation(Base):
+    __tablename__ = "skill_relations"
+
+    id = Column(Integer, primary_key=True)
+    source_id = Column(
+        Integer,
+        ForeignKey("skills.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_id = Column(
+        Integer,
+        ForeignKey("skills.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    influence_weight = Column(Float, default=0.5, nullable=False)
+
+
 class Level(Base):
     __tablename__ = "levels"
 
@@ -91,8 +108,8 @@ class Level(Base):
     name = Column(String, unique=True, nullable=False)
 
 
-class Proficiency(Base):
-    __tablename__ = "proficiencies"
+class SkillLevel(Base):
+    __tablename__ = "skill_levels"
 
     id = Column(Integer, primary_key=True)
     skill_id = Column(
@@ -123,14 +140,13 @@ class Test(Base):
     __tablename__ = "tests"
 
     id = Column(Integer, primary_key=True)
-    proficiency_id = Column(
+    skill_level_id = Column(
         Integer,
-        ForeignKey("proficiencies.id"),
+        ForeignKey("skill_levels.id"),
         nullable=True,
     )
     time_limit_minutes = Column(Integer, nullable=True)
     threshold_score = Column(Integer, nullable=True)
-    variant = Column(Integer, nullable=False)
     is_published = Column(Boolean, default=False)
     author_id = Column(
         Integer,
@@ -140,7 +156,7 @@ class Test(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    proficiency = relationship("Proficiency", lazy="select")
+    skill_level = relationship("SkillLevel", lazy="select")
     author = relationship("User", lazy="select")
 
 
@@ -199,28 +215,6 @@ class TestAttempt(Base):
     test = relationship("Test", lazy="select")
 
 
-class UserProficiency(Base):
-    __tablename__ = "user_proficiencies"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    proficiency_id = Column(
-        Integer,
-        ForeignKey("proficiencies.id"),
-        nullable=True,
-    )
-    encountered_count = Column(Integer, default=0)
-    obtained_date = Column(Date, server_default=func.current_date())
-    repeated_date = Column(Date, nullable=True)
-
-    user = relationship("User", lazy="select")
-    proficiency = relationship("Proficiency", lazy="select")
-
-
 class Vacancy(Base):
     __tablename__ = "vacancies"
 
@@ -261,8 +255,8 @@ class VacancyKeyword(Base):
     keyword = relationship("Keyword", lazy="select")
 
 
-class VacancyProficiency(Base):
-    __tablename__ = "vacancy_proficiencies"
+class VacancySkillLevel(Base):
+    __tablename__ = "vacancy_skill_levels"
 
     id = Column(Integer, primary_key=True)
     vacancy_id = Column(
@@ -270,14 +264,14 @@ class VacancyProficiency(Base):
         ForeignKey("vacancies.id", ondelete="CASCADE"),
         nullable=False,
     )
-    proficiency_id = Column(
+    skill_level_id = Column(
         Integer,
-        ForeignKey("proficiencies.id"),
+        ForeignKey("skill_levels.id"),
         nullable=True,
     )
 
     vacancy = relationship("Vacancy", lazy="select")
-    proficiency = relationship("Proficiency", lazy="select")
+    skill_level = relationship("SkillLevel", lazy="select")
 
 
 class Task(Base):
@@ -320,13 +314,13 @@ class TaskScore(Base):
     task = relationship("Task", lazy="select")
 
 
-class SkillTask(Base):
-    __tablename__ = "skill_tasks"
+class SkillLevelTask(Base):
+    __tablename__ = "skill_level_tasks"
 
     id = Column(Integer, primary_key=True)
-    proficiency_id = Column(
+    skill_level_id = Column(
         Integer,
-        ForeignKey("proficiencies.id", ondelete="CASCADE"),
+        ForeignKey("skill_levels.id", ondelete="CASCADE"),
         nullable=False,
     )
     task_id = Column(
@@ -335,7 +329,7 @@ class SkillTask(Base):
         nullable=False,
     )
 
-    proficiency = relationship("Proficiency", lazy="select")
+    skill_level = relationship("SkillLevel", lazy="select")
     task = relationship("Task", lazy="select")
 
 
@@ -363,11 +357,6 @@ class UserRecommendation(Base):
         ForeignKey("vacancies.id", ondelete="CASCADE"),
         nullable=True,
     )
-    proficiency_id = Column(
-        Integer,
-        ForeignKey("user_proficiencies.id", ondelete="CASCADE"),
-        nullable=True,
-    )
     repo_id = Column(
         Integer,
         ForeignKey("user_repos.id", ondelete="CASCADE"),
@@ -381,7 +370,6 @@ class UserRecommendation(Base):
     task = relationship("Task", lazy="select")
     test = relationship("Test", lazy="select")
     vacancy = relationship("Vacancy", lazy="select")
-    proficiency = relationship("UserProficiency", lazy="select")
 
 
 class UserVacancy(Base):

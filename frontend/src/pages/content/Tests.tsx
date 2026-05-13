@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
 import { SEARCH_DEBOUNCE_MS } from "../../config";
-import { useContentStore, type TestItem, type ProficiencyItem } from "../../hooks/useContentStore";
+import { useContentStore, type TestItem, type SkillLevelItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 
@@ -11,8 +11,8 @@ interface SearchResponse {
   current_page: number;
 }
 
-interface ProfSearchResponse {
-  items: ProficiencyItem[];
+interface SkillLevelSearchResponse {
+  items: SkillLevelItem[];
   total_pages: number;
   current_page: number;
 }
@@ -79,11 +79,11 @@ export default function ContentTests() {
     const params = new URLSearchParams({ skill, page: "1" });
     if (level) params.append("level", level);
 
-    const response = await authJson<ProfSearchResponse>(`/skills/proficiencies?${params.toString()}`);
+    const response = await authJson<SkillLevelSearchResponse>(`/skills/skill_levels?${params.toString()}`);
     return response.items;
   };
 
-  const handleSelectCreate = (item: ProficiencyItem) => {
+  const handleSelectCreate = (item: SkillLevelItem) => {
     if (selectedId === "new") return;
 
     if (hasUnsavedChanges) {
@@ -91,7 +91,7 @@ export default function ContentTests() {
     } else {
       setTestsState({
         selectedId: "new",
-        editorData: { time_limit_minutes: null, threshold_score: null, variant: 1, is_published: false, proficiency_id: item.id },
+        editorData: { time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: item.id },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -109,13 +109,6 @@ export default function ContentTests() {
       align: "left",
       width: "w-2/6",
       render: (item) => <span className="text-gray-900">{item.skill_name} - <span className="text-gray-500">{item.level_name}</span></span>,
-    },
-    {
-      key: "variant",
-      header: "Вариант",
-      align: "center",
-      width: "w-1/6",
-      render: (item) => <span className="text-gray-900">{item.variant}</span>,
     },
     {
       key: "attempts_count",
@@ -157,7 +150,7 @@ export default function ContentTests() {
         <h2 className="workspace-panel-header mb-4">Список тестов</h2>
 
         <div className="mb-6">
-          <AutocompleteSearch<ProficiencyItem>
+          <AutocompleteSearch<SkillLevelItem>
             onSearch={fetchProficiencies}
             onSelect={handleSelectCreate}
             onInputChange={handleInputChange}

@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Task, UserRecommendation, TaskScore, SkillTask, Proficiency, Skill, Level
+from ..models import Task, UserRecommendation, TaskScore, SkillLevelTask, SkillLevel, Skill, Level
 from .schemas import (
     TaskSearchResponse, 
     TaskItem, 
@@ -95,18 +95,18 @@ async def get_task(
         raise HTTPException(status_code=404, detail="Task not found")
         
     skills_query = (
-        select(SkillTask, Proficiency, Skill, Level)
-        .join(Proficiency, SkillTask.proficiency_id == Proficiency.id)
-        .join(Skill, Proficiency.skill_id == Skill.id)
-        .join(Level, Proficiency.level_id == Level.id)
-        .where(SkillTask.task_id == rec_id)
+        select(SkillLevelTask, SkillLevel, Skill, Level)
+        .join(SkillLevel, SkillLevelTask.skill_level_id == SkillLevel.id)
+        .join(Skill, SkillLevel.skill_id == Skill.id)
+        .join(Level, SkillLevel.level_id == Level.id)
+        .where(SkillLevelTask.task_id == rec_id)
     )
     skills_result = await db.execute(skills_query)
     
     skills_items = []
     for sr, sl, sk, lv in skills_result.all():
         skills_items.append(SkillTaskItem(
-            proficiency_id=sl.id,
+            skill_level_id=sl.id,
             skill_name=sk.name,
             level_name=lv.name
         ))
@@ -134,9 +134,9 @@ async def create_task(
     db.add(rec)
     await db.flush()
     
-    for prof_id in data.proficiency_ids:
-        db.add(SkillTask(
-            proficiency_id=prof_id,
+    for sl_id in data.skill_level_ids:
+        db.add(SkillLevelTask(
+            skill_level_id=sl_id,
             task_id=rec.id
         ))
         
@@ -162,12 +162,12 @@ async def update_task(
     rec.is_published = data.is_published
     
     # удаление старых навыков
-    await db.execute(delete(SkillTask).where(SkillTask.task_id == rec_id))
+    await db.execute(delete(SkillLevelTask).where(SkillLevelTask.task_id == rec_id))
     
     # добавление новых навыков
-    for prof_id in data.proficiency_ids:
-        db.add(SkillTask(
-            proficiency_id=prof_id,
+    for sl_id in data.skill_level_ids:
+        db.add(SkillLevelTask(
+            skill_level_id=sl_id,
             task_id=rec.id
         ))
         

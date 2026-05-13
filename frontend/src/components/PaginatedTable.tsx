@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { ITEMS_PER_TABLE_PAGE } from "../config";
 
 export interface Column<T> {
   key: string;
@@ -18,6 +19,9 @@ interface PaginatedTableProps<T> {
   totalPages: number;
   onPageChange: (page: number) => void;
   onRowClick?: (item: T) => void;
+  itemsPerPage?: number;
+  onPreload?: (nextPage: number) => void;
+  useClientSlice?: boolean;
 }
 
 export function PaginatedTable<T extends { id: number | string }>({
@@ -29,7 +33,23 @@ export function PaginatedTable<T extends { id: number | string }>({
   totalPages,
   onPageChange,
   onRowClick,
+  itemsPerPage = ITEMS_PER_TABLE_PAGE.DEFAULT,
+  onPreload,
+  useClientSlice,
 }: PaginatedTableProps<T>) {
+  // автоматическая предзагрузка следующей страницы при доступности
+  useEffect(() => {
+    if (onPreload && currentPage < totalPages) {
+      onPreload(currentPage + 1);
+    }
+  }, [currentPage, totalPages, onPreload]);
+
+  // локальный срез данных по страницам если включена предзагрузка или запрошено явно
+  const shouldSlice = useClientSlice ?? (onPreload !== undefined);
+  const currentData = shouldSlice
+    ? data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : data;
+
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full">
       <div className="flex-1 min-h-0 overflow-auto border border-gray-200 rounded-lg bg-white">
@@ -48,8 +68,8 @@ export function PaginatedTable<T extends { id: number | string }>({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {data.length > 0 ? (
-              data.map((item) => (
+            {currentData.length > 0 ? (
+              currentData.map((item) => (
                 <tr
                   key={item.id}
                   className={`transition-colors ${onRowClick ? "cursor-pointer hover:bg-gray-100" : "hover:bg-gray-50"}`}
@@ -66,12 +86,12 @@ export function PaginatedTable<T extends { id: number | string }>({
                           <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden shrink-0">
                             <div
                               className="h-full bg-primary transition-all duration-500"
-                              style={{ width: `${Math.min(100, Number((item as any)[col.key]) * 100)}%` }}
+                              style={{ width: `${Math.min(100, Number((item as Record<string, unknown>)[col.key]) * 100)}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600 shrink-0">{(Number((item as any)[col.key]) * 100).toFixed(0)}%</span>
+                          <span className="text-sm text-gray-600 shrink-0">{(Number((item as Record<string, unknown>)[col.key]) * 100).toFixed(0)}%</span>
                         </div>
-                      ) : col.render ? col.render(item) : (item as any)[col.key]}
+                      ) : col.render ? col.render(item) : (item as Record<string, React.ReactNode>)[col.key]}
                     </td>
                   ))}
                 </tr>
@@ -103,6 +123,11 @@ export function PaginatedTable<T extends { id: number | string }>({
         </span>
         <button
           onClick={() => onPageChange(currentPage + 1)}
+          onMouseEnter={() => {
+            if (currentPage < totalPages) {
+              onPreload?.(currentPage + 1);
+            }
+          }}
           disabled={currentPage === totalPages}
           className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
         >

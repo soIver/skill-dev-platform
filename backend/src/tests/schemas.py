@@ -4,7 +4,6 @@ class TestItem(BaseModel):
     id: int
     skill_name: str
     level_name: str
-    variant: int
     attempts_count: int
     passed_count: int
     status: str

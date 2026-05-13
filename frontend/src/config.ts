@@ -21,7 +21,7 @@ export const TASK = {
   }
 } as const;
 
-export const PROFICIENCY = {
+export const SKILL_LEVEL = {
   SEARCH_SKILL: {
     MAX_LENGTH: 32,
   },
@@ -32,4 +32,7 @@ export const PROFICIENCY = {
 
 export const SEARCH_DEBOUNCE_MS = 1000;
 
-export const REPOSITORIES_PER_PAGE = 10;
+export const ITEMS_PER_TABLE_PAGE = {
+  REPOS: 10,
+  DEFAULT: 7,
+} as const;

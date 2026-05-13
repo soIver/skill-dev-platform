@@ -71,6 +71,7 @@ class Config:
     SKILL_SCORE_DECAY_MAX_DAYS = 15 # максимальный возраст в днях навыка репозитория, учитывающегося при оценке уровня
     SKILL_SCORE_DECAY_INTERVAL = 3 # интервал в днях для вычисления коэффициента снижения оценки
     SKILL_SCORE_DECAY_FACTOR = 0.1 # коэффициент снижения оценки за 1 интервал
+    VTOTAL_EPSILON = 0.1 # минимальный уровень навыка при расчёте Vtotal
 
     @classmethod
     def string_encryption_key(cls) -> bytes:

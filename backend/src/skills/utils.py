@@ -4,6 +4,42 @@ import math
 from scipy.stats import norm
 from ..config import global_config
 
+
+def calculate_vtotal(
+    relations: list[tuple[int, float]],
+    source_scores: dict[int, float],
+    epsilon: float = 0.1,
+) -> float:
+    """
+    Взвешенное среднее геометрическое для корректировки оценки по связям навыков.
+    relations — список (source_id, weight), где source влияет на target.
+    source_scores — средние оценки источников (0–100) из репозиториев пользователя.
+
+    Навыки-источники, которых нет в репозиториях пользователя, пропускаются —
+    они не дают ни бонуса, ни штрафа. Это реализует семантику «бонуса за знание
+    родственного навыка» без штрафа за его отсутствие.
+    epsilon защищает от ln(0) для источников с нулевой оценкой.
+    """
+    if not relations:
+        return 1.0
+
+    sum_w = 0.0
+    sum_wln = 0.0
+    for source_id, weight in relations:
+        # пропускаем источник, если он не найден в репозиториях пользователя
+        if source_id not in source_scores:
+            continue
+        vi = source_scores[source_id] / 100.0
+        vi = max(vi, epsilon)
+        sum_w += weight
+        sum_wln += weight * math.log(vi)
+
+    # нет ни одного найденного источника — коррекция не применяется
+    if sum_w == 0:
+        return 1.0
+
+    return math.exp(sum_wln / sum_w)
+
 def calculate_adjusted_score(raw_score: int, last_seen_date: datetime) -> int:
     """
     Вычисляет оценку навыка с учетом временного штрафа

@@ -14,7 +14,7 @@ class TaskSearchResponse(BaseModel):
     current_page: int
 
 class SkillTaskItem(BaseModel):
-    proficiency_id: int
+    skill_level_id: int
     skill_name: str
     level_name: str
 
@@ -29,4 +29,4 @@ class TaskCreateUpdate(BaseModel):
     description: Optional[str]
     check_repo: bool
     is_published: bool
-    proficiency_ids: list[int]
+    skill_level_ids: list[int]

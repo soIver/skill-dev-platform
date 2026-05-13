@@ -4,7 +4,6 @@ export interface TestItem {
   id: number;
   skill_name: string;
   level_name: string;
-  variant: number;
   attempts_count: number;
   passed_count: number;
   status: string;
@@ -13,9 +12,8 @@ export interface TestItem {
 export interface TestEditorData {
   time_limit_minutes: number | null;
   threshold_score: number | null;
-  variant: number;
   is_published: boolean;
-  proficiency_id: number | null;
+  skill_level_id: number | null;
 }
 
 interface TestsState {
@@ -30,20 +28,18 @@ interface TestsState {
   hasUnsavedChanges: boolean;
   pendingSelectId: number | "new" | null;
 }
-export interface ProficiencyItem {
+
+export interface SkillLevelItem {
   id: number;
   skill_name: string;
   level_name: string;
   obtained_count: number;
 }
 
-interface SkillsState {
-  skillInput: string;
-  levelInput: string;
-  results: ProficiencyItem[];
-  currentPage: number;
-  totalPages: number;
-  lastSearch: { skill: string; level: string; page: number };
+export interface SkillTaskItem {
+  skill_level_id: number;
+  skill_name: string;
+  level_name: string;
 }
 
 export interface TaskItem {
@@ -52,12 +48,6 @@ export interface TaskItem {
   issued_count: number;
   average_rating: string;
   status: string;
-}
-
-export interface SkillTaskItem {
-  proficiency_id: number;
-  skill_name: string;
-  level_name: string;
 }
 
 export interface TaskEditorData {
@@ -74,11 +64,53 @@ interface TasksState {
   totalPages: number;
   lastSearch: { keyword: string; page: number };
   
-  // Editor state
+  // состояние редактора
   selectedId: number | "new" | null;
   editorData: TaskEditorData;
   hasUnsavedChanges: boolean;
-  pendingSelectId: number | "new" | null; // Used for "unsaved changes" intercept
+  pendingSelectId: number | "new" | null;
+}
+
+// типы для редактора навыков
+export interface LevelEditorItem {
+  id: number;
+  level_name: string;
+  order_index: number;
+}
+
+export interface SkillRelationEditorItem {
+  source_id: number;
+  source_name: string;
+  influence_weight: number;
+}
+
+export interface SkillEditorData {
+  skill_id: number;
+  skill_name: string;
+  levels: LevelEditorItem[];
+  relations: SkillRelationEditorItem[];
+}
+
+const emptyEditorData: SkillEditorData = {
+  skill_id: 0,
+  skill_name: "",
+  levels: [],
+  relations: [],
+};
+
+interface SkillsState {
+  skillInput: string;
+  levelInput: string;
+  results: SkillLevelItem[];
+  currentPage: number;
+  totalPages: number;
+  lastSearch: { skill: string; level: string; page: number };
+
+  // состояние редактора
+  selectedId: number | null;
+  editorData: SkillEditorData;
+  hasUnsavedChanges: boolean;
+  pendingSelectId: number | null;
 }
 
 const initialSkillsState: SkillsState = {
@@ -88,6 +120,10 @@ const initialSkillsState: SkillsState = {
   currentPage: 1,
   totalPages: 1,
   lastSearch: { skill: "", level: "", page: 1 },
+  selectedId: null,
+  editorData: { ...emptyEditorData },
+  hasUnsavedChanges: false,
+  pendingSelectId: null,
 };
 
 const initialTasksState: TasksState = {
@@ -109,7 +145,7 @@ const initialTestsState: TestsState = {
   totalPages: 1,
   lastSearch: { search: "", page: 1 },
   selectedId: null,
-  editorData: { time_limit_minutes: null, threshold_score: null, variant: 1, is_published: false, proficiency_id: null },
+  editorData: { time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };
