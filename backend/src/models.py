@@ -279,7 +279,6 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True)
     description = Column(Text, nullable=True)
-    check_repo = Column(Boolean, default=False)
     is_published = Column(Boolean, default=False)
     author_id = Column(
         Integer,

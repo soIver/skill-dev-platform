@@ -52,7 +52,6 @@ export interface TaskItem {
 
 export interface TaskEditorData {
   description: string;
-  check_repo: boolean;
   is_published: boolean;
   skills: SkillTaskItem[];
 }
@@ -136,7 +135,7 @@ const initialTasksState: TasksState = {
   totalPages: 1,
   lastSearch: { keyword: "", page: 1 },
   selectedId: null,
-  editorData: { description: "", check_repo: false, is_published: false, skills: [] },
+  editorData: { description: "", is_published: false, skills: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };

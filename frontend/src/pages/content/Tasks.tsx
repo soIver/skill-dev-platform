@@ -93,7 +93,6 @@ export default function ContentTasks() {
         selectedId: id,
         editorData: {
           description: response.description || "",
-          check_repo: response.check_repo,
           is_published: response.is_published,
           skills: response.skills
         },
@@ -125,7 +124,7 @@ export default function ContentTasks() {
     } else {
       setTasksState({
         selectedId: "new",
-        editorData: { description: "", check_repo: false, is_published: false, skills: [] },
+        editorData: { description: "", is_published: false, skills: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -141,7 +140,6 @@ export default function ContentTasks() {
     try {
       const payload = {
         description: editorData.description,
-        check_repo: editorData.check_repo,
         is_published: newPublishStatus,
         skill_level_ids: editorData.skills.map(s => s.skill_level_id)
       };
@@ -156,7 +154,6 @@ export default function ContentTasks() {
         selectedId: response.id,
         editorData: {
           description: response.description || "",
-          check_repo: response.check_repo,
           is_published: response.is_published,
           skills: response.skills
         },
@@ -193,7 +190,7 @@ export default function ContentTasks() {
     if (pendingSelectId === "new") {
       setTasksState({
         selectedId: "new",
-        editorData: { description: "", check_repo: false, is_published: false, skills: [] },
+        editorData: { description: "", is_published: false, skills: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -420,16 +417,6 @@ export default function ContentTasks() {
                 </span>
               </div>
             </div>
-
-            <label className="flex items-center gap-2 cursor-pointer ml-1 mb-6">
-              <input
-                type="checkbox"
-                checked={editorData.check_repo}
-                onChange={(e) => updateEditorData({ check_repo: e.target.checked })}
-                className="w-4 h-4 cursor-pointer text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
-              />
-              <span className="text-sm font-medium text-gray-700">Требует проверку репозитория</span>
-            </label>
 
             <div className="mb-4">
               <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Связанные навыки</h3>

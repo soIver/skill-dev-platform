@@ -21,12 +21,10 @@ class SkillTaskItem(BaseModel):
 class TaskDetail(BaseModel):
     id: int
     description: Optional[str]
-    check_repo: bool
     is_published: bool
     skills: list[SkillTaskItem]
 
 class TaskCreateUpdate(BaseModel):
     description: Optional[str]
-    check_repo: bool
     is_published: bool
     skill_level_ids: list[int]

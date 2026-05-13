@@ -114,7 +114,6 @@ async def get_task(
     return TaskDetail(
         id=rec.id,
         description=rec.description,
-        check_repo=rec.check_repo,
         is_published=rec.is_published,
         skills=skills_items
     )
@@ -127,7 +126,6 @@ async def create_task(
 ):
     rec = Task(
         description=data.description,
-        check_repo=data.check_repo,
         is_published=data.is_published,
         author_id=claims.user_id
     )
@@ -158,7 +156,6 @@ async def update_task(
         raise HTTPException(status_code=404, detail="Task not found")
         
     rec.description = data.description
-    rec.check_repo = data.check_repo
     rec.is_published = data.is_published
     
     # удаление старых навыков
