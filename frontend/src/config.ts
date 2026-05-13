@@ -11,14 +11,17 @@ export const config = {
 };
 
 export const TASK = {
+  TITLE: {
+    MIN_LENGTH: 4,
+    MAX_LENGTH: 48,
+  },
   DESCRIPTION: {
-    MIN_LENGTH: 32,
+    MIN_LENGTH: 64,
     MAX_LENGTH: 2048,
   },
   SEARCH_KEYWORDS: {
-    MAX_LENGTH: 32,
-
-  }
+    MAX_LENGTH: 48,
+  },
 } as const;
 
 export const SKILL_LEVEL = {

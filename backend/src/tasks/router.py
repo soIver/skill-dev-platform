@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, or_
 from sqlalchemy.orm import selectinload
 
 from ..auth.utils import require_role
@@ -30,6 +30,7 @@ async def search_tasks(
 
     query = select(
         Task.id,
+        Task.title,
         Task.description,
         Task.is_published,
         issued_count_sq.label("issued_count"),
@@ -37,7 +38,7 @@ async def search_tasks(
     )
     
     if keyword:
-        query = query.where(Task.description.ilike(f"%{keyword}%"))
+        query = query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
 
     query = query.order_by(issued_count_sq.desc(), Task.id)
 
@@ -45,7 +46,7 @@ async def search_tasks(
     
     count_query = select(func.count()).select_from(Task)
     if keyword:
-        count_query = count_query.where(Task.description.ilike(f"%{keyword}%"))
+        count_query = count_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
         
     total_count = await db.scalar(count_query)
     total_pages = (total_count + limit - 1) // limit if total_count else 1
@@ -69,6 +70,7 @@ async def search_tasks(
         
         items.append(TaskItem(
             id=row.id,
+            title=row.title,
             description_preview=desc_preview,
             issued_count=row.issued_count,
             average_rating=rating_str,
@@ -81,12 +83,22 @@ async def search_tasks(
         current_page=page,
     )
 
-@router.get("/tasks/{rec_id}", response_model=TaskDetail)
-async def get_task(
-    rec_id: int,
+@router.get("/tasks/check_title")
+async def check_task_title(
+    title: str,
+    exclude_id: int = Query(None),
     db: AsyncSession = Depends(get_db),
-    claims: TokenClaims = Depends(require_role("curator", "admin")),
+    claims: TokenClaims = Depends(require_role("curator", "admin"))
 ):
+    query = select(Task.id).where(func.lower(Task.title) == title.lower())
+    if exclude_id:
+        query = query.where(Task.id != exclude_id)
+    result = await db.execute(query)
+    exists = result.scalar_one_or_none() is not None
+    return {"is_taken": exists}
+
+@router.get("/tasks/{rec_id}", response_model=TaskDetail)
+async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     query = select(Task).where(Task.id == rec_id)
     result = await db.execute(query)
     rec = result.scalar_one_or_none()
@@ -113,18 +125,16 @@ async def get_task(
         
     return TaskDetail(
         id=rec.id,
+        title=rec.title,
         description=rec.description,
         is_published=rec.is_published,
         skills=skills_items
     )
 
 @router.post("/tasks", response_model=TaskDetail)
-async def create_task(
-    data: TaskCreateUpdate,
-    db: AsyncSession = Depends(get_db),
-    claims: TokenClaims = Depends(require_role("curator", "admin")),
-):
+async def create_task(data: TaskCreateUpdate, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     rec = Task(
+        title=data.title,
         description=data.description,
         is_published=data.is_published,
         author_id=claims.user_id
@@ -155,6 +165,7 @@ async def update_task(
     if not rec:
         raise HTTPException(status_code=404, detail="Task not found")
         
+    rec.title = data.title
     rec.description = data.description
     rec.is_published = data.is_published
     
@@ -172,11 +183,7 @@ async def update_task(
     return await get_task(rec.id, db, claims)
 
 @router.delete("/tasks/{rec_id}")
-async def delete_task(
-    rec_id: int,
-    db: AsyncSession = Depends(get_db),
-    claims: TokenClaims = Depends(require_role("curator", "admin")),
-):
+async def delete_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     query = select(Task).where(Task.id == rec_id)
     result = await db.execute(query)
     rec = result.scalar_one_or_none()
@@ -187,3 +194,4 @@ async def delete_task(
     await db.delete(rec)
     await db.commit()
     return {"status": "ok"}
+

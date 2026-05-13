@@ -278,7 +278,8 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True)
-    description = Column(Text, nullable=True)
+    title = Column(String(48), unique=True, nullable=False)
+    description = Column(Text, nullable=False)
     is_published = Column(Boolean, default=False)
     author_id = Column(
         Integer,

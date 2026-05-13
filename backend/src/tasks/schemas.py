@@ -1,8 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 class TaskItem(BaseModel):
     id: int
+    title: str
     description_preview: str
     issued_count: int
     average_rating: str
@@ -20,11 +21,14 @@ class SkillTaskItem(BaseModel):
 
 class TaskDetail(BaseModel):
     id: int
-    description: Optional[str]
+    title: str
+    description: str
     is_published: bool
     skills: list[SkillTaskItem]
 
 class TaskCreateUpdate(BaseModel):
-    description: Optional[str]
+    title: str = Field(..., min_length=4, max_length=48)
+    description: str = Field(..., min_length=64, max_length=2048)
     is_published: bool
     skill_level_ids: list[int]
+

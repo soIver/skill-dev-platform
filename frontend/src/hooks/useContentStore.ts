@@ -44,6 +44,7 @@ export interface SkillTaskItem {
 
 export interface TaskItem {
   id: number;
+  title: string;
   description_preview: string;
   issued_count: number;
   average_rating: string;
@@ -51,6 +52,7 @@ export interface TaskItem {
 }
 
 export interface TaskEditorData {
+  title: string;
   description: string;
   is_published: boolean;
   skills: SkillTaskItem[];
@@ -135,7 +137,7 @@ const initialTasksState: TasksState = {
   totalPages: 1,
   lastSearch: { keyword: "", page: 1 },
   selectedId: null,
-  editorData: { description: "", is_published: false, skills: [] },
+  editorData: { title: "", description: "", is_published: false, skills: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };

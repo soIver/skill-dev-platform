@@ -35,8 +35,11 @@ export default function ContentTasks() {
   const [isDebouncing, setIsDebouncing] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isTitleTaken, setIsTitleTaken] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const newTitleRef = useRef<string>("");
 
   const fetchTasks = async (keyword: string, page: number) => {
     setIsSearching(true);
@@ -80,6 +83,30 @@ export default function ContentTasks() {
     };
   }, [keywordInput]);
 
+  useEffect(() => {
+    setIsTitleTaken(false);
+    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
+
+    if (editorData.title.trim().length >= TASK.TITLE.MIN_LENGTH) {
+      titleTimerRef.current = setTimeout(async () => {
+        try {
+          const params = new URLSearchParams({ title: editorData.title.trim() });
+          if (typeof selectedId === "number") {
+            params.append("exclude_id", selectedId.toString());
+          }
+          const res = await authJson<{ is_taken: boolean }>(`/tasks/check_title?${params.toString()}`);
+          setIsTitleTaken(res.is_taken);
+        } catch (error) {
+          console.error("Failed to check title", error);
+        }
+      }, SEARCH_DEBOUNCE_MS);
+    }
+
+    return () => {
+      if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
+    };
+  }, [editorData.title, selectedId]);
+
   const fetchProficiencies = async (query: string) => {
     const params = new URLSearchParams({ skill: query, page: "1" });
     const response = await authJson<SkillLevelSearchResponse>(`/skills/skill_levels?${params.toString()}`);
@@ -92,6 +119,7 @@ export default function ContentTasks() {
       setTasksState({
         selectedId: id,
         editorData: {
+          title: response.title || "",
           description: response.description || "",
           is_published: response.is_published,
           skills: response.skills
@@ -117,6 +145,7 @@ export default function ContentTasks() {
   const handleCreate = () => {
     if (selectedId === "new") return;
 
+    newTitleRef.current = keywordInput.trim();
     setTasksState({ keywordInput: "" });
 
     if (hasUnsavedChanges) {
@@ -124,7 +153,7 @@ export default function ContentTasks() {
     } else {
       setTasksState({
         selectedId: "new",
-        editorData: { description: "", is_published: false, skills: [] },
+        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -139,6 +168,7 @@ export default function ContentTasks() {
 
     try {
       const payload = {
+        title: editorData.title.trim(),
         description: editorData.description,
         is_published: newPublishStatus,
         skill_level_ids: editorData.skills.map(s => s.skill_level_id)
@@ -153,6 +183,7 @@ export default function ContentTasks() {
       setTasksState({
         selectedId: response.id,
         editorData: {
+          title: response.title || "",
           description: response.description || "",
           is_published: response.is_published,
           skills: response.skills
@@ -190,7 +221,7 @@ export default function ContentTasks() {
     if (pendingSelectId === "new") {
       setTasksState({
         selectedId: "new",
-        editorData: { description: "", is_published: false, skills: [] },
+        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -230,8 +261,9 @@ export default function ContentTasks() {
     editorData.skills.some(s => s.skill_level_id === item.id);
 
   const isDescriptionValid = editorData.description.length >= TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length <= TASK.DESCRIPTION.MAX_LENGTH;
-  const canSave = hasUnsavedChanges && isDescriptionValid;
-  const canTogglePublish = isDescriptionValid;
+  const isTitleValid = editorData.title.trim().length >= TASK.TITLE.MIN_LENGTH && editorData.title.length <= TASK.TITLE.MAX_LENGTH && !isTitleTaken;
+  const canSave = hasUnsavedChanges && isDescriptionValid && isTitleValid;
+  const canTogglePublish = isDescriptionValid && isTitleValid;
 
   const columns: Column<TaskItem>[] = [
     {
@@ -241,7 +273,10 @@ export default function ContentTasks() {
       width: "w-2/5",
       render: (item) => (
         <div className="w-full max-w-0 min-w-full">
-          <span className="text-gray-900 block truncate" title={item.description_preview}>
+          <span className="text-gray-900 font-medium block truncate" title={item.title}>
+            {item.title}
+          </span>
+          <span className="text-gray-500 text-xs block truncate" title={item.description_preview}>
             {item.description_preview}
           </span>
         </div>
@@ -321,7 +356,7 @@ export default function ContentTasks() {
               onChange={(e) => setTasksState({ keywordInput: e.target.value })}
               maxLength={TASK.SEARCH_KEYWORDS.MAX_LENGTH}
               className="input-field"
-              placeholder="Поиск по ключевым словам"
+              placeholder="Поиск по названию и ключевым словам"
             />
           </div>
           <div className="flex items-end">
@@ -353,8 +388,8 @@ export default function ContentTasks() {
             {selectedId === "new"
               ? "Новое задание"
               : typeof selectedId === "number"
-              ? `Задание #${selectedId}`
-              : "Редактор заданий"}
+                ? `Задание #${selectedId}`
+                : "Редактор заданий"}
           </h2>
           {selectedId && (
             <div className="flex items-center gap-2">
@@ -395,11 +430,30 @@ export default function ContentTasks() {
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1">
 
+            <div className="w-full mb-3">
+              <input
+                type="text"
+                className="input-field mb-1 font-semibold"
+                placeholder="Название задания"
+                value={editorData.title}
+                onChange={(e) => updateEditorData({ title: e.target.value })}
+                maxLength={TASK.TITLE.MAX_LENGTH}
+              />
+              <div className="text-xs flex flex-col gap-1">
+                <div className="flex justify-between">
+                  <span className="text-danger">{isTitleTaken ? "Название уже занято" : editorData.title.trim().length > 0 && editorData.title.trim().length < TASK.TITLE.MIN_LENGTH ? "Слишком короткое название" : ""}</span>
+                  <span className={editorData.title.length > TASK.TITLE.MAX_LENGTH ? "text-danger" : "text-gray-500"}>
+                    {editorData.title.length}/{TASK.TITLE.MAX_LENGTH}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="w-full">
               <textarea
                 className="input-field min-h-[150px] resize-y mb-1 relative"
                 style={{ font: 'inherit' }}
-                placeholder="Описание задания..."
+                placeholder="Описание задания"
                 value={editorData.description}
                 onChange={(e) => updateEditorData({ description: e.target.value })}
                 onScroll={(e) => {

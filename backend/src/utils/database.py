@@ -38,6 +38,15 @@ async def init_tables():
         from sqlalchemy import text
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
+        # автоматическая миграция схемы для таблицы tasks
+        try:
+            await conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS title VARCHAR(48) NOT NULL DEFAULT 'Новое задание';"))
+            await conn.execute(text("ALTER TABLE tasks ALTER COLUMN title TYPE VARCHAR(48);"))
+            await conn.execute(text("ALTER TABLE tasks ADD CONSTRAINT tasks_title_key UNIQUE (title);"))
+            await conn.execute(text("UPDATE tasks SET description = '' WHERE description IS NULL;"))
+            await conn.execute(text("ALTER TABLE tasks ALTER COLUMN description SET NOT NULL;"))
+        except Exception as e:
+            logger.warning(f"Не удалось обновить схему таблицы tasks: {e}")
         logger.debug("Таблицы БД созданы")
 
 
