@@ -510,11 +510,10 @@ export default function SkillsAdmin() {
                       onDragStart={() => handleDragStart(index)}
                       onDragOver={handleDragOver}
                       onDrop={() => handleDrop(index)}
-                      className={`px-4 py-2 rounded-xl cursor-grab active:cursor-grabbing select-none transition-all border text-sm font-medium ${
-                        isSelected
-                          ? "bg-primary text-white border-primary shadow-md"
-                          : "bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-400"
-                      }`}
+                      className={`px-4 py-2 rounded-xl cursor-grab active:cursor-grabbing select-none transition-all border text-sm font-medium ${isSelected
+                        ? "bg-primary text-white border-primary shadow-md"
+                        : "bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-400"
+                        }`}
                     >
                       <span className="opacity-60 mr-1.5">{level.order_index}.</span>
                       {level.level_name}

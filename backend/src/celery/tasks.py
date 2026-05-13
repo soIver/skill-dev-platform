@@ -13,7 +13,6 @@ from ..analysis.analysers import analyzer
 from ..models import UserRepo, RepoSkill, SkillLevel
 from ..config import global_config
 from ..utils.logger import get_logger
-from ..skills.utils import calculate_adjusted_score
 
 logger = get_logger("celery.tasks")
 
@@ -73,33 +72,12 @@ async def _process_repository(
                 skill_id = match["skill_id"]
                 raw_score = match["score"]
 
-                # вычисление давности для time decay
-                last_seen = None
-                pending_query = (
-                    select(func.max(UserRepo.analyzed_at))
-                    .select_from(RepoSkill)
-                    .join(UserRepo)
-                    .where(
-                        UserRepo.user_id == user_id,
-                        RepoSkill.skill_id == skill_id,
-                        UserRepo.id != repo.id,
-                    )
-                )
-                pending_result = await db.execute(pending_query)
-                pending_max = pending_result.scalar_one_or_none()
-                if pending_max:
-                    last_seen = pending_max
+                logger.debug(f"Skill {skill_id}: raw={raw_score}")
 
-                adjusted_score = calculate_adjusted_score(raw_score, last_seen)
-
-                logger.debug(
-                    f"Skill {skill_id}: raw={raw_score}, adjusted={adjusted_score}"
-                )
-
-                # сохраняем скорректированную оценку LLM (без Vtotal);
-                # Vtotal применяется при чтении, т.к. связи между навыками могут меняться
+                # сохраняем чистую оценку LLM;
+                # устаревание (time decay) и связи (vtotal) применяются динамически при чтении
                 repo_skill = RepoSkill(
-                    repo_id=repo.id, skill_id=skill_id, score=adjusted_score
+                    repo_id=repo.id, skill_id=skill_id, score=raw_score
                 )
                 db.add(repo_skill)
                 await db.commit()
