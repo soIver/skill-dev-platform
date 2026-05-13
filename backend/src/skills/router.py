@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schemas import (
     SkillLevelCreateRequest, SkillLevelSearchResponse, SkillLevelItem,
-    SkillSearchResponse,
+    SkillSearchResponse, LevelSearchResponse,
     SkillLevelDetail,
     SkillLevelUpdateRequest,
     UserSkillResponse,
@@ -20,6 +20,12 @@ router = APIRouter(prefix="/skills", tags=["Skills"])
 async def search_skills(name: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     """поиск навыков (без уровней) по названию"""
     return await SkillService(db).search_skills(name)
+
+
+@router.get("/levels/search", response_model=LevelSearchResponse)
+async def search_levels(name: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
+    """поиск уровней по названию"""
+    return await SkillService(db).search_levels(name)
 
 
 @router.get("/skill_levels", response_model=SkillLevelSearchResponse)

@@ -1,12 +1,12 @@
 from datetime import datetime, timezone, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, func, and_, delete
+from sqlalchemy import select, func, and_, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schemas import (
     SkillLevelCreateRequest, SkillLevelSearchResponse, SkillLevelItem,
-    SkillSearchResponse, SkillSearchItem,
+    SkillSearchResponse, SkillSearchItem, LevelSearchResponse, LevelSearchItem,
     SkillLevelDetail, LevelItem, SkillRelationItem,
     SkillLevelUpdateRequest,
     UserSkillResponse, UserSkillItem,
@@ -40,6 +40,20 @@ class SkillService:
 
         return SkillSearchResponse(
             items=[SkillSearchItem(id=row.id, name=row.name) for row in rows]
+        )
+
+    async def search_levels(self, name: str) -> LevelSearchResponse:
+        query = (
+            select(Level.id, Level.name)
+            .where(Level.name.ilike(f"%{name}%"))
+            .order_by(Level.name)
+            .limit(20)
+        )
+        result = await self.db.execute(query)
+        rows = result.all()
+
+        return LevelSearchResponse(
+            items=[LevelSearchItem(id=row.id, name=row.name) for row in rows]
         )
 
     async def search_skill_levels(
@@ -224,21 +238,46 @@ class SkillService:
             for r in levels_result.all()
         ]
 
-        # связи влияющие на данный навык
-        relations_result = await self.db.execute(
-            select(SkillRelation.id, SkillRelation.source_id, Skill.name.label("source_name"), SkillRelation.influence_weight)
+        # связи влияющие на данный навык (входящие)
+        incoming_res = await self.db.execute(
+            select(SkillRelation.id, SkillRelation.source_id, Skill.name.label("skill_name"), SkillRelation.influence_weight)
             .join(Skill, SkillRelation.source_id == Skill.id)
             .where(SkillRelation.target_id == sl.skill_id)
         )
-        relations = [
-            SkillRelationItem(
-                id=r.id,
-                source_id=r.source_id,
-                source_name=r.source_name,
-                influence_weight=r.influence_weight,
-            )
-            for r in relations_result.all()
-        ]
+        # связи от данного навыка (исходящие)
+        outgoing_res = await self.db.execute(
+            select(SkillRelation.id, SkillRelation.target_id.label("skill_id"), Skill.name.label("skill_name"), SkillRelation.influence_weight)
+            .join(Skill, SkillRelation.target_id == Skill.id)
+            .where(SkillRelation.source_id == sl.skill_id)
+        )
+
+        relations_dict = {}
+
+        for r in incoming_res.all():
+            relations_dict[r.source_id] = {
+                "skill_id": r.source_id,
+                "skill_name": r.skill_name,
+                "incoming_id": r.id,
+                "incoming_weight": r.influence_weight,
+                "outgoing_id": None,
+                "outgoing_weight": None,
+            }
+
+        for r in outgoing_res.all():
+            if r.skill_id not in relations_dict:
+                relations_dict[r.skill_id] = {
+                    "skill_id": r.skill_id,
+                    "skill_name": r.skill_name,
+                    "incoming_id": None,
+                    "incoming_weight": None,
+                    "outgoing_id": r.id,
+                    "outgoing_weight": r.influence_weight,
+                }
+            else:
+                relations_dict[r.skill_id]["outgoing_id"] = r.id
+                relations_dict[r.skill_id]["outgoing_weight"] = r.influence_weight
+
+        relations = [SkillRelationItem(**d) for d in relations_dict.values()]
 
         return SkillLevelDetail(
             id=sl.id,
@@ -259,16 +298,60 @@ class SkillService:
             if level_sl and level_sl.skill_id == sl.skill_id:
                 level_sl.order_index = idx
 
-        # пересоздание связей
-        await self.db.execute(
-            delete(SkillRelation).where(SkillRelation.target_id == sl.skill_id)
-        )
+        # точечное обновление связей
+        provided_ids = set()
+
         for rel in data.relations:
-            self.db.add(SkillRelation(
-                source_id=rel.source_id,
-                target_id=sl.skill_id,
-                influence_weight=rel.influence_weight,
-            ))
+            # incoming
+            if rel.incoming_weight is not None and rel.incoming_weight > 0:
+                if rel.incoming_id:
+                    await self.db.execute(
+                        update(SkillRelation)
+                        .where(SkillRelation.id == rel.incoming_id)
+                        .values(influence_weight=rel.incoming_weight)
+                    )
+                    provided_ids.add(rel.incoming_id)
+                else:
+                    new_inc = SkillRelation(source_id=rel.skill_id, target_id=sl.skill_id, influence_weight=rel.incoming_weight)
+                    self.db.add(new_inc)
+                    await self.db.flush()
+                    provided_ids.add(new_inc.id)
+            elif rel.incoming_id:
+                await self.db.execute(delete(SkillRelation).where(SkillRelation.id == rel.incoming_id))
+
+            # outgoing
+            if rel.outgoing_weight is not None and rel.outgoing_weight > 0:
+                if rel.outgoing_id:
+                    await self.db.execute(
+                        update(SkillRelation)
+                        .where(SkillRelation.id == rel.outgoing_id)
+                        .values(influence_weight=rel.outgoing_weight)
+                    )
+                    provided_ids.add(rel.outgoing_id)
+                else:
+                    new_out = SkillRelation(source_id=sl.skill_id, target_id=rel.skill_id, influence_weight=rel.outgoing_weight)
+                    self.db.add(new_out)
+                    await self.db.flush()
+                    provided_ids.add(new_out.id)
+            elif rel.outgoing_id:
+                await self.db.execute(delete(SkillRelation).where(SkillRelation.id == rel.outgoing_id))
+
+        # удаляем те связи текущего навыка, которые были убраны на клиенте
+        if provided_ids:
+            await self.db.execute(
+                delete(SkillRelation)
+                .where(
+                    ((SkillRelation.source_id == sl.skill_id) | (SkillRelation.target_id == sl.skill_id))
+                    & ~SkillRelation.id.in_(provided_ids)
+                )
+            )
+        else:
+            await self.db.execute(
+                delete(SkillRelation)
+                .where(
+                    (SkillRelation.source_id == sl.skill_id) | (SkillRelation.target_id == sl.skill_id)
+                )
+            )
 
         await self.db.commit()
         return await self.get_skill_level(sl_id)

@@ -12,6 +12,7 @@ interface AutocompleteSearchProps<T> {
   isItemDisabled?: (item: T) => boolean;
   debounceMs?: number;
   className?: string;
+  onSelectCustom?: (value: string) => void;
 }
 
 export function AutocompleteSearch<T extends { id: number | string }>({
@@ -25,6 +26,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   debounceMs = SEARCH_DEBOUNCE_MS,
   className = "",
   onInputChange,
+  onSelectCustom,
 }: AutocompleteSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [results, setResults] = useState<T[]>([]);
@@ -86,10 +88,17 @@ export function AutocompleteSearch<T extends { id: number | string }>({
       setInputValue("");
       if (onInputChange) onInputChange("");
       setSelectedItem(null);
+    } else if (onSelectCustom && inputValue.trim().length > 0) {
+      onSelectCustom(inputValue.trim());
+      setInputValue("");
+      if (onInputChange) onInputChange("");
+      setSelectedItem(null);
     }
   };
 
-  const isBtnDisabled = !selectedItem || (isItemDisabled && isItemDisabled(selectedItem));
+  const isBtnDisabled =
+    (!selectedItem && !(onSelectCustom && inputValue.trim().length > 0)) ||
+    (selectedItem !== null && isItemDisabled !== undefined && isItemDisabled(selectedItem));
 
   return (
     <div className={`flex gap-4 items-start relative ${className}`} ref={dropdownRef}>

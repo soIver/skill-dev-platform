@@ -117,9 +117,9 @@ export default function ContentTasks() {
 
   const handleCreate = () => {
     if (selectedId === "new") return;
-    
+
     setTasksState({ keywordInput: "" });
-    
+
     if (hasUnsavedChanges) {
       setTasksState({ pendingSelectId: "new" });
     } else {
@@ -351,48 +351,52 @@ export default function ContentTasks() {
 
       {/* правая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full relative">
-        <h2 className="workspace-panel-header">Редактор заданий</h2>
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <h2 className="workspace-panel-header mb-0">
+            {selectedId === "new"
+              ? "Новое задание"
+              : typeof selectedId === "number"
+              ? `Задание #${selectedId}`
+              : "Редактор заданий"}
+          </h2>
+          {selectedId && (
+            <div className="flex items-center gap-2">
+              {selectedId === "new" ? (
+                <button
+                  title="Отменить создание"
+                  onClick={handleDelete}
+                  className="px-4 py-2 bg-danger text-white hover:bg-danger-hover rounded-lg transition-colors font-medium text-sm"
+                >
+                  Отменить создание
+                </button>
+              ) : (
+                <IconButton
+                  iconSrc="/src/assets/icons/delete.svg"
+                  altText="Удалить"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  color="danger"
+                />
+              )}
+              <IconButton
+                iconSrc="/src/assets/icons/save.svg"
+                altText="Сохранить"
+                onClick={() => handleSave(editorData.is_published)}
+                disabled={!canSave}
+                color="primary"
+              />
+              <IconButton
+                iconSrc={editorData.is_published ? "/src/assets/icons/unpublish.svg" : "/src/assets/icons/publish.svg"}
+                altText={editorData.is_published ? "Снять с публикации" : "Опубликовать"}
+                onClick={() => handleSave(!editorData.is_published)}
+                disabled={!canTogglePublish}
+                color="success"
+              />
+            </div>
+          )}
+        </div>
 
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1">
-            <div className="flex ml-1 items-center justify-between gap-4 mb-4">
-              <span className="font-medium text-xl">
-                {selectedId === "new" ? "Новое задание" : `Задание #${selectedId}`}
-              </span>
-
-              <div className="flex items-center gap-2">
-                {selectedId === "new" ? (
-                  <button
-                    title="Отменить создание"
-                    onClick={handleDelete}
-                    className="px-4 py-2 bg-danger text-white hover:bg-danger-hover rounded-lg transition-colors font-medium"
-                  >
-                    Отменить создание
-                  </button>
-                ) : (
-                  <IconButton
-                    iconSrc="/src/assets/icons/delete.svg"
-                    altText="Удалить"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    color="danger"
-                  />
-                )}
-                <IconButton
-                  iconSrc="/src/assets/icons/save.svg"
-                  altText="Сохранить"
-                  onClick={() => handleSave(editorData.is_published)}
-                  disabled={!canSave}
-                  color="primary"
-                />
-                <IconButton
-                  iconSrc={editorData.is_published ? "/src/assets/icons/unpublish.svg" : "/src/assets/icons/publish.svg"}
-                  altText={editorData.is_published ? "Снять с публикации" : "Опубликовать"}
-                  onClick={() => handleSave(!editorData.is_published)}
-                  disabled={!canTogglePublish}
-                  color="success"
-                />
-              </div>
-            </div>
 
             <div className="w-full">
               <textarea

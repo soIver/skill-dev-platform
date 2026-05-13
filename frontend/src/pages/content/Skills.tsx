@@ -25,12 +25,24 @@ interface SkillSearchItem {
   name: string;
 }
 
+interface LevelSearchItem {
+  id: number;
+  name: string;
+}
+
 interface SkillLevelDetailResponse {
   id: number;
   skill_id: number;
   skill_name: string;
   levels: LevelEditorItem[];
-  relations: { id: number; source_id: number; source_name: string; influence_weight: number }[];
+  relations: {
+    skill_id: number;
+    skill_name: string;
+    incoming_id: number | null;
+    incoming_weight: number | null;
+    outgoing_id: number | null;
+    outgoing_weight: number | null;
+  }[];
 }
 
 const RELATIONS_PER_PAGE = 5;
@@ -48,6 +60,7 @@ export default function SkillsAdmin() {
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null);
+  const [isAddingLevel, setIsAddingLevel] = useState(false);
 
   // клиентская пагинация связей
   const [relationsPage, setRelationsPage] = useState(1);
@@ -144,9 +157,12 @@ export default function SkillsAdmin() {
           skill_name: response.skill_name,
           levels: response.levels,
           relations: response.relations.map((r) => ({
-            source_id: r.source_id,
-            source_name: r.source_name,
-            influence_weight: r.influence_weight,
+            skill_id: r.skill_id,
+            skill_name: r.skill_name,
+            incoming_id: r.incoming_id,
+            incoming_weight: r.incoming_weight,
+            outgoing_id: r.outgoing_id,
+            outgoing_weight: r.outgoing_weight,
           })),
         },
         hasUnsavedChanges: false,
@@ -185,8 +201,11 @@ export default function SkillsAdmin() {
       const payload = {
         level_order: editorData.levels.map((l) => l.id),
         relations: editorData.relations.map((r) => ({
-          source_id: r.source_id,
-          influence_weight: r.influence_weight,
+          skill_id: r.skill_id,
+          incoming_id: r.incoming_id,
+          incoming_weight: r.incoming_weight,
+          outgoing_id: r.outgoing_id,
+          outgoing_weight: r.outgoing_weight,
         })),
       };
 
@@ -200,7 +219,7 @@ export default function SkillsAdmin() {
       // перезагружаем актуальное состояние
       await loadSkillLevel(selectedId);
       fetchSkillLevels(lastSearch.skill, lastSearch.level, currentPage);
-    } catch (error) {
+    } catch {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
   };
@@ -214,7 +233,8 @@ export default function SkillsAdmin() {
       setSkillsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Навык удалён", variant: "success" });
       fetchSkillLevels(lastSearch.skill, lastSearch.level, currentPage);
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { status?: number; response?: { status?: number; detail?: string }; detail?: string };
       // 409 — привязаны тесты
       if (error?.status === 409 || error?.response?.status === 409) {
         const detail = error?.detail || error?.response?.detail
@@ -266,35 +286,48 @@ export default function SkillsAdmin() {
     return response.items;
   }, []);
 
+  // поиск уровней для редактора
+  const searchLevels = useCallback(async (query: string) => {
+    const response = await authJson<{ items: LevelSearchItem[] }>(`/skills/levels/search?name=${encodeURIComponent(query)}`);
+    return response.items;
+  }, []);
+
   const handleAddRelation = (item: SkillSearchItem) => {
     // не добавляем дублирующий или самого себя
     if (item.id === editorData.skill_id) return;
     updateEditorData({
       relations: [
         ...editorData.relations,
-        { source_id: item.id, source_name: item.name, influence_weight: 0.5 },
+        {
+          skill_id: item.id,
+          skill_name: item.name,
+          incoming_id: null,
+          incoming_weight: 0.5,
+          outgoing_id: null,
+          outgoing_weight: null,
+        },
       ],
     });
     setRelationsPage(Math.ceil((editorData.relations.length + 1) / RELATIONS_PER_PAGE));
   };
 
-  const handleRemoveRelation = (sourceId: number) => {
+  const handleRemoveRelation = (skillId: number) => {
     updateEditorData({
-      relations: editorData.relations.filter((r) => r.source_id !== sourceId),
+      relations: editorData.relations.filter((r) => r.skill_id !== skillId),
     });
   };
 
-  const handleWeightChange = (sourceId: number, value: number) => {
-    const clamped = Math.max(0.1, Math.min(1, Math.round(value * 10) / 10));
+  const handleWeightChange = (skillId: number, field: "incoming_weight" | "outgoing_weight", value: number | null) => {
+    const clamped = value !== null ? Math.max(0, Math.min(1, Math.round(value * 10) / 10)) : null;
     updateEditorData({
       relations: editorData.relations.map((r) =>
-        r.source_id === sourceId ? { ...r, influence_weight: clamped } : r
+        r.skill_id === skillId ? { ...r, [field]: clamped } : r
       ),
     });
   };
 
   const isRelationAlreadyAdded = (item: SkillSearchItem) =>
-    item.id === editorData.skill_id || editorData.relations.some((r) => r.source_id === item.id);
+    item.id === editorData.skill_id || editorData.relations.some((r) => r.skill_id === item.id);
 
   const hasExactMatch = results.some(
     (item) =>
@@ -315,26 +348,43 @@ export default function SkillsAdmin() {
   // столбцы связей для PaginatedTable
   const relationsColumns: Column<SkillRelationEditorItem>[] = [
     {
-      key: "source_name",
+      key: "skill_name",
       header: "Название",
       align: "left",
-      width: "w-2/5",
-      render: (item) => <span className="text-gray-900">{item.source_name}</span>,
+      width: "w-2/6",
+      render: (item) => <span className="text-gray-900">{item.skill_name}</span>,
     },
     {
-      key: "influence_weight",
-      header: "Вес",
+      key: "incoming_weight",
+      header: "Входящий",
       align: "center",
-      width: "w-1/5",
+      width: "w-1/6",
       render: (item) => (
         <input
           type="number"
-          min="0.1"
+          min="0"
           max="1"
           step="0.1"
-          value={item.influence_weight}
-          onChange={(e) => handleWeightChange(item.source_id, parseFloat(e.target.value) || 0.5)}
-          className="w-20 text-center border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+          value={item.incoming_weight ?? ""}
+          onChange={(e) => handleWeightChange(item.skill_id, "incoming_weight", e.target.value ? parseFloat(e.target.value) : null)}
+          className="w-16 text-center border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      ),
+    },
+    {
+      key: "outgoing_weight",
+      header: "Исходящий",
+      align: "center",
+      width: "w-1/6",
+      render: (item) => (
+        <input
+          type="number"
+          min="0"
+          max="1"
+          step="0.1"
+          value={item.outgoing_weight ?? ""}
+          onChange={(e) => handleWeightChange(item.skill_id, "outgoing_weight", e.target.value ? parseFloat(e.target.value) : null)}
+          className="w-16 text-center border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
         />
       ),
     },
@@ -342,10 +392,10 @@ export default function SkillsAdmin() {
       key: "action",
       header: "Действие",
       align: "center",
-      width: "w-2/5",
+      width: "w-2/6",
       render: (item) => (
         <button
-          onClick={() => handleRemoveRelation(item.source_id)}
+          onClick={() => handleRemoveRelation(item.skill_id)}
           className="text-sm font-medium text-danger hover:text-danger-hover px-2 py-1"
         >
           Отвязать
@@ -423,7 +473,7 @@ export default function SkillsAdmin() {
       )}
 
       {/* левая панель */}
-      <div className="workspace-panel flex-1 flex flex-col h-full">
+      <div className="workspace-panel flex-1 flex flex-col h-full min-w-0">
         <h2 className="workspace-panel-header mb-4">Список навыков</h2>
 
         <div className="flex gap-4 mb-6">
@@ -471,34 +521,35 @@ export default function SkillsAdmin() {
       </div>
 
       {/* правая панель — редактор */}
-      <div className="workspace-panel flex-1 flex flex-col h-full relative">
-        <h2 className="workspace-panel-header">Редактор навыков</h2>
+      <div className="workspace-panel flex-1 flex flex-col h-full relative min-w-0">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <h2 className="workspace-panel-header mb-0">
+            {selectedId ? `Навык «${editorData.skill_name}»` : "Редактор навыков"}
+          </h2>
+          {selectedId && (
+            <div className="flex items-center gap-2">
+              <IconButton
+                iconSrc="/src/assets/icons/delete.svg"
+                altText="Удалить"
+                onClick={() => setShowDeleteConfirm(true)}
+                color="danger"
+              />
+              <IconButton
+                iconSrc="/src/assets/icons/save.svg"
+                altText="Сохранить"
+                onClick={handleSave}
+                disabled={!canSave}
+                color="primary"
+              />
+            </div>
+          )}
+        </div>
 
         {selectedId ? (
-          <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1">
-            {/* заголовок + действия */}
-            <div className="flex ml-1 items-center justify-between gap-4 mb-4">
-              <span className="font-medium text-xl">{editorData.skill_name}</span>
-
-              <div className="flex items-center gap-2">
-                <IconButton
-                  iconSrc="/src/assets/icons/delete.svg"
-                  altText="Удалить"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  color="danger"
-                />
-                <IconButton
-                  iconSrc="/src/assets/icons/save.svg"
-                  altText="Сохранить"
-                  onClick={handleSave}
-                  disabled={!canSave}
-                  color="primary"
-                />
-              </div>
-            </div>
+          <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1 min-w-0">
 
             {/* секция уровней — бенто-сетка */}
-            <div className="mb-6">
+            <div className="mb-6 max-w-lg">
               <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Уровни</h3>
               <div className="flex flex-wrap gap-2">
                 {editorData.levels.map((level, index) => {
@@ -510,7 +561,7 @@ export default function SkillsAdmin() {
                       onDragStart={() => handleDragStart(index)}
                       onDragOver={handleDragOver}
                       onDrop={() => handleDrop(index)}
-                      className={`px-4 py-2 rounded-xl cursor-grab active:cursor-grabbing select-none transition-all border text-sm font-medium ${isSelected
+                      className={`px-4 py-2 rounded-xl cursor-grab active:cursor-grabbing select-none transition-all border text-sm font-medium max-w-full truncate ${isSelected
                         ? "bg-primary text-white border-primary shadow-md"
                         : "bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-400"
                         }`}
@@ -520,8 +571,72 @@ export default function SkillsAdmin() {
                     </div>
                   );
                 })}
-                {editorData.levels.length === 0 && (
-                  <p className="text-gray-500 text-sm ml-1">Уровни отсутствуют.</p>
+
+                {isAddingLevel ? (
+                  <div className="min-w-[200px]">
+                    <AutocompleteSearch<LevelSearchItem>
+                      onSearch={searchLevels}
+                      onSelect={async (item) => {
+                        setIsCreating(true);
+                        try {
+                          await authJson<SkillLevelItem>("/skills/skill_levels", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              skill_name: editorData.skill_name,
+                              level_name: item.name,
+                            }),
+                          });
+                          showToast({ title: "Успех", message: "Уровень успешно добавлен", variant: "success" });
+                          await loadSkillLevel(editorData.skill_id);
+                        } catch (error) {
+                          console.error("Failed to create skill level inside editor", error);
+                          showToast({ title: "Ошибка", message: "Не удалось добавить уровень", variant: "error" });
+                        } finally {
+                          setIsCreating(false);
+                          setIsAddingLevel(false);
+                        }
+                      }}
+                      onSelectCustom={async (customName) => {
+                        setIsCreating(true);
+                        try {
+                          await authJson<SkillLevelItem>("/skills/skill_levels", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              skill_name: editorData.skill_name,
+                              level_name: customName,
+                            }),
+                          });
+                          showToast({ title: "Успех", message: "Уровень успешно добавлен", variant: "success" });
+                          await loadSkillLevel(editorData.skill_id);
+                        } catch (error) {
+                          console.error("Failed to create skill level inside editor", error);
+                          showToast({ title: "Ошибка", message: "Не удалось добавить уровень", variant: "error" });
+                        } finally {
+                          setIsCreating(false);
+                          setIsAddingLevel(false);
+                        }
+                      }}
+                      itemToString={(l) => l.name}
+                      renderItem={(l) => <span>{l.name}</span>}
+                      placeholder="Название уровня..."
+                      buttonText="Создать"
+                      debounceMs={SEARCH_DEBOUNCE_MS}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingLevel(true)}
+                    className="px-4 py-2 rounded-xl select-none transition-all border border-dashed text-sm font-medium bg-gray-50 text-gray-500 hover:text-gray-900 border-gray-300 hover:border-gray-500 flex items-center justify-center"
+                    title="Добавить новый уровень"
+                  >
+                    +
+                  </button>
+                )}
+
+                {editorData.levels.length === 0 && !isAddingLevel && (
+                  <p className="text-gray-500 text-sm ml-1 self-center">Уровни отсутствуют.</p>
                 )}
               </div>
             </div>
@@ -547,7 +662,7 @@ export default function SkillsAdmin() {
                 ) : (
                   <PaginatedTable
                     columns={relationsColumns}
-                    data={relationsSlice.map((r) => ({ ...r, id: r.source_id }))}
+                    data={relationsSlice.map((r) => ({ ...r, id: r.skill_id }))}
                     isLoading={false}
                     emptyMessage="Нет связей"
                     currentPage={relationsPage}

@@ -79,9 +79,12 @@ export interface LevelEditorItem {
 }
 
 export interface SkillRelationEditorItem {
-  source_id: number;
-  source_name: string;
-  influence_weight: number;
+  skill_id: number;
+  skill_name: string;
+  incoming_id: number | null;
+  incoming_weight: number | null;
+  outgoing_id: number | null;
+  outgoing_weight: number | null;
 }
 
 export interface SkillEditorData {

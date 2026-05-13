@@ -30,17 +30,32 @@ class SkillSearchResponse(BaseModel):
     items: list[SkillSearchItem]
 
 
+# поиск уровней
+class LevelSearchItem(BaseModel):
+    id: int
+    name: str
+
+
+class LevelSearchResponse(BaseModel):
+    items: list[LevelSearchItem]
+
+
 # связи навыков
 class SkillRelationItem(BaseModel):
-    id: int
-    source_id: int
-    source_name: str
-    influence_weight: float
+    skill_id: int
+    skill_name: str
+    incoming_id: int | None
+    incoming_weight: float | None
+    outgoing_id: int | None
+    outgoing_weight: float | None
 
 
-class SkillRelationCreate(BaseModel):
-    source_id: int
-    influence_weight: float = Field(ge=0.1, le=1.0)
+class SkillRelationUpdateItem(BaseModel):
+    skill_id: int
+    incoming_id: int | None
+    incoming_weight: float | None = Field(None, ge=0.1, le=1.0)
+    outgoing_id: int | None
+    outgoing_weight: float | None = Field(None, ge=0.1, le=1.0)
 
 
 # уровень в редакторе
@@ -62,7 +77,7 @@ class SkillLevelDetail(BaseModel):
 # обновление
 class SkillLevelUpdateRequest(BaseModel):
     level_order: list[int]
-    relations: list[SkillRelationCreate]
+    relations: list[SkillRelationUpdateItem]
 
 
 # навыки пользователя

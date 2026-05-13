@@ -178,7 +178,13 @@ export default function ContentTests() {
 
       {/* правая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full">
-        <h2 className="workspace-panel-header">Редактор тестов</h2>
+        <h2 className="workspace-panel-header">
+          {selectedId === "new"
+            ? "Новый тест"
+            : typeof selectedId === "number"
+            ? `Тест #${selectedId}`
+            : "Редактор тестов"}
+        </h2>
         <div className="flex-1 flex items-center justify-center">
           {selectedId === "new" ? (
             <p className="text-gray-500">Создание нового теста...</p>
