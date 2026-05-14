@@ -148,10 +148,10 @@ export function BentoSearch<
                   e.stopPropagation();
                   onRemove?.(item);
                 }}
-                className={`ml-1 flex items-center justify-center rounded-full p-0.5 transition-colors ${isActive ? "hover:bg-white/20 text-white" : "hover:bg-gray-200 text-gray-500"
+                className={`ml-1 mt-0.5 flex items-center justify-center rounded-full p-1 transition-colors ${isActive ? "hover:bg-white/20 text-white" : "hover:bg-gray-200 text-gray-500"
                   }`}
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -160,7 +160,7 @@ export function BentoSearch<
 
       {/* поле скрыто под шторкой */}
       <div
-        className="relative h-11 flex items-center shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+        className="relative h-11 flex items-center shrink-0 transition-all duration-300 ease-in-out"
         style={{ width: isOpen ? "calc(100% - 1rem)" : "2.75rem", maxWidth: isOpen ? "22rem" : "2.75rem" }}
       >
         {/* поле поиска — раскрывается слева */}
@@ -189,7 +189,7 @@ export function BentoSearch<
         >
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="h-11 w-11 flex items-center justify-center text-gray-500 hover:text-gray-900 shrink-0 outline-none transition-colors"
+            className="h-11 w-11 pr-0.5 flex items-center justify-center text-gray-500 hover:text-gray-900 shrink-0 outline-none transition-colors"
             title={isOpen ? "Отменить" : "Добавить"}
           >
             <Plus

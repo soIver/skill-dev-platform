@@ -36,6 +36,10 @@ export const SKILL_LEVEL = {
 export const SEARCH_DEBOUNCE_MS = 1000;
 
 export const ITEMS_PER_TABLE_PAGE = {
-  REPOS: 10,
+  REPOS: 5,
   DEFAULT: 7,
+} as const;
+
+export const ITEMS_PER_PAGE = {
+  TASKS: 20,
 } as const;

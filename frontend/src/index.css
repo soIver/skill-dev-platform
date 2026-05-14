@@ -41,7 +41,7 @@
     }
 
     .input-field {
-        @apply mt-1 block w-full rounded-lg border border-gray-300 p-2 transition-colors focus:outline-none focus:ring-1 focus:ring-primary;
+        @apply mt-1 block w-full rounded-lg bg-white border border-gray-300 p-2 transition-colors focus:outline-none focus:ring-1 focus:ring-primary;
 
         &:hover {
             @apply border-primary;

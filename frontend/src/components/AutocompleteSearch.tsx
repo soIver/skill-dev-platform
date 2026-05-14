@@ -122,7 +122,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
           placeholder={placeholder}
         />
         {showDropdown && results.length > 0 && (
-          <ul className="absolute z-20 w-full bg-white border border-gray-200 mt-1 rounded-lg shadow-lg max-h-60 overflow-auto">
+          <ul className="absolute z-50 w-full bg-white border border-gray-200 mt-1 rounded-lg shadow-lg max-h-60 overflow-auto">
             {results.map((item) => {
               const disabled = isItemDisabled && isItemDisabled(item);
               return (

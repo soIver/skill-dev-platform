@@ -32,3 +32,12 @@ class TaskCreateUpdate(BaseModel):
     is_published: bool
     skill_level_ids: list[int]
 
+class TaskPublicItem(BaseModel):
+    id: int
+    title: str
+    description_preview: str
+
+class TaskPublicSearchResponse(BaseModel):
+    items: list[TaskPublicItem]
+    total_pages: int
+    current_page: int

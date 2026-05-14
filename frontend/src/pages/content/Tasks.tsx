@@ -46,7 +46,23 @@ export default function ContentTasks() {
     try {
       const params = new URLSearchParams({ page: page.toString() });
       if (keyword) params.append("keyword", keyword);
-      if (skill) params.append("skill_query", skill);
+
+      // резолвим строку навыка в конкретные id уровней для AND-фильтрации
+      if (skill) {
+        let skillPart = skill;
+        let levelPart = "";
+        if (skill.includes(" - ")) {
+          const parts = skill.split(" - ", 2);
+          skillPart = parts[0].trim();
+          levelPart = parts[1].trim();
+        }
+        const slParams = new URLSearchParams({ skill: skillPart });
+        if (levelPart) slParams.append("level", levelPart);
+        const slData = await authJson<{ items: Array<{ id: number }> }>(`/skills/skill_levels?${slParams.toString()}`);
+        for (const sl of slData.items) {
+          params.append("skill_level_ids", String(sl.id));
+        }
+      }
 
       const response = await authJson<SearchResponse>(`/tasks?${params.toString()}`);
       setTasksState({
@@ -374,7 +390,7 @@ export default function ContentTasks() {
               value={keywordInput}
               onChange={(e) => setTasksState({ keywordInput: e.target.value })}
               maxLength={TASK.SEARCH_KEYWORDS.MAX_LENGTH}
-              className="input-field mt-0! flex-[3]"
+              className="input-field mt-0! flex-3"
               placeholder="Поиск по названию и описанию"
             />
             <AutocompleteSearch<SkillLevelItemLocal>
@@ -388,7 +404,7 @@ export default function ContentTasks() {
                 </>
               )}
               placeholder="Поиск по навыку"
-              className="flex-[2]"
+              className="flex-2"
               hideButton={true}
             />
           </div>
