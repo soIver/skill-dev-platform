@@ -9,6 +9,7 @@ import {
 } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
+import { BentoSearch } from "../../components/BentoSearch";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { InfoModal } from "../../components/InfoModal";
 import { IconButton } from "../../components/IconButton";
@@ -60,13 +61,9 @@ export default function SkillsAdmin() {
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null);
-  const [isAddingLevel, setIsAddingLevel] = useState(false);
 
   // клиентская пагинация связей
   const [relationsPage, setRelationsPage] = useState(1);
-
-  // индекс перетаскиваемого уровня
-  const dragIndexRef = useRef<number | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -254,21 +251,10 @@ export default function SkillsAdmin() {
   };
 
   // drag-n-drop для уровней
-  const handleDragStart = (index: number) => {
-    dragIndexRef.current = index;
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (dropIndex: number) => {
-    const dragIndex = dragIndexRef.current;
-    if (dragIndex === null || dragIndex === dropIndex) return;
-
+  const handleReorderLevels = (oldIndex: number, newIndex: number) => {
     const newLevels = [...editorData.levels];
-    const [dragged] = newLevels.splice(dragIndex, 1);
-    newLevels.splice(dropIndex, 0, dragged);
+    const [dragged] = newLevels.splice(oldIndex, 1);
+    newLevels.splice(newIndex, 0, dragged);
 
     // пересчёт order_index
     const reindexed = newLevels.map((level, i) => ({
@@ -277,7 +263,6 @@ export default function SkillsAdmin() {
     }));
 
     updateEditorData({ levels: reindexed });
-    dragIndexRef.current = null;
   };
 
   // поиск навыков для связей
@@ -452,7 +437,7 @@ export default function SkillsAdmin() {
       {showDeleteConfirm && selectedId !== null && (
         <EditorConfirmModal
           title="Требуется подтверждение"
-          message={`Вы уверены, что хотите удалить навык "${editorData.skill_name}" (уровень #${selectedId})?`}
+          message={`Вы уверены, что хотите удалить уровень   "${editorData.levels[selectedId - 1].level_name}" для навыка "${editorData.skill_name}"?`}
           confirmText="Да, удалить навсегда"
           confirmVariant="danger"
           onCancel={() => setShowDeleteConfirm(false)}
@@ -550,95 +535,53 @@ export default function SkillsAdmin() {
 
             {/* секция уровней — бенто-сетка */}
             <div className="mb-6 max-w-lg">
-              <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Уровни</h3>
-              <div className="flex flex-wrap gap-2">
-                {editorData.levels.map((level, index) => {
-                  const isSelected = level.id === selectedId;
-                  return (
-                    <div
-                      key={level.id}
-                      draggable
-                      onDragStart={() => handleDragStart(index)}
-                      onDragOver={handleDragOver}
-                      onDrop={() => handleDrop(index)}
-                      className={`px-4 py-2 rounded-xl cursor-grab active:cursor-grabbing select-none transition-all border text-sm font-medium max-w-full truncate ${isSelected
-                        ? "bg-primary text-white border-primary shadow-md"
-                        : "bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-400"
-                        }`}
-                    >
-                      <span className="opacity-60 mr-1.5">{level.order_index}.</span>
-                      {level.level_name}
-                    </div>
-                  );
-                })}
-
-                {isAddingLevel ? (
-                  <div className="min-w-[200px]">
-                    <AutocompleteSearch<LevelSearchItem>
-                      onSearch={searchLevels}
-                      onSelect={async (item) => {
-                        setIsCreating(true);
-                        try {
-                          await authJson<SkillLevelItem>("/skills/skill_levels", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              skill_name: editorData.skill_name,
-                              level_name: item.name,
-                            }),
-                          });
-                          showToast({ title: "Успех", message: "Уровень успешно добавлен", variant: "success" });
-                          await loadSkillLevel(editorData.skill_id);
-                        } catch (error) {
-                          console.error("Failed to create skill level inside editor", error);
-                          showToast({ title: "Ошибка", message: "Не удалось добавить уровень", variant: "error" });
-                        } finally {
-                          setIsCreating(false);
-                          setIsAddingLevel(false);
-                        }
-                      }}
-                      onSelectCustom={async (customName) => {
-                        setIsCreating(true);
-                        try {
-                          await authJson<SkillLevelItem>("/skills/skill_levels", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              skill_name: editorData.skill_name,
-                              level_name: customName,
-                            }),
-                          });
-                          showToast({ title: "Успех", message: "Уровень успешно добавлен", variant: "success" });
-                          await loadSkillLevel(editorData.skill_id);
-                        } catch (error) {
-                          console.error("Failed to create skill level inside editor", error);
-                          showToast({ title: "Ошибка", message: "Не удалось добавить уровень", variant: "error" });
-                        } finally {
-                          setIsCreating(false);
-                          setIsAddingLevel(false);
-                        }
-                      }}
-                      itemToString={(l) => l.name}
-                      renderItem={(l) => <span>{l.name}</span>}
-                      placeholder="Название уровня..."
-                      buttonText="Создать"
-                      debounceMs={SEARCH_DEBOUNCE_MS}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setIsAddingLevel(true)}
-                    className="px-4 py-2 rounded-xl select-none transition-all border border-dashed text-sm font-medium bg-gray-50 text-gray-500 hover:text-gray-900 border-gray-300 hover:border-gray-500 flex items-center justify-center"
-                    title="Добавить новый уровень"
-                  >
-                    +
-                  </button>
+              <BentoSearch<LevelEditorItem, LevelSearchItem>
+                items={editorData.levels}
+                itemToString={(l) => l.level_name}
+                itemToId={(l) => l.id}
+                renderItem={(level) => (
+                  <>
+                    <span className="opacity-60 mr-1.5">{level.order_index}.</span>
+                    {level.level_name}
+                  </>
                 )}
-
-                {editorData.levels.length === 0 && !isAddingLevel && (
-                  <p className="text-gray-500 text-sm ml-1 self-center">Уровни отсутствуют.</p>
-                )}
-              </div>
+                prefixTitle="Уровни"
+                activeItemId={selectedId}
+                reorderEnabled={true}
+                closeable={false}
+                customSelectLogic={true}
+                onReorder={handleReorderLevels}
+                onItemClick={(item) => loadSkillLevel(item.id)}
+                onSearch={searchLevels}
+                onAdd={async (item) => {
+                  setIsCreating(true);
+                  try {
+                    await authJson<SkillLevelItem>("/skills/skill_levels", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        skill_name: editorData.skill_name,
+                        level_name: item.name,
+                      }),
+                    });
+                    showToast({ title: "Успех", message: "Уровень успешно добавлен", variant: "success" });
+                    await loadSkillLevel(editorData.skill_id);
+                  } catch (error) {
+                    console.error("Failed to create skill level inside editor", error);
+                    showToast({ title: "Ошибка", message: "Не удалось добавить уровень", variant: "error" });
+                  } finally {
+                    setIsCreating(false);
+                  }
+                }}
+                searchItemToString={(l) => l.name}
+                renderSearchItem={(l) => <span>{l.name}</span>}
+                placeholder="Название уровня..."
+                buttonText="Добавить"
+                debounceMs={SEARCH_DEBOUNCE_MS}
+              />
+              {editorData.levels.length === 0 && (
+                <p className="text-gray-500 text-sm ml-1 self-center mt-2">Уровни отсутствуют.</p>
+              )}
             </div>
 
             {/* секция связанных навыков */}

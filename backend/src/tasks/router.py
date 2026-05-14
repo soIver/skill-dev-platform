@@ -20,6 +20,7 @@ router = APIRouter(tags=["tasks"])
 @router.get("/tasks", response_model=TaskSearchResponse)
 async def search_tasks(
     keyword: str = Query(None),
+    skill_query: str = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -40,6 +41,25 @@ async def search_tasks(
     if keyword:
         query = query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
 
+    if skill_query:
+        if " - " in skill_query:
+            skill_part, level_part = skill_query.split(" - ", 1)
+        else:
+            skill_part = skill_query
+            level_part = None
+            
+        skill_sq = (
+            select(SkillLevelTask.task_id)
+            .join(SkillLevel, SkillLevelTask.skill_level_id == SkillLevel.id)
+            .join(Skill, SkillLevel.skill_id == Skill.id)
+            .join(Level, SkillLevel.level_id == Level.id)
+            .where(Skill.name.ilike(f"%{skill_part}%"))
+        )
+        if level_part:
+            skill_sq = skill_sq.where(Level.name.ilike(f"%{level_part}%"))
+        
+        query = query.where(Task.id.in_(skill_sq))
+
     query = query.order_by(issued_count_sq.desc(), Task.id)
 
     offset = (page - 1) * limit
@@ -47,6 +67,8 @@ async def search_tasks(
     count_query = select(func.count()).select_from(Task)
     if keyword:
         count_query = count_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
+    if skill_query:
+        count_query = count_query.where(Task.id.in_(skill_sq))
         
     total_count = await db.scalar(count_query)
     total_pages = (total_count + limit - 1) // limit if total_count else 1

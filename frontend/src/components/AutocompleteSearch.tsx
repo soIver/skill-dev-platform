@@ -13,6 +13,7 @@ interface AutocompleteSearchProps<T> {
   debounceMs?: number;
   className?: string;
   onSelectCustom?: (value: string) => void;
+  hideButton?: boolean;
 }
 
 export function AutocompleteSearch<T extends { id: number | string }>({
@@ -27,6 +28,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   className = "",
   onInputChange,
   onSelectCustom,
+  hideButton = false,
 }: AutocompleteSearchProps<T>) {
   const [inputValue, setInputValue] = useState("");
   const [results, setResults] = useState<T[]>([]);
@@ -80,6 +82,8 @@ export function AutocompleteSearch<T extends { id: number | string }>({
     setInputValue(str);
     setSelectedItem(item);
     setShowDropdown(false);
+    if (onInputChange) onInputChange(str);
+    if (hideButton) onSelect(item);
   };
 
   const handleButtonClick = () => {
@@ -101,7 +105,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
     (selectedItem !== null && isItemDisabled !== undefined && isItemDisabled(selectedItem));
 
   return (
-    <div className={`flex gap-4 items-start relative ${className}`} ref={dropdownRef}>
+    <div className={`flex gap-4 items-center relative ml-1 ${className}`} ref={dropdownRef}>
       <div className="flex-1 relative">
         <input
           type="text"
@@ -142,14 +146,16 @@ export function AutocompleteSearch<T extends { id: number | string }>({
           </span>
         )}
       </div>
-      <button
-        disabled={isBtnDisabled}
-        onClick={handleButtonClick}
-        className={`px-4 py-2 rounded-xl font-medium text-white transition-colors h-[42px] ${isBtnDisabled ? "bg-gray-300 cursor-not-allowed" : "bg-primary hover:bg-primary-hover"
-          }`}
-      >
-        {buttonText}
-      </button>
+      {!hideButton && (
+        <button
+          disabled={isBtnDisabled}
+          onClick={handleButtonClick}
+          className={`px-4 py-2 rounded-xl font-medium text-white transition-colors h-[42px] shrink-0 ${isBtnDisabled ? "bg-gray-300 cursor-not-allowed" : "bg-primary hover:bg-primary-hover"
+            }`}
+        >
+          {buttonText}
+        </button>
+      )}
     </div>
   );
 }

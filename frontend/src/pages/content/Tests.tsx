@@ -65,13 +65,13 @@ export default function ContentTests() {
     };
   }, [searchInput]);
 
-  const fetchProficiencies = async (query: string) => {
+  const fetchSkillLevels = async (query: string) => {
     let skill = query;
     let level = "";
-    if (query.includes("-")) {
-      const parts = query.split("-");
+    if (query.includes(" -")) {
+      const parts = query.split(" -");
       skill = parts[0].trim();
-      level = parts.slice(1).join("-").trim();
+      level = parts[1].trim();
     } else {
       skill = query.trim();
     }
@@ -151,7 +151,7 @@ export default function ContentTests() {
 
         <div className="mb-6">
           <AutocompleteSearch<SkillLevelItem>
-            onSearch={fetchProficiencies}
+            onSearch={fetchSkillLevels}
             onSelect={handleSelectCreate}
             onInputChange={handleInputChange}
             itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
@@ -182,8 +182,8 @@ export default function ContentTests() {
           {selectedId === "new"
             ? "Новый тест"
             : typeof selectedId === "number"
-            ? `Тест #${selectedId}`
-            : "Редактор тестов"}
+              ? `Тест #${selectedId}`
+              : "Редактор тестов"}
         </h2>
         <div className="flex-1 flex items-center justify-center">
           {selectedId === "new" ? (

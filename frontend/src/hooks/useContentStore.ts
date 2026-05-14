@@ -60,10 +60,11 @@ export interface TaskEditorData {
 
 interface TasksState {
   keywordInput: string;
+  skillInput: string;
   results: TaskItem[];
   currentPage: number;
   totalPages: number;
-  lastSearch: { keyword: string; page: number };
+  lastSearch: { keyword: string; skill: string; page: number };
   
   // состояние редактора
   selectedId: number | "new" | null;
@@ -132,10 +133,11 @@ const initialSkillsState: SkillsState = {
 
 const initialTasksState: TasksState = {
   keywordInput: "",
+  skillInput: "",
   results: [],
   currentPage: 1,
   totalPages: 1,
-  lastSearch: { keyword: "", page: 1 },
+  lastSearch: { keyword: "", skill: "", page: 1 },
   selectedId: null,
   editorData: { title: "", description: "", is_published: false, skills: [] },
   hasUnsavedChanges: false,

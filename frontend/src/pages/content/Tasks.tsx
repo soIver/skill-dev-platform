@@ -28,7 +28,7 @@ interface SkillLevelSearchResponse {
 
 export default function ContentTasks() {
   const { tasks, setTasksState } = useContentStore();
-  const { keywordInput, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
+  const { keywordInput, skillInput, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
   const { showToast } = useToast();
 
   const [isSearching, setIsSearching] = useState(false);
@@ -41,18 +41,19 @@ export default function ContentTasks() {
   const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newTitleRef = useRef<string>("");
 
-  const fetchTasks = async (keyword: string, page: number) => {
+  const fetchTasks = async (keyword: string, skill: string, page: number) => {
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ page: page.toString() });
       if (keyword) params.append("keyword", keyword);
+      if (skill) params.append("skill_query", skill);
 
       const response = await authJson<SearchResponse>(`/tasks?${params.toString()}`);
       setTasksState({
         results: response.items,
         totalPages: response.total_pages,
         currentPage: response.current_page,
-        lastSearch: { keyword, page }
+        lastSearch: { keyword, skill, page }
       });
     } catch (error) {
       console.error("Failed to fetch tasks", error);
@@ -70,18 +71,19 @@ export default function ContentTasks() {
     timerRef.current = setTimeout(() => {
       if (
         keywordInput === lastSearch.keyword &&
+        skillInput === lastSearch.skill &&
         results.length > 0
       ) {
         setIsDebouncing(false);
         return;
       }
-      fetchTasks(keywordInput, 1);
+      fetchTasks(keywordInput, skillInput, 1);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [keywordInput]);
+  }, [keywordInput, skillInput]);
 
   useEffect(() => {
     setIsTitleTaken(false);
@@ -107,10 +109,30 @@ export default function ContentTasks() {
     };
   }, [editorData.title, selectedId]);
 
-  const fetchProficiencies = async (query: string) => {
-    const params = new URLSearchParams({ skill: query, page: "1" });
+  const isSkillAlreadySelected = (item: SkillLevelItemLocal) =>
+    editorData.skills.some(s => s.skill_name === item.skill_name);
+
+  const fetchSkillLevels = async (query: string) => {
+    let skill = query;
+    let level = "";
+    if (query.includes(" -")) {
+      const parts = query.split(" -");
+      skill = parts[0].trim();
+      level = parts[1].trim();
+    } else {
+      skill = query.trim();
+    }
+
+    const params = new URLSearchParams({ skill, page: "1" });
+    if (level) params.append("level", level);
+
     const response = await authJson<SkillLevelSearchResponse>(`/skills/skill_levels?${params.toString()}`);
     return response.items;
+  };
+
+  const fetchSkillsToAttach = async (query: string) => {
+    const items = await fetchSkillLevels(query);
+    return items.filter(item => !isSkillAlreadySelected(item));
   };
 
   const loadTask = async (id: number) => {
@@ -192,7 +214,7 @@ export default function ContentTasks() {
       });
 
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
-      fetchTasks(lastSearch.keyword, currentPage); // обновление таблицы после сохранения
+      fetchTasks(lastSearch.keyword, lastSearch.skill, currentPage); // обновление таблицы после сохранения
       return response.id;
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
@@ -210,7 +232,7 @@ export default function ContentTasks() {
       await authJson(`/tasks/${selectedId}`, { method: "DELETE" });
       setTasksState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Задание удалено", variant: "success" });
-      fetchTasks(lastSearch.keyword, currentPage);
+      fetchTasks(lastSearch.keyword, lastSearch.skill, currentPage);
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось удалить задание", variant: "error" });
     }
@@ -256,9 +278,6 @@ export default function ContentTasks() {
       skills: editorData.skills.filter(s => s.skill_level_id !== slId)
     });
   };
-
-  const isSkillAlreadySelected = (item: SkillLevelItemLocal) =>
-    editorData.skills.some(s => s.skill_level_id === item.id);
 
   const isDescriptionValid = editorData.description.length >= TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length <= TASK.DESCRIPTION.MAX_LENGTH;
   const isTitleValid = editorData.title.trim().length >= TASK.TITLE.MIN_LENGTH && editorData.title.length <= TASK.TITLE.MAX_LENGTH && !isTitleTaken;
@@ -312,7 +331,7 @@ export default function ContentTasks() {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchTasks(lastSearch.keyword, newPage);
+      fetchTasks(lastSearch.keyword, lastSearch.skill, newPage);
     }
   };
 
@@ -348,15 +367,29 @@ export default function ContentTasks() {
       <div className="workspace-panel flex-1 flex flex-col h-full">
         <h2 className="workspace-panel-header mb-4">Список заданий</h2>
 
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1">
+        <div className="flex gap-4 mb-6 items-center">
+          <div className="flex-1 flex gap-4">
             <input
               type="text"
               value={keywordInput}
               onChange={(e) => setTasksState({ keywordInput: e.target.value })}
               maxLength={TASK.SEARCH_KEYWORDS.MAX_LENGTH}
-              className="input-field"
-              placeholder="Поиск по названию и ключевым словам"
+              className="input-field mt-0! flex-[3]"
+              placeholder="Поиск по названию и описанию"
+            />
+            <AutocompleteSearch<SkillLevelItemLocal>
+              onSearch={fetchSkillLevels}
+              onSelect={(item) => setTasksState({ skillInput: `${item.skill_name} - ${item.level_name}` })}
+              onInputChange={(value) => setTasksState({ skillInput: value })}
+              itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
+              renderItem={(p) => (
+                <>
+                  {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
+                </>
+              )}
+              placeholder="Поиск по навыку"
+              className="flex-[2]"
+              hideButton={true}
             />
           </div>
           <div className="flex items-end">
@@ -476,7 +509,7 @@ export default function ContentTasks() {
               <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Связанные навыки</h3>
 
               <AutocompleteSearch<SkillLevelItemLocal>
-                onSearch={fetchProficiencies}
+                onSearch={fetchSkillsToAttach}
                 onSelect={handleAddSkill}
                 itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
                 renderItem={(p) => (
