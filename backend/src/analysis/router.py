@@ -8,7 +8,7 @@ from .schemas import AnalyzeRepoRequest
 from ..auth.utils import TokenClaims, get_current_user
 from ..celery.tasks import analyze_repository_task
 from ..utils.database import get_db
-from ..models import UserRepo
+from ..models import UserRepo, SkillLevelTask, SkillLevel, Skill
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -59,11 +59,24 @@ async def analyze_repo(
 
         await db.commit()
 
+        skill_names: list[str] | None = None
+        if request.task_id:
+            skills_query = (
+                select(Skill.name)
+                .join(SkillLevel, SkillLevel.skill_id == Skill.id)
+                .join(SkillLevelTask, SkillLevelTask.skill_level_id == SkillLevel.id)
+                .where(SkillLevelTask.task_id == request.task_id)
+            )
+            skills_result = await db.execute(skills_query)
+            skill_names = [row for row in skills_result.scalars()]
+
         analyze_repository_task.delay(
             user_id=claims.user_id,
             repo_name=request.repo_name,
             repo_url=request.repo_url,
             previous_analyzed_at=previous_analyzed_at,
+            task_id=request.task_id,
+            skill_names=skill_names,
         )
     except HTTPException:
         raise

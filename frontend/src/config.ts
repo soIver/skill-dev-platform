@@ -26,10 +26,10 @@ export const TASK = {
 
 export const SKILL_LEVEL = {
   SEARCH_SKILL: {
-    MAX_LENGTH: 32,
+    MAX_LENGTH: 16,
   },
   SEARCH_LEVEL: {
-    MAX_LENGTH: 32,
+    MAX_LENGTH: 16,
   },
 } as const;
 

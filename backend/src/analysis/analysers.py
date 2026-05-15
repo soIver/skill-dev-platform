@@ -27,8 +27,12 @@ class RepoAnalyzer:
         summary, tree, content = await ingest_async(url, exclude_patterns=ignore_patterns)
         return f"{tree}\n\n{content}"
 
-    async def extract_skills(self, payload: str) -> List[Tuple[str, int]]:
+    async def extract_skills(self, payload: str, skill_names: List[str] | None = None) -> List[Tuple[str, int]]:
         prompt = self.config["prompts"]["repository_analysis"]
+        if skill_names:
+            skills_str = ", ".join(skill_names)
+            prompt += f"\n\nIMPORTANT: Evaluate the repository ONLY for the following skills: {skills_str}. Do not include any other skills in the output."
+
         model = self.config["models"]["llm"]["name"]
         
         logger.debug(f"Отправка запроса модели {model}")
@@ -50,6 +54,9 @@ class RepoAnalyzer:
                 name = item.get("name")
                 score = item.get("score")
                 if name and isinstance(score, int) and 0 <= score <= 100:
+                    if skill_names and name not in skill_names:
+                        logger.debug(f"Отсеян навык '{name}', так как он не был запрошен")
+                        continue
                     skills.append((name, score))
             
             logger.debug(f"Извлечено {len(skills)} навыков")
@@ -90,9 +97,9 @@ class RepoAnalyzer:
 
         return matched
 
-    async def analyze(self, repo_url: str, db: AsyncSession) -> List[Dict]:
+    async def analyze(self, repo_url: str, db: AsyncSession, skill_names: List[str] | None = None) -> List[Dict]:
         payload = await self.ingest_repository(repo_url)
-        extracted = await self.extract_skills(payload)
+        extracted = await self.extract_skills(payload, skill_names=skill_names)
         
         if not extracted:
             return []

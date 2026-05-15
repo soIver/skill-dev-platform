@@ -437,7 +437,7 @@ export default function SkillsAdmin() {
       {showDeleteConfirm && selectedId !== null && (
         <EditorConfirmModal
           title="Требуется подтверждение"
-          message={`Вы уверены, что хотите удалить уровень   "${editorData.levels[selectedId - 1].level_name}" для навыка "${editorData.skill_name}"?`}
+          message={`Вы уверены, что хотите удалить уровень "${editorData.levels.find(l => l.id === selectedId)?.level_name || ""}" для навыка "${editorData.skill_name}"?`}
           confirmText="Да, удалить навсегда"
           confirmVariant="danger"
           onCancel={() => setShowDeleteConfirm(false)}

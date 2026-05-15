@@ -34,10 +34,10 @@ async def search_tasks(
 
     # базовые условия
     if is_privileged:
-        base_query = select(Task.id, Task.title, Task.description, Task.is_published)
+        base_query = select(Task)
     else:
         # пользователи видят только опубликованные задания
-        base_query = select(Task.id, Task.title, Task.description).where(Task.is_published == True)
+        base_query = select(Task).where(Task.is_published == True)
 
     if keyword:
         base_query = base_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
@@ -80,10 +80,7 @@ async def search_tasks(
         average_rating_sq = select(func.avg(TaskScore.score)).where(TaskScore.task_id == Task.id).scalar_subquery()
 
         full_query = select(
-            Task.id,
-            Task.title,
-            Task.description,
-            Task.is_published,
+            Task,
             issued_count_sq.label("issued_count"),
             average_rating_sq.label("average_rating")
         )
@@ -97,37 +94,62 @@ async def search_tasks(
         if not is_privileged:
             full_query = full_query.where(Task.is_published == True)
 
-        full_query = full_query.order_by(issued_count_sq.desc(), Task.id)
+        full_query = full_query.options(
+            selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.skill),
+            selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.level)
+        ).order_by(issued_count_sq.desc(), Task.id)
         full_query = full_query.offset((page - 1) * limit).limit(limit)
         result = await db.execute(full_query)
         rows = result.all()
 
         items = []
         for row in rows:
-            desc = row.description or ""
+            task_obj = row.Task
+            desc = task_obj.description or ""
             avg_rating = row.average_rating
             rating_str = "-" if avg_rating is None or avg_rating == 0 else str(round(avg_rating, 1))
-            status = "Опубликовано" if row.is_published else "Сохранено"
+            status = "Опубликовано" if task_obj.is_published else "Сохранено"
             items.append(TaskItem(
-                id=row.id,
-                title=row.title,
+                id=task_obj.id,
+                title=task_obj.title,
                 description_preview=desc,
                 issued_count=row.issued_count,
                 average_rating=rating_str,
-                status=status
+                status=status,
+                skills=[
+                    SkillTaskItem(
+                        skill_level_id=slt.skill_level.id,
+                        skill_name=slt.skill_level.skill.name,
+                        level_name=slt.skill_level.level.name
+                    ) for slt in task_obj.skill_level_tasks
+                ]
             ))
 
         return TaskSearchResponse(items=items, total_pages=total_pages, current_page=page)
 
     else:
         # публичный ответ
-        base_query = base_query.order_by(Task.id).offset((page - 1) * limit).limit(limit)
+        base_query = base_query.options(
+            selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.skill),
+            selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.level)
+        ).order_by(Task.id).offset((page - 1) * limit).limit(limit)
         result = await db.execute(base_query)
-        rows = result.all()
+        tasks = result.scalars().all()
 
         items = [
-            TaskPublicItem(id=row.id, title=row.title, description_preview=row.description)
-            for row in rows
+            TaskPublicItem(
+                id=task.id, 
+                title=task.title, 
+                description_preview=task.description,
+                skills=[
+                    SkillTaskItem(
+                        skill_level_id=slt.skill_level.id,
+                        skill_name=slt.skill_level.skill.name,
+                        level_name=slt.skill_level.level.name
+                    ) for slt in task.skill_level_tasks
+                ]
+            )
+            for task in tasks
         ]
         return TaskPublicSearchResponse(items=items, total_pages=total_pages, current_page=page)
 
@@ -176,6 +198,44 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
         title=rec.title,
         description=rec.description,
         is_published=rec.is_published,
+        skills=skills_items
+    )
+
+@router.get("/tasks/{task_id}/public", response_model=TaskDetail)
+async def get_task_public(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
+):
+    query = select(Task).where(Task.id == task_id, Task.is_published == True)
+    result = await db.execute(query)
+    task = result.scalar_one_or_none()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Задание не найдено или не опубликовано")
+
+    skills_query = (
+        select(SkillLevelTask, SkillLevel, Skill, Level)
+        .join(SkillLevel, SkillLevelTask.skill_level_id == SkillLevel.id)
+        .join(Skill, SkillLevel.skill_id == Skill.id)
+        .join(Level, SkillLevel.level_id == Level.id)
+        .where(SkillLevelTask.task_id == task_id)
+    )
+    skills_result = await db.execute(skills_query)
+
+    skills_items = []
+    for sr, sl, sk, lv in skills_result.all():
+        skills_items.append(SkillTaskItem(
+            skill_level_id=sl.id,
+            skill_name=sk.name,
+            level_name=lv.name
+        ))
+
+    return TaskDetail(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        is_published=task.is_published,
         skills=skills_items
     )
 

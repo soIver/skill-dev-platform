@@ -39,6 +39,8 @@ async def _process_repository(
     repo_name: str,
     repo_url: str,
     previous_analyzed_at: str | None,
+    task_id: int | None = None,
+    skill_names: list[str] | None = None,
 ):
     # изолированный engine для celery-задачи, чтобы не конфликтовать с event loop FastAPI
     task_engine = create_async_engine(
@@ -66,7 +68,7 @@ async def _process_repository(
                 return
 
             # анализ
-            extracted_skills = await analyzer.analyze(repo_url, db)
+            extracted_skills = await analyzer.analyze(repo_url, db, skill_names=skill_names)
 
             for match in extracted_skills:
                 skill_id = match["skill_id"]
@@ -83,6 +85,8 @@ async def _process_repository(
                 await db.commit()
 
             repo.analyzed_at = datetime.now(timezone.utc)
+            if task_id:
+                repo.task_id = task_id
             await db.commit()
 
         # уведомление об успехе
@@ -135,7 +139,9 @@ def analyze_repository_task(
     repo_name: str,
     repo_url: str,
     previous_analyzed_at: str | None = None,
+    task_id: int | None = None,
+    skill_names: list[str] | None = None,
 ):
     logger.debug(f"Начат процесс анализа репозитория {repo_name} (инициатор: {user_id})")
-    asyncio.run(_process_repository(user_id, repo_name, repo_url, previous_analyzed_at))
+    asyncio.run(_process_repository(user_id, repo_name, repo_url, previous_analyzed_at, task_id, skill_names))
     logger.debug(f"Процесс анализа репозитория {repo_name} завершён")

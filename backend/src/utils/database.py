@@ -12,7 +12,7 @@ password_hasher = Hasher(
 )
 
 # асинхронный движок
-engine = create_async_engine(
+db_engine = create_async_engine(
     global_config.DATABASE_URL,
     echo=global_config.DEFAULT_LOGGER_LEVEL == "DEBUG",
     pool_size=5,
@@ -21,7 +21,7 @@ engine = create_async_engine(
 
 # фабрика сессий
 AsyncSessionLocal = async_sessionmaker(
-    engine,
+    db_engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
@@ -34,19 +34,10 @@ async def get_db() -> AsyncSession:
 
 
 async def init_tables():
-    async with engine.begin() as conn:
+    async with db_engine.begin() as conn:
         from sqlalchemy import text
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
-        # автоматическая миграция схемы для таблицы tasks
-        try:
-            await conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS title VARCHAR(48) NOT NULL DEFAULT 'Новое задание';"))
-            await conn.execute(text("ALTER TABLE tasks ALTER COLUMN title TYPE VARCHAR(48);"))
-            await conn.execute(text("ALTER TABLE tasks ADD CONSTRAINT tasks_title_key UNIQUE (title);"))
-            await conn.execute(text("UPDATE tasks SET description = '' WHERE description IS NULL;"))
-            await conn.execute(text("ALTER TABLE tasks ALTER COLUMN description SET NOT NULL;"))
-        except Exception as e:
-            logger.warning(f"Не удалось обновить схему таблицы tasks: {e}")
         logger.debug("Таблицы БД созданы")
 
 

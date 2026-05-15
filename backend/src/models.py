@@ -49,6 +49,11 @@ class UserRepo(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id"),
+        nullable=True,
+    )
     gh_id = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     analyzed_at = Column(DateTime(timezone=True), nullable=True)
@@ -273,6 +278,24 @@ class VacancySkillLevel(Base):
     vacancy = relationship("Vacancy", lazy="select")
     skill_level = relationship("SkillLevel", lazy="select")
 
+class VacancyHistory(Base):
+    __tablename__ = "vacancy_history"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    vacancy_id = Column(
+        Integer,
+        ForeignKey("vacancies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    viewed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", lazy="select")
+    vacancy = relationship("Vacancy", lazy="select")
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -290,6 +313,7 @@ class Task(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     author = relationship("User", lazy="select")
+    skill_level_tasks = relationship("SkillLevelTask", back_populates="task", cascade="all, delete-orphan")
 
 
 class TaskScore(Base):
@@ -330,7 +354,7 @@ class SkillLevelTask(Base):
     )
 
     skill_level = relationship("SkillLevel", lazy="select")
-    task = relationship("Task", lazy="select")
+    task = relationship("Task", back_populates="skill_level_tasks")
 
 
 class UserRecommendation(Base):

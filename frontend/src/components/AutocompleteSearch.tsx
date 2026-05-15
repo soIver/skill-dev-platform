@@ -54,7 +54,8 @@ export function AutocompleteSearch<T extends { id: number | string }>({
 
     if (inputValue && (!selectedItem || itemToString(selectedItem) !== inputValue)) {
       setSelectedItem(null);
-      timerRef.current = setTimeout(async () => {
+
+      const performSearch = async () => {
         setIsLoading(true);
         try {
           const data = await onSearch(inputValue);
@@ -65,7 +66,13 @@ export function AutocompleteSearch<T extends { id: number | string }>({
         } finally {
           setIsLoading(false);
         }
-      }, debounceMs);
+      };
+
+      if (debounceMs <= 0) {
+        void performSearch();
+      } else {
+        timerRef.current = setTimeout(performSearch, debounceMs);
+      }
     } else if (!inputValue) {
       setResults([]);
       setShowDropdown(false);
@@ -75,7 +82,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [inputValue, onSearch, debounceMs]);
+  }, [inputValue, onSearch, debounceMs, itemToString, selectedItem]);
 
   const handleItemClick = (item: T) => {
     const str = itemToString(item);

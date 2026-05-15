@@ -8,6 +8,7 @@ class TaskItem(BaseModel):
     issued_count: int
     average_rating: str
     status: str
+    skills: list[SkillTaskItem]
 
 class TaskSearchResponse(BaseModel):
     items: list[TaskItem]
@@ -36,6 +37,7 @@ class TaskPublicItem(BaseModel):
     id: int
     title: str
     description_preview: str
+    skills: list[SkillTaskItem]
 
 class TaskPublicSearchResponse(BaseModel):
     items: list[TaskPublicItem]

@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +10,7 @@ from slowapi.util import get_remote_address
 
 from .auth.router import router as auth_router
 from .config import global_config
-from .utils.database import init_database
+from .utils.database import init_database, db_engine
 from .github.router import router as github_router
 from .skills.router import router as skills_router
 from .tasks.router import router as tasks_router
@@ -19,21 +21,18 @@ from .tests.router import router as tests_router
 from .utils.redis import RedisClient
 
 
-app = FastAPI()
-
-
-@app.on_event("startup")
-async def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # запуск
     await init_database()
+    yield
+    # завершение работы
+    notifications_shutdown_event.set() # отправка сигнала SSE-генераторам
+    await RedisClient.close() # закрытие Redis
+    await db_engine.dispose() # закрытие пула БД
 
 
-@app.on_event("shutdown")
-async def on_shutdown():
-    # сигнализируем SSE-генераторам о завершении
-    notifications_shutdown_event.set()
-    # закрываем Redis-клиент
-    await RedisClient.close()
-
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(github_router, prefix="/api")
@@ -51,23 +50,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.state.limiter = Limiter(
-    key_func=get_remote_address,  # рейт-лимит по айпи
+limiter = Limiter(
+    key_func=get_remote_address,
     storage_uri=global_config.REDIS_URL,
     default_limits=[f"{global_config.RATE_LIMIT_RPM}/minute"],
 )
+app.state.limiter = limiter
 
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(
         status_code=429,
-        content={"detail": "Вы сделали слишком много запросов за последнюю минуту. Повторите попытку позже"},
+        content={"detail": "Вы сделали слишком много запросов за последнюю минуту, повторите попытку позже"},
     )
 
 
+limiter._route_exceeded_handler = rate_limit_exceeded_handler
 app.add_middleware(SlowAPIMiddleware)
-app.state.limiter._route_exceeded_handler = rate_limit_exceeded_handler
 
 
 @app.get("/api")

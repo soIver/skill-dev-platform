@@ -11,7 +11,7 @@ logger = get_logger("notifications.router")
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
-# глобальный сигнал остановки, устанавливается при shutdown FastAPI
+# глобальный сигнал остановки
 shutdown_event = asyncio.Event()
 
 
@@ -21,12 +21,12 @@ async def event_generator(request: Request, user_id: int):
     channel = f"notifications:{user_id}"
     await pubsub.subscribe(channel)
 
-    logger.info(f"User {user_id} connected to notifications stream")
+    logger.debug(f"Пользователь {user_id} подключился к потоку уведомлений")
 
     try:
         while not shutdown_event.is_set():
             if await request.is_disconnected():
-                logger.info(f"User {user_id} disconnected from notifications stream")
+                logger.info(f"Пользователь {user_id} отключился от потока уведомлений")
                 break
 
             try:
@@ -45,11 +45,11 @@ async def event_generator(request: Request, user_id: int):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Error in notification stream for user {user_id}: {e}")
+                logger.exception(f"Ошибка в потоке уведомлений для пользователя {user_id}")
                 break
 
     except asyncio.CancelledError:
-        logger.debug(f"Notification stream for user {user_id} cancelled")
+        logger.debug(f"Потом уведомлений был отменён для пользователя {user_id}")
     finally:
         try:
             await pubsub.unsubscribe(channel)

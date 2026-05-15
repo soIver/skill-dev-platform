@@ -3,11 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom';
 import './index.css'
 import Layout from './Layout.tsx'
+import { GlobalErrorBoundary } from './components/ErrorBoundary.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <Layout />
+      <GlobalErrorBoundary>
+        <Layout />
+      </GlobalErrorBoundary>
     </BrowserRouter>
   </StrictMode>,
 )
