@@ -19,6 +19,7 @@ from .notifications.router import router as notifications_router
 from .notifications.router import shutdown_event as notifications_shutdown_event
 from .tests.router import router as tests_router
 from .utils.redis import RedisClient
+from .vacancies.router import router as vacancies_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ app.include_router(tasks_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(tests_router, prefix="/api")
+app.include_router(vacancies_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

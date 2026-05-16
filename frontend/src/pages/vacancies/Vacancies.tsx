@@ -2,7 +2,7 @@ import { TabTracker } from "../../components/TabTracker";
 
 export default function Vacancies() {
   const tabs = [
-    { to: "matching", label: "Подбор вакансий" },
+    { to: "matching", label: "Поиск вакансий" },
     { to: "analysis", label: "Анализ вакансии" },
   ];
 

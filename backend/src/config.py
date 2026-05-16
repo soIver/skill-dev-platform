@@ -72,6 +72,12 @@ class Config:
     SKILL_SCORE_DECAY_INTERVAL = 3 # интервал в днях для вычисления коэффициента снижения оценки
     SKILL_SCORE_DECAY_FACTOR = 0.1 # коэффициент снижения оценки за 1 интервал
     VTOTAL_EPSILON = 0.1 # минимальный уровень навыка при расчёте Vtotal
+    HH_API_BASE_URL = os.getenv("HH_API_BASE_URL", "https://api.hh.ru")
+    HH_API_USER_AGENT = os.getenv(
+        "HH_API_USER_AGENT",
+        f"skill-dev-platform/1.0 ({os.getenv('ADMIN_EMAIL')})",
+    )
+    HH_API_TIMEOUT_SECONDS = float(os.getenv("HH_API_TIMEOUT_SECONDS", "15"))
 
     @classmethod
     def string_encryption_key(cls) -> bytes:
