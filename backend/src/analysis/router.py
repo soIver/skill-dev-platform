@@ -60,7 +60,16 @@ async def analyze_repo(
         await db.commit()
 
         skill_names: list[str] | None = None
+        task_description: str | None = None
         if request.task_id:
+            from ..models import Task
+            task_query = select(Task).where(Task.id == request.task_id)
+            task_res = await db.execute(task_query)
+            task_obj = task_res.scalar_one_or_none()
+            
+            if task_obj:
+                task_description = f"{task_obj.title}: {task_obj.description}"
+
             skills_query = (
                 select(Skill.name)
                 .join(SkillLevel, SkillLevel.skill_id == Skill.id)
@@ -77,13 +86,14 @@ async def analyze_repo(
             previous_analyzed_at=previous_analyzed_at,
             task_id=request.task_id,
             skill_names=skill_names,
+            task_description=task_description,
         )
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Не удалось запустить задачу: {str(exc)}",
+            detail=f"Не удалось запустить задачу",
         )
 
     return {"message": "Задача добавлена в очередь"}

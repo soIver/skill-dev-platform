@@ -88,7 +88,7 @@ export default function Repositories() {
         }),
       });
       showToast({
-        title: "Анализ запущен",
+        title: "Успех",
         message: `Репозиторий ${repo.name} поставлен в очередь на обработку.`,
         variant: "success",
       });

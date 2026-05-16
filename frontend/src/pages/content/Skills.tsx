@@ -565,7 +565,7 @@ export default function SkillsAdmin() {
                       }),
                     });
                     showToast({ title: "Успех", message: "Уровень успешно добавлен", variant: "success" });
-                    await loadSkillLevel(editorData.skill_id);
+                    await loadSkillLevel(selectedId);
                   } catch (error) {
                     console.error("Failed to create skill level inside editor", error);
                     showToast({ title: "Ошибка", message: "Не удалось добавить уровень", variant: "error" });

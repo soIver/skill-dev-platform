@@ -41,6 +41,7 @@ async def _process_repository(
     previous_analyzed_at: str | None,
     task_id: int | None = None,
     skill_names: list[str] | None = None,
+    task_description: str | None = None,
 ):
     # изолированный engine для celery-задачи, чтобы не конфликтовать с event loop FastAPI
     task_engine = create_async_engine(
@@ -68,7 +69,9 @@ async def _process_repository(
                 return
 
             # анализ
-            extracted_skills = await analyzer.analyze(repo_url, db, skill_names=skill_names)
+            extracted_skills = await analyzer.analyze(
+                repo_url, db, skill_names=skill_names, task_description=task_description
+            )
 
             for match in extracted_skills:
                 skill_id = match["skill_id"]
@@ -97,40 +100,57 @@ async def _process_repository(
         })
 
     except Exception:
-        # восстановление состояния при ошибке
-        try:
-            async with TaskSession() as db:
-                query = select(UserRepo).where(
-                    UserRepo.user_id == user_id, UserRepo.name == repo_name
-                )
-                result = await db.execute(query)
-                repo = result.scalar_one_or_none()
-
-                if repo:
-                    if previous_analyzed_at:
-                        # восстанавливаем предыдущее значение
-                        repo.analyzed_at = datetime.fromisoformat(previous_analyzed_at)
-                    else:
-                        # запись была создана роутером для этого анализа — удаляем
-                        await db.delete(repo)
-                    await db.commit()
-        except Exception as cleanup_err:
-            logger.error(f"Ошибка при восстановлении состояния UserRepo: {cleanup_err}")
-
-        # уведомление об ошибке
-        try:
-            await _publish_notification(user_id, {
-                "type": "repository_analysis_failed",
-                "repo_name": repo_name,
-                "message": f"При анализе репозитория {repo_name} произошла ошибка.",
-            })
-        except Exception as notify_err:
-            logger.error(f"Не удалось отправить уведомление об ошибке: {notify_err}")
-
+        await _cleanup_repository_state(user_id, repo_name, previous_analyzed_at, task_engine)
         raise
 
     finally:
         await task_engine.dispose()
+
+
+async def _cleanup_repository_state(
+    user_id: int, 
+    repo_name: str, 
+    previous_analyzed_at: str | None,
+    engine: any = None
+):
+    """восстановление состояния БД и уведомление пользователя при ошибке"""
+    internal_engine = engine
+    if not internal_engine:
+        internal_engine = create_async_engine(
+            global_config.DATABASE_URL,
+            pool_size=1,
+            max_overflow=0,
+        )
+    
+    try:
+        TaskSession = async_sessionmaker(internal_engine, class_=AsyncSession, expire_on_commit=False)
+        async with TaskSession() as db:
+            query = select(UserRepo).where(
+                UserRepo.user_id == user_id, UserRepo.name == repo_name
+            )
+            result = await db.execute(query)
+            repo = result.scalar_one_or_none()
+
+            if repo:
+                if previous_analyzed_at:
+                    repo.analyzed_at = datetime.fromisoformat(previous_analyzed_at)
+                else:
+                    await db.delete(repo)
+                await db.commit()
+    except Exception as e:
+        logger.error(f"Не удалось восстановить состояние БД: {e}")
+    finally:
+        if not engine:
+            await internal_engine.dispose()
+
+    try:
+        await _publish_notification(user_id, {
+            "type": "repository_analysis_failed",
+            "repo_name": repo_name,
+            "message": f"При анализе репозитория {repo_name} произошла ошибка.",
+        })
+    except Exception as e:
+        logger.error(f"Не удалось отправить уведомление об ошибке: {e}")
 
 
 @celery_app.task(name="analyze_repository_task")
@@ -141,7 +161,14 @@ def analyze_repository_task(
     previous_analyzed_at: str | None = None,
     task_id: int | None = None,
     skill_names: list[str] | None = None,
+    task_description: str | None = None,
 ):
     logger.debug(f"Начат процесс анализа репозитория {repo_name} (инициатор: {user_id})")
-    asyncio.run(_process_repository(user_id, repo_name, repo_url, previous_analyzed_at, task_id, skill_names))
-    logger.debug(f"Процесс анализа репозитория {repo_name} завершён")
+    try:
+        asyncio.run(_process_repository(user_id, repo_name, repo_url, previous_analyzed_at, task_id, skill_names, task_description))
+        logger.debug(f"Процесс анализа репозитория {repo_name} завершён")
+    except Exception as e:
+        logger.error(f"Критическая ошибка в Celery-задаче для {repo_name}: {e}")
+        # принудительная очистка, если asyncio.run упал или произошла иная ошибка уровня задачи
+        asyncio.run(_cleanup_repository_state(user_id, repo_name, previous_analyzed_at))
+        raise

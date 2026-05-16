@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Task, UserRecommendation, TaskScore, SkillLevelTask, SkillLevel, Skill, Level
+from ..models import Task, UserRepo, UserRecommendation, TaskScore, SkillLevelTask, SkillLevel, Skill, Level
 from .schemas import (
     TaskSearchResponse,
     TaskItem,
@@ -26,6 +26,7 @@ async def search_tasks(
     skill_level_ids: list[int] = Query(default=[]),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    only_published: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
 ):
@@ -33,10 +34,10 @@ async def search_tasks(
     is_privileged = claims.role in ("curator", "admin")
 
     # базовые условия
-    if is_privileged:
+    if is_privileged and not only_published:
         base_query = select(Task)
     else:
-        # пользователи видят только опубликованные задания
+        # пользователи (или принудительно) видят только опубликованные задания
         base_query = select(Task).where(Task.is_published == True)
 
     if keyword:
@@ -91,7 +92,7 @@ async def search_tasks(
         for sl_id in skill_level_ids:
             sq = select(SkillLevelTask.task_id).where(SkillLevelTask.skill_level_id == sl_id)
             full_query = full_query.where(Task.id.in_(sq))
-        if not is_privileged:
+        if not is_privileged or only_published:
             full_query = full_query.where(Task.is_published == True)
 
         full_query = full_query.options(
@@ -101,19 +102,33 @@ async def search_tasks(
         full_query = full_query.offset((page - 1) * limit).limit(limit)
         result = await db.execute(full_query)
         rows = result.all()
+        task_ids = [row[0].id for row in rows]
+
+        attached_map = {}
+        if task_ids:
+            try:
+                attached_repos_q = select(UserRepo).where(UserRepo.user_id == claims.user_id, UserRepo.task_id.in_(task_ids))
+                attached_repos_res = await db.execute(attached_repos_q)
+                attached_map = {r.task_id: r for r in attached_repos_res.scalars().all()}
+            except Exception as e:
+                # временный лог ошибки в stderr (если доступно)
+                print(f"Error fetching attached repos: {e}")
 
         items = []
         for row in rows:
-            task_obj = row.Task
+            task_obj = row[0]
             desc = task_obj.description or ""
-            avg_rating = row.average_rating
+            avg_rating = row[2]
             rating_str = "-" if avg_rating is None or avg_rating == 0 else str(round(avg_rating, 1))
             status = "Опубликовано" if task_obj.is_published else "Сохранено"
+            
+            repo = attached_map.get(task_obj.id)
+            
             items.append(TaskItem(
                 id=task_obj.id,
                 title=task_obj.title,
                 description_preview=desc,
-                issued_count=row.issued_count,
+                issued_count=row[1],
                 average_rating=rating_str,
                 status=status,
                 skills=[
@@ -122,7 +137,8 @@ async def search_tasks(
                         skill_name=slt.skill_level.skill.name,
                         level_name=slt.skill_level.level.name
                     ) for slt in task_obj.skill_level_tasks
-                ]
+                ],
+                attached_repo_name=repo.name if repo else None
             ))
 
         return TaskSearchResponse(items=items, total_pages=total_pages, current_page=page)
@@ -133,8 +149,19 @@ async def search_tasks(
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.skill),
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.level)
         ).order_by(Task.id).offset((page - 1) * limit).limit(limit)
+
         result = await db.execute(base_query)
         tasks = result.scalars().all()
+        
+        task_ids = [t.id for t in tasks]
+        attached_map = {}
+        if task_ids:
+            try:
+                attached_repos_q = select(UserRepo).where(UserRepo.user_id == claims.user_id, UserRepo.task_id.in_(task_ids))
+                attached_repos_res = await db.execute(attached_repos_q)
+                attached_map = {r.task_id: r for r in attached_repos_res.scalars().all()}
+            except Exception as e:
+                print(f"Error fetching attached repos (public): {e}")
 
         items = [
             TaskPublicItem(
@@ -147,9 +174,9 @@ async def search_tasks(
                         skill_name=slt.skill_level.skill.name,
                         level_name=slt.skill_level.level.name
                     ) for slt in task.skill_level_tasks
-                ]
-            )
-            for task in tasks
+                ],
+                attached_repo_name=attached_map.get(task.id).name if attached_map.get(task.id) else None
+            ) for task in tasks
         ]
         return TaskPublicSearchResponse(items=items, total_pages=total_pages, current_page=page)
 
@@ -193,12 +220,18 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
             level_name=lv.name
         ))
 
+    # поиск прикрепленного репозитория
+    repo_q = select(UserRepo).where(UserRepo.task_id == rec_id, UserRepo.user_id == claims.user_id)
+    repo_res = await db.execute(repo_q)
+    repo = repo_res.scalar_one_or_none()
+
     return TaskDetail(
         id=rec.id,
         title=rec.title,
         description=rec.description,
         is_published=rec.is_published,
-        skills=skills_items
+        skills=skills_items,
+        attached_repo_name=repo.name if repo else None
     )
 
 @router.get("/tasks/{task_id}/public", response_model=TaskDetail)
@@ -231,12 +264,18 @@ async def get_task_public(
             level_name=lv.name
         ))
 
+    # поиск прикрепленного репозитория
+    repo_q = select(UserRepo).where(UserRepo.task_id == task_id, UserRepo.user_id == claims.user_id)
+    repo_res = await db.execute(repo_q)
+    repo_obj = repo_res.scalar_one_or_none()
+
     return TaskDetail(
         id=task.id,
         title=task.title,
         description=task.description,
-        is_published=task.is_published,
-        skills=skills_items
+        is_published=True,
+        skills=skills_items,
+        attached_repo_name=repo_obj.name if repo_obj else None
     )
 
 @router.post("/tasks", response_model=TaskDetail)

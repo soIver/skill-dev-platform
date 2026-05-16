@@ -7,7 +7,7 @@ import { useToast } from "../components/ToastProvider";
 import { useRepositoriesStore, type RepoItem } from "../hooks/useRepositoriesStore";
 import { useUserStore } from "../hooks/useUserStore";
 import GitHubIcon from "../assets/icons/github.svg?react";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 
 // интерфейсы
 
@@ -16,6 +16,7 @@ interface TaskPublicItem {
   title: string;
   description_preview: string;
   skills: { skill_name: string; level_name: string }[];
+  attached_repo_name?: string | null;
 }
 
 interface TaskPublicSearchResponse {
@@ -40,6 +41,7 @@ interface TaskDetail {
   title: string;
   description: string;
   skills: { skill_name: string; level_name: string }[];
+  attached_repo_name?: string | null;
 }
 
 // максимальная длина превью описания (аналогично content/Tasks.tsx)
@@ -79,11 +81,15 @@ export default function Tasks() {
   } = useRepositoriesStore();
   const githubProfile = useUserStore((state) => state.githubProfile);
 
-  // функция поиска — только по кнопке (или при смене страницы)
+  // функция поиска только по кнопке или при смене страницы
   const doSearch = useCallback(async (page: number, keyword: string, skills: SkillLevelItem[]) => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({ page: page.toString(), limit: ITEMS_PER_PAGE.TASKS.toString() });
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: ITEMS_PER_PAGE.TASKS.toString(),
+        only_published: "true"
+      });
       if (keyword.trim()) params.append("keyword", keyword.trim());
       for (const s of skills) {
         params.append("skill_level_ids", String(s.id));
@@ -217,12 +223,14 @@ export default function Tasks() {
         }),
       });
       showToast({
-        title: "Анализ запущен",
-        message: `Репозиторий ${repo.name} анализируется по навыкам задания.`,
+        title: "Успех",
+        message: `Репозиторий ${repo.name} поставлен в очередь на обработку.`,
         variant: "success",
       });
       updateRepoStatus(repo.name, "В процессе...");
       setIsModalOpen(false);
+      // обновление списка для отображения статуса "выполнено" (галочки)
+      doSearch(currentPage, keywordInput, selectedSkills);
     } catch (e) {
       showToast({
         title: "Ошибка",
@@ -326,9 +334,14 @@ export default function Tasks() {
                   onClick={() => openTaskDetails(task.id)}
                   className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-2 hover:border-gray-400 hover:shadow-md transition-all cursor-pointer"
                 >
-                  <p className="font-semibold text-gray-900 truncate" title={task.title}>
-                    {task.title}
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-gray-900 truncate" title={task.title}>
+                      {task.title}
+                    </p>
+                    {task.attached_repo_name && (
+                      <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500 leading-relaxed">
                     {truncateDescription(task.description_preview)}
                   </p>
@@ -396,7 +409,7 @@ export default function Tasks() {
             ) : selectedTask && (
               <>
                 <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-                  {modalView === "details" ? selectedTask.title : "Прикрепить проект"}
+                  {modalView === "details" ? selectedTask.title : "Прикрепить репозиторий"}
                 </h3>
 
                 {modalView === "details" ? (
@@ -424,9 +437,25 @@ export default function Tasks() {
                         onClick={() => setModalView("attach")}
                         className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
                       >
-                        Прикрепить проект
+                        Прикрепить репозиторий
                       </button>
                     </div>
+
+                    {selectedTask?.attached_repo_name && (
+                      <div className="text-center mt-6">
+                        <p className="text-sm text-gray-500">
+                          сейчас прикреплён{" "}
+                          <a 
+                            href={repos.find(r => r.name === selectedTask.attached_repo_name)?.url || "#"} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline font-medium"
+                          >
+                            {selectedTask.attached_repo_name}
+                          </a>
+                        </p>
+                      </div>
+                    )}
                   </>
                 ) : !githubProfile?.connected ? (
                   <div className="flex flex-col items-start py-6">
@@ -453,7 +482,7 @@ export default function Tasks() {
                 ) : (
                   <>
                     <p className="text-gray-600 mb-6 text-center">
-                      Выберите свой репозиторий GitHub для анализа соответствия навыкам этого задания.
+                      Выберите свой репозиторий GitHub для проверки на соответствие требованиям этого задания.
                     </p>
                     <div className="mb-10">
                       <AutocompleteSearch<RepoItem>
@@ -474,7 +503,7 @@ export default function Tasks() {
                     {isSubmitting && (
                       <div className="flex items-center justify-center gap-2 text-primary font-medium mb-6">
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Отправка на анализ...
+                        Отправка на проверку...
                       </div>
                     )}
                     <button

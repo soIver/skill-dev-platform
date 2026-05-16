@@ -28,11 +28,13 @@ async def lifespan(app: FastAPI):
     yield
     # завершение работы
     notifications_shutdown_event.set() # отправка сигнала SSE-генераторам
+    await asyncio.sleep(1) # запас времени для закрытия SSE-соединений
     await RedisClient.close() # закрытие Redis
     await db_engine.dispose() # закрытие пула БД
 
 
 app = FastAPI(lifespan=lifespan)
+
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(github_router, prefix="/api")

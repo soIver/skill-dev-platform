@@ -17,21 +17,38 @@ class RepoAnalyzer:
     def __init__(self):
         self.config = analysis_config
 
+    def _build_prompt(self, skill_names: List[str] | None = None, task_description: str | None = None) -> str:
+        # сборка промпта из фрагментов, хранящихся в конфиге YAML
+        prompts = self.config["prompts"]
+        fragments = [prompts["role"]]
+
+        if task_description:
+            fragments.append(prompts["task_context"].format(description=task_description))
+
+        if skill_names:
+            task = prompts["task_with_skills"].format(skills=", ".join(skill_names))
+            fragments.append(task)
+        else:
+            fragments.append(prompts["base_task"])
+
+        fragments.append(prompts["scoring"])
+        fragments.append(prompts["format"])
+
+        return "\n\n".join(fragments)
+
     async def ingest_repository(self, url: str) -> str:
-        logger.info(f"Обработка репозитория {url}...")
-        ignore_patterns = [
-            "*.md", "*.txt", "package.json", "package-lock.json",
-            "poetry.lock", "Pipfile*", "node_modules", ".env*",
-            "__pycache__", "venv", ".venv", "dist", "build", "out"
-        ]
+        logger.info(f"Начата обработка репозитория {url}")
+        ignore_patterns = self.config.get("ignore_patterns", [])
         summary, tree, content = await ingest_async(url, exclude_patterns=ignore_patterns)
         return f"{tree}\n\n{content}"
 
-    async def extract_skills(self, payload: str, skill_names: List[str] | None = None) -> List[Tuple[str, int]]:
-        prompt = self.config["prompts"]["repository_analysis"]
-        if skill_names:
-            skills_str = ", ".join(skill_names)
-            prompt += f"\n\nIMPORTANT: Evaluate the repository ONLY for the following skills: {skills_str}. Do not include any other skills in the output."
+    async def extract_skills(
+        self, 
+        payload: str, 
+        skill_names: List[str] | None = None,
+        task_description: str | None = None
+    ) -> List[Tuple[str, int]]:
+        prompt = self._build_prompt(skill_names, task_description)
 
         model = self.config["models"]["llm"]["name"]
         
@@ -97,9 +114,15 @@ class RepoAnalyzer:
 
         return matched
 
-    async def analyze(self, repo_url: str, db: AsyncSession, skill_names: List[str] | None = None) -> List[Dict]:
+    async def analyze(
+        self, 
+        repo_url: str, 
+        db: AsyncSession, 
+        skill_names: List[str] | None = None,
+        task_description: str | None = None
+    ) -> List[Dict]:
         payload = await self.ingest_repository(repo_url)
-        extracted = await self.extract_skills(payload, skill_names=skill_names)
+        extracted = await self.extract_skills(payload, skill_names=skill_names, task_description=task_description)
         
         if not extracted:
             return []

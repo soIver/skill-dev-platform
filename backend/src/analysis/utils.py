@@ -19,11 +19,12 @@ client = AsyncOpenAI(
 
 async def get_embedding(text: str) -> List[float]:
     model_name = analysis_config["models"]["embedding"]["name"]
+    dimensions_qnt = analysis_config["models"]["embedding"]["dimensions"]
     response = await client.embeddings.create(
         model=model_name,
         input=[{"content": [{"type": "text", "text": text}]}],
         encoding_format="float",
-        dimensions=384
+        dimensions=dimensions_qnt
     )
     return response.data[0].embedding
 

@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 
+class SkillTaskItem(BaseModel):
+    skill_level_id: int
+    skill_name: str
+    level_name: str
+
 class TaskItem(BaseModel):
     id: int
     title: str
@@ -9,16 +14,13 @@ class TaskItem(BaseModel):
     average_rating: str
     status: str
     skills: list[SkillTaskItem]
+    attached_repo_name: Optional[str] = None
 
 class TaskSearchResponse(BaseModel):
     items: list[TaskItem]
     total_pages: int
     current_page: int
 
-class SkillTaskItem(BaseModel):
-    skill_level_id: int
-    skill_name: str
-    level_name: str
 
 class TaskDetail(BaseModel):
     id: int
@@ -26,6 +28,7 @@ class TaskDetail(BaseModel):
     description: str
     is_published: bool
     skills: list[SkillTaskItem]
+    attached_repo_name: Optional[str] = None
 
 class TaskCreateUpdate(BaseModel):
     title: str = Field(..., min_length=4, max_length=48)
@@ -38,6 +41,7 @@ class TaskPublicItem(BaseModel):
     title: str
     description_preview: str
     skills: list[SkillTaskItem]
+    attached_repo_name: Optional[str] = None
 
 class TaskPublicSearchResponse(BaseModel):
     items: list[TaskPublicItem]
