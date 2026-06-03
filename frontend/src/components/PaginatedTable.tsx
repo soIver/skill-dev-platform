@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { ITEMS_PER_TABLE_PAGE } from "../config";
+import { Pagination } from "./Pagination";
 
 export interface Column<T> {
   key: string;
@@ -107,33 +108,17 @@ export function PaginatedTable<T extends { id: number | string }>({
         </table>
       </div>
 
-      <div
-        className={`flex justify-center items-center gap-4 mt-4 transition-opacity duration-300 ${totalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-      >
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
-        >
-          ←
-        </button>
-        <span className="text-sm text-gray-600">
-          Страница {currentPage} из {totalPages}
-        </span>
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          onMouseEnter={() => {
-            if (currentPage < totalPages) {
-              onPreload?.(currentPage + 1);
-            }
-          }}
-          disabled={currentPage === totalPages}
-          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
-        >
-          →
-        </button>
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        onPreloadNext={() => {
+          if (currentPage < totalPages) {
+            onPreload?.(currentPage + 1);
+          }
+        }}
+        className={`mt-4 transition-opacity duration-300 ${totalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      />
     </div>
   );
 }

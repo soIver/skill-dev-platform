@@ -24,7 +24,13 @@ class VacancySearchRequest(BaseModel):
     excluded_words: str = Field(default="", max_length=255)
     salary_from: int | None = Field(default=None, ge=0)
     area_ids: list[str] = Field(default_factory=list)
-    experience: str | None = Field(default=None)
+    experience: list[str] = Field(default_factory=list)
+    schedule: list[str] = Field(default_factory=list)
+    education: list[str] = Field(default_factory=list)
+    accredited_it_employer: bool = Field(default=False)
+    less_than_10_negotiations: bool = Field(default=False)
+    only_with_salary: bool = Field(default=False)
+    page: int = Field(default=0, ge=0)
 
     @field_validator("description", "excluded_words", mode="before")
     @classmethod
@@ -47,14 +53,24 @@ class VacancySearchRequest(BaseModel):
             unique_ids.append(normalized_item)
         return unique_ids
 
-    @field_validator("experience")
+    @field_validator("experience", mode="before")
     @classmethod
-    def validate_experience(cls, value: str | None) -> str | None:
+    def validate_experience(cls, value: Any) -> list[str]:
         if value is None or value == "":
-            return None
-        if value not in HH_EXPERIENCE_IDS:
-            raise ValueError("Неизвестное значение опыта")
-        return value
+            return []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            raise ValueError("опыт должен быть списком строк")
+        cleaned = []
+        for item in value:
+            if not item:
+                continue
+            item_str = str(item).strip()
+            if item_str not in HH_EXPERIENCE_IDS:
+                raise ValueError(f"неизвестное значение опыта: {item_str}")
+            cleaned.append(item_str)
+        return cleaned
 
 
 class VacancySearchItem(BaseModel):

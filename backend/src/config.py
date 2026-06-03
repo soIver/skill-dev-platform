@@ -73,11 +73,9 @@ class Config:
     SKILL_SCORE_DECAY_FACTOR = 0.1 # коэффициент снижения оценки за 1 интервал
     VTOTAL_EPSILON = 0.1 # минимальный уровень навыка при расчёте Vtotal
     HH_API_BASE_URL = "https://api.hh.ru"
-    HH_API_USER_AGENT = os.getenv(
-        "HH_API_USER_AGENT",
-        f"skill-dev-platform/1.0 ({os.getenv('ADMIN_EMAIL')})",
-    )
-    HH_API_TIMEOUT_SECONDS = float(os.getenv("HH_API_TIMEOUT_SECONDS", "15"))
+    HH_API_USER_AGENT = f"skill-dev-platform/1.0 ({os.getenv('ADMIN_EMAIL')})"
+    HH_CLIENT_ID = os.getenv("HH_CLIENT_ID")
+    HH_CLIENT_SECRET = os.getenv("HH_CLIENT_SECRET")
 
     @classmethod
     def string_encryption_key(cls) -> bytes:
@@ -97,6 +95,7 @@ class Config:
         if not all((cls.DATABASE_URL, cls.REDIS_URL, 
                     cls.JWT_SECRET_KEY, cls.STRING_ENCRYPTION_SECRET,
                     cls.GITHUB_CLIENT_ID, cls.GITHUB_CLIENT_SECRET, cls.OPENROUTER_API_KEY,
+                    cls.HH_CLIENT_ID, cls.HH_CLIENT_SECRET,
                     cls.ADMIN_EMAIL, cls.ADMIN_PASSWORD)):
             print("Переменные среды требуют проверки")
             return False

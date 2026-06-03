@@ -180,7 +180,7 @@ export default function Credentials() {
 
   return (
     <div className="max-w-3xl mx-auto w-full">
-      <div className="space-y-8">
+      <div className="workspace-container flex-col! gap-8! min-h-0!">
         {/* Основные */}
         <div className="workspace-panel">
           <h2 className="workspace-panel-header">Основные</h2>

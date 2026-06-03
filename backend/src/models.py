@@ -234,32 +234,6 @@ class Vacancy(Base):
     analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
 
-class Keyword(Base):
-    __tablename__ = "keywords"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-
-
-class VacancyKeyword(Base):
-    __tablename__ = "vacancy_keywords"
-
-    id = Column(Integer, primary_key=True)
-    vacancy_id = Column(
-        Integer,
-        ForeignKey("vacancies.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    keyword_id = Column(
-        Integer,
-        ForeignKey("keywords.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    vacancy = relationship("Vacancy", lazy="select")
-    keyword = relationship("Keyword", lazy="select")
-
-
 class VacancySkillLevel(Base):
     __tablename__ = "vacancy_skill_levels"
 
@@ -277,6 +251,7 @@ class VacancySkillLevel(Base):
 
     vacancy = relationship("Vacancy", lazy="select")
     skill_level = relationship("SkillLevel", lazy="select")
+
 
 class VacancyHistory(Base):
     __tablename__ = "vacancy_history"
@@ -296,6 +271,7 @@ class VacancyHistory(Base):
 
     user = relationship("User", lazy="select")
     vacancy = relationship("Vacancy", lazy="select")
+
 
 class Task(Base):
     __tablename__ = "tasks"

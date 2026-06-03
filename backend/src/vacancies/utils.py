@@ -34,12 +34,16 @@ def flatten_area_leaves(areas_payload: list[dict[str, Any]]) -> list[dict[str, s
     return sorted(leaves, key=lambda item: item["full_name"].lower())
 
 
-def build_search_params(payload: VacancySearchRequest) -> dict[str, Any]:
+def build_search_params(payload: VacancySearchRequest, it_roles: list[str]) -> dict[str, Any]:
     params: dict[str, Any] = {
         "per_page": 20,
         "order_by": "publication_time",
+        "page": payload.page,
+        "only_with_salary": "true",
     }
 
+    if it_roles:
+        params["professional_role"] = it_roles
     if payload.description:
         params["text"] = payload.description
     if payload.excluded_words:
@@ -50,6 +54,14 @@ def build_search_params(payload: VacancySearchRequest) -> dict[str, Any]:
         params["area"] = payload.area_ids
     if payload.experience:
         params["experience"] = payload.experience
+    if payload.schedule:
+        params["schedule"] = payload.schedule
+    if payload.education:
+        params["education"] = payload.education
+    if payload.accredited_it_employer:
+        params["accredited_it_employer"] = "true"
+    if payload.less_than_10_negotiations:
+        params["parttime"] = "less_than_10_negotiations"
 
     return params
 

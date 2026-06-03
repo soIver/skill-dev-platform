@@ -11,7 +11,7 @@ from slowapi.util import get_remote_address
 from .auth.router import router as auth_router
 from .config import global_config
 from .utils.database import init_database, db_engine
-from .github.router import router as github_router
+from .repositories.router import router as github_router
 from .skills.router import router as skills_router
 from .tasks.router import router as tasks_router
 from .analysis.router import router as analysis_router
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     yield
     # завершение работы
     notifications_shutdown_event.set() # отправка сигнала SSE-генераторам
-    await asyncio.sleep(1) # запас времени для закрытия SSE-соединений
+    await asyncio.sleep(3) # запас времени для закрытия SSE-соединений
     await RedisClient.close() # закрытие Redis
     await db_engine.dispose() # закрытие пула БД
 

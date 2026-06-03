@@ -179,7 +179,7 @@ export default function Repositories() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto mb-10 w-full h-full">
+    <div className="workspace-container">
       <div className="workspace-panel h-full flex flex-col">
         <h2 className="workspace-panel-header shrink-0">Мои репозитории</h2>
 
@@ -195,7 +195,7 @@ export default function Repositories() {
             isLoading={isLoading}
             emptyMessage={
               <>
-                Привяжите профиль GitHub в <Link to="/profile/credentials" className="hyperlink">настройках интеграций</Link>,<br/>чтобы получить возможность загружать свои репозитории.
+                Привяжите профиль GitHub в <Link to="/profile/credentials" className="hyperlink">настройках интеграций</Link>,<br />чтобы получить возможность загружать свои репозитории.
               </>
             }
           />

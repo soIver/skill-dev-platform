@@ -419,7 +419,7 @@ export default function SkillsAdmin() {
   ];
 
   return (
-    <div className="flex gap-8 h-[calc(100vh-12rem)] min-h-[600px] relative">
+    <div className="workspace-container">
       {/* модал несохранённых изменений */}
       {pendingSelectId !== null && (
         <EditorConfirmModal
@@ -618,7 +618,7 @@ export default function SkillsAdmin() {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-500">Выберите навык для редактирования...</p>
+            <p className="text-gray-500">Выберите навык для редактирования</p>
           </div>
         )}
       </div>

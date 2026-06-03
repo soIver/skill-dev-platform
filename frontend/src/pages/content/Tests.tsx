@@ -44,6 +44,37 @@ const handleNumberPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
   }
 };
 
+const getMinutesWord = (count: number): string => {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) {
+    return "минут";
+  }
+  if (mod10 === 1) {
+    return "минута";
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return "минуты";
+  }
+  return "минут";
+};
+
+const getPointsWord = (count: number): string => {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) {
+    return "баллов";
+  }
+  if (mod10 === 1) {
+    return "балл";
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return "балла";
+  }
+  return "баллов";
+};
+
+
 export default function ContentTests() {
   const { tests, setTestsState } = useContentStore();
   const {
@@ -511,7 +542,7 @@ export default function ContentTests() {
   };
 
   return (
-    <div className="flex gap-8 h-[calc(100vh-12rem)] min-h-[600px] relative">
+    <div className="workspace-container">
       {pendingSelectId !== null && (
         <EditorConfirmModal
           title="Несохранённые изменения"
@@ -576,102 +607,119 @@ export default function ContentTests() {
 
       {/* правая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full relative min-w-0">
-        {selectedId ? (
-          <>
-            <div className="flex items-center justify-between gap-4 mb-2 shrink-0">
-              <h2 className="workspace-panel-header mb-0 text-lg md:text-xl truncate" title={selectedId === "new"
-                ? `Новый тест «${editorData.skill_name} - ${editorData.level_name}»`
-                : `Тест «${editorData.skill_name} - ${editorData.level_name} №${editorData.variant_number}»`}>
-                {selectedId === "new"
-                  ? `Новый тест «${editorData.skill_name} - ${editorData.level_name}»`
-                  : `Тест «${editorData.skill_name} - ${editorData.level_name} №${editorData.variant_number}»`}
-              </h2>
-              <div className="flex items-center gap-2 shrink-0">
-                <IconButton
-                  iconSrc="/src/assets/icons/delete.svg"
-                  altText={selectedId === "new" ? "Отменить создание" : "Удалить"}
-                  onClick={selectedId === "new" ? handleDelete : () => setShowDeleteConfirm(true)}
-                  color="danger"
-                />
-                <IconButton
-                  iconSrc="/src/assets/icons/save.svg"
-                  altText="Сохранить"
-                  onClick={() => handleSave(editorData.is_published)}
-                  disabled={!canSave}
-                  color="primary"
-                />
-                <IconButton
-                  iconSrc={editorData.is_published ? "/src/assets/icons/unpublish.svg" : "/src/assets/icons/publish.svg"}
-                  altText={editorData.is_published ? "Снять с публикации" : "Опубликовать"}
-                  onClick={() => handleSave(!editorData.is_published)}
-                  disabled={!canTogglePublish}
-                  color="success"
-                />
-              </div>
+        <div className="flex items-center justify-between gap-4 mb-2 shrink-0">
+          <h2 className="workspace-panel-header mb-0">
+            {selectedId === "new"
+              ? `Новый тест «${editorData.skill_name} - ${editorData.level_name}»`
+              : typeof selectedId === "number"
+                ? `Тест «${editorData.skill_name} - ${editorData.level_name} №${editorData.variant_number}»`
+                : "Редактор тестов"}
+          </h2>
+          {selectedId && (
+            <div className="flex items-center gap-2 shrink-0">
+              <IconButton
+                iconSrc="/src/assets/icons/delete.svg"
+                altText={selectedId === "new" ? "Отменить создание" : "Удалить"}
+                onClick={selectedId === "new" ? handleDelete : () => setShowDeleteConfirm(true)}
+                color="danger"
+              />
+              <IconButton
+                iconSrc="/src/assets/icons/save.svg"
+                altText="Сохранить"
+                onClick={() => handleSave(editorData.is_published)}
+                disabled={!canSave}
+                color="primary"
+              />
+              <IconButton
+                iconSrc={editorData.is_published ? "/src/assets/icons/unpublish.svg" : "/src/assets/icons/publish.svg"}
+                altText={editorData.is_published ? "Снять с публикации" : "Опубликовать"}
+                onClick={() => handleSave(!editorData.is_published)}
+                disabled={!canTogglePublish}
+                color="success"
+              />
             </div>
+          )}
+        </div>
 
-            <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1 min-w-0">
+        {selectedId ? (
+          <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1 min-w-0">
               {/* параметры времени и порога */}
               <div className="flex gap-4 mb-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Минут на выполнение:
+                    Ограничение по времени
                   </label>
-                  <input
-                    type="number"
-                    min="3"
-                    max="180"
-                    value={editorData.time_limit_minutes ?? ""}
-                    onKeyDown={handleNumberKeyDown}
-                    onPaste={handleNumberPaste}
-                    onChange={(e) => {
-                      let valStr = e.target.value.replace(/[^0-9]/g, "");
-                      if (!valStr) {
-                        updateEditorData({ time_limit_minutes: null });
-                        return;
-                      }
-                      let val = parseInt(valStr, 10);
-                      if (val > 180) val = 180;
-                      updateEditorData({ time_limit_minutes: val });
-                    }}
-                    onBlur={() => {
-                      let val = editorData.time_limit_minutes;
-                      if (val === null || val < 3) {
-                        updateEditorData({ time_limit_minutes: 3 });
-                      }
-                    }}
-                    className="input-field w-full"
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      min="3"
+                      max="180"
+                      value={editorData.time_limit_minutes ?? ""}
+                      onKeyDown={handleNumberKeyDown}
+                      onPaste={handleNumberPaste}
+                      onChange={(e) => {
+                        let valStr = e.target.value.replace(/[^0-9]/g, "");
+                        if (!valStr) {
+                          updateEditorData({ time_limit_minutes: null });
+                          return;
+                        }
+                        let val = parseInt(valStr, 10);
+                        if (val > 180) val = 180;
+                        updateEditorData({ time_limit_minutes: val });
+                      }}
+                      onBlur={() => {
+                        let val = editorData.time_limit_minutes;
+                        if (val === null || val < 3) {
+                          updateEditorData({ time_limit_minutes: 3 });
+                        }
+                      }}
+                      className="input-field mt-0! w-full"
+                    />
+                    {editorData.time_limit_minutes !== null && editorData.time_limit_minutes !== undefined && (
+                      <div className="pointer-events-none absolute left-0 top-0 bottom-0 flex items-center pl-2 text-base select-none whitespace-pre">
+                        <span className="text-transparent">{editorData.time_limit_minutes}</span>
+                        <span className="text-gray-400">&nbsp;{getMinutesWord(editorData.time_limit_minutes)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Порог баллов:
+                    Порог прохождения
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={editorData.threshold_score ?? ""}
-                    onKeyDown={handleNumberKeyDown}
-                    onPaste={handleNumberPaste}
-                    onChange={(e) => {
-                      let valStr = e.target.value.replace(/[^0-9]/g, "");
-                      if (!valStr) {
-                        updateEditorData({ threshold_score: null });
-                        return;
-                      }
-                      let val = parseInt(valStr, 10);
-                      if (val > 100) val = 100;
-                      updateEditorData({ threshold_score: val });
-                    }}
-                    onBlur={() => {
-                      let val = editorData.threshold_score;
-                      if (val === null || val < 1) {
-                        updateEditorData({ threshold_score: 1 });
-                      }
-                    }}
-                    className="input-field w-full"
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={editorData.threshold_score ?? ""}
+                      onKeyDown={handleNumberKeyDown}
+                      onPaste={handleNumberPaste}
+                      onChange={(e) => {
+                        let valStr = e.target.value.replace(/[^0-9]/g, "");
+                        if (!valStr) {
+                          updateEditorData({ threshold_score: null });
+                          return;
+                        }
+                        let val = parseInt(valStr, 10);
+                        if (val > 100) val = 100;
+                        updateEditorData({ threshold_score: val });
+                      }}
+                      onBlur={() => {
+                        let val = editorData.threshold_score;
+                        if (val === null || val < 1) {
+                          updateEditorData({ threshold_score: 1 });
+                        }
+                      }}
+                      className="input-field mt-0! w-full"
+                    />
+                    {editorData.threshold_score !== null && editorData.threshold_score !== undefined && (
+                      <div className="pointer-events-none absolute left-0 top-0 bottom-0 flex items-center pl-2 text-base select-none whitespace-pre">
+                        <span className="text-transparent">{editorData.threshold_score}</span>
+                        <span className="text-gray-400">&nbsp;{getPointsWord(editorData.threshold_score)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -725,7 +773,7 @@ export default function ContentTests() {
                               }}
                               className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center font-medium text-md focus:outline-none focus:ring-1 focus:ring-primary"
                             />
-                            
+
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
@@ -840,10 +888,9 @@ export default function ContentTests() {
                 </div>
               </div>
             </div>
-          </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-500">Выберите тест для редактирования...</p>
+            <p className="text-gray-500">Выберите тест для редактирования</p>
           </div>
         )}
       </div>

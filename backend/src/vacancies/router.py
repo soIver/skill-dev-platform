@@ -9,8 +9,8 @@ router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
 
 
 @router.get("/areas", response_model=VacancyAreasResponse)
-async def get_vacancy_areas(claims: TokenClaims = Depends(require_role("user", "curator", "admin"))):
-    return await VacanciesService().get_areas()
+async def get_vacancy_areas(q: str = "", claims: TokenClaims = Depends(require_role("user", "curator", "admin"))):
+    return await VacanciesService().get_areas(q)
 
 
 @router.post("/search", response_model=VacancySearchResponse)

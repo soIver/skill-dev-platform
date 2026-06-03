@@ -3,6 +3,7 @@ import { authJson } from "../auth";
 import { ITEMS_PER_PAGE, TASK, SEARCH_DEBOUNCE_MS, ITEMS_PER_TABLE_PAGE } from "../config";
 import { BentoSearch } from "../components/BentoSearch";
 import { AutocompleteSearch } from "../components/AutocompleteSearch";
+import { Pagination } from "../components/Pagination";
 import { useToast } from "../components/ToastProvider";
 import { useRepositoriesStore, type RepoItem } from "../hooks/useRepositoriesStore";
 import { useUserStore } from "../hooks/useUserStore";
@@ -369,27 +370,12 @@ export default function Tasks() {
             </div>
 
             {/* пагинация */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-4 mt-8">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
-                >
-                  ←
-                </button>
-                <span className="text-sm text-gray-600">
-                  Страница {currentPage} из {totalPages}
-                </span>
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
-                >
-                  →
-                </button>
-              </div>
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              className="mt-8"
+            />
           </>
         )}
       </div>
