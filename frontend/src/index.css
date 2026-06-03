@@ -228,6 +228,7 @@ html,
 .modal-content-animate {
     animation: modal-content-in 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
 }

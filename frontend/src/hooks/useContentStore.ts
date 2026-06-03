@@ -4,9 +4,24 @@ export interface TestItem {
   id: number;
   skill_name: string;
   level_name: string;
+  variant_number: number;
   attempts_count: number;
   passed_count: number;
   status: string;
+}
+
+export interface AnswerEditorItem {
+  id: string | number;
+  answer_text: string;
+  is_correct: boolean;
+}
+
+export interface QuestionEditorItem {
+  id: string | number;
+  question_text: string;
+  points: number;
+  is_expanded?: boolean;
+  answers: AnswerEditorItem[];
 }
 
 export interface TestEditorData {
@@ -14,6 +29,10 @@ export interface TestEditorData {
   threshold_score: number | null;
   is_published: boolean;
   skill_level_id: number | null;
+  skill_name?: string;
+  level_name?: string;
+  variant_number?: number;
+  questions: QuestionEditorItem[];
 }
 
 interface TestsState {
@@ -151,7 +170,7 @@ const initialTestsState: TestsState = {
   totalPages: 1,
   lastSearch: { search: "", page: 1 },
   selectedId: null,
-  editorData: { time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null },
+  editorData: { time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null, questions: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };

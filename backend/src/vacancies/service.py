@@ -64,12 +64,10 @@ class VacanciesService:
             ) from exc
 
         if response.status_code >= 400:
-            logger.warning(
-                "HeadHunter вернул ошибку %s для %s c параметрами %s: %s",
+            logger.exception(
+                "HeadHunter вернул ошибку %s для %s",
                 response.status_code,
                 path,
-                params,
-                response.text[:500],
             )
             detail = extract_hh_error(response)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
