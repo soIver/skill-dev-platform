@@ -25,19 +25,22 @@
     }
 
     .workspace-container {
-    @apply flex-1 flex flex-col md:flex-row gap-8 max-h-[calc(100vh-8rem)] min-h-[calc(100vh-8rem)] relative;
-    overflow: hidden; /* Добавлено: предотвращает выход содержимого за пределы контейнера */
-}
+        @apply flex-1 flex flex-col md:flex-row gap-8 max-h-[calc(100vh-8rem)] min-h-[calc(100vh-8rem)] relative;
+        overflow: hidden;
+        /* Добавлено: предотвращает выход содержимого за пределы контейнера */
+    }
 
-.workspace-panel {
-    @apply p-6 rounded-xl border bg-white border-gray-400 shadow-md flex flex-col flex-1 min-h-0;
-    min-width: 0; /* Ключевое свойство: позволяет flex-элементам сжиматься меньше содержимого */
-    overflow: hidden; /* Добавлено: содержимое не может выйти за пределы панели */
-}
+    .workspace-panel {
+        @apply p-6 rounded-xl border bg-white border-gray-400 shadow-md flex flex-col flex-1 min-h-0;
+        min-width: 0;
+        /* Ключевое свойство: позволяет flex-элементам сжиматься меньше содержимого */
+        overflow: hidden;
+        /* Добавлено: содержимое не может выйти за пределы панели */
+    }
 
-.workspace-panel-header {
-    @apply text-2xl font-semibold mb-3 pb-2 text-start border-b border-gray-400 shrink-0;
-}
+    .workspace-panel-header {
+        @apply text-2xl font-semibold mb-3 pb-2 text-start border-b border-gray-400 shrink-0;
+    }
 
     .hor-nav-bar {
         @apply flex justify-around border rounded-b-2xl bg-white border-gray-300 mb-8 relative z-50;
@@ -251,4 +254,67 @@ html,
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #d1d5db;
+}
+
+/* двусторонний range слайдер */
+.slider-thumb-primary {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    background: transparent;
+    pointer-events: none;
+}
+
+.slider-thumb-primary::-webkit-slider-runnable-track {
+    background: transparent;
+}
+
+.slider-thumb-primary::-moz-range-track {
+    background: transparent;
+}
+
+.slider-thumb-primary::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    width: 18px;
+    border-radius: 9999px;
+    background: #0077c8;
+    border: 2px solid #ffffff;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform 100ms ease, background-color 100ms ease;
+}
+
+.slider-thumb-primary::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    background: #2086ca;
+}
+
+.slider-thumb-primary::-webkit-slider-thumb:active {
+    transform: scale(0.95);
+    background: #206a9f;
+}
+
+.slider-thumb-primary::-moz-range-thumb {
+    height: 18px;
+    width: 18px;
+    border-radius: 9999px;
+    background: #2086ca;
+    border: 2px solid #ffffff;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform 100ms ease, background-color 100ms ease;
+}
+
+.slider-thumb-primary::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    background: #2086ca;
+}
+
+.slider-thumb-primary::-moz-range-thumb:active {
+    transform: scale(0.95);
+    background: #206a9f;
 }

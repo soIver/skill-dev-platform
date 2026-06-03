@@ -48,8 +48,9 @@ def build_search_params(payload: VacancySearchRequest, it_roles: list[str]) -> d
         params["text"] = payload.description
     if payload.excluded_words:
         params["excluded_text"] = payload.excluded_words
-    if payload.salary_from is not None:
-        params["salary"] = payload.salary_from
+    if payload.salary_range:
+        import json
+        params["salary_range"] = payload.salary_range.model_dump_json(exclude_none=True, by_alias=True)
     if payload.area_ids:
         params["area"] = payload.area_ids
     if payload.experience:
@@ -103,7 +104,7 @@ def format_salary(salary: dict[str, Any] | None) -> str:
     elif gross is False:
         tax_label = " на руки"
 
-    return f"{amount} / мес.{tax_label}"
+    return f"{amount} {tax_label}"
 
 
 def format_amount(value: Any) -> str:

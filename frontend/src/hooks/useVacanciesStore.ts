@@ -18,7 +18,8 @@ export interface VacancySearchItem {
 interface VacanciesState {
   description: string;
   excludedWords: string;
-  salaryFrom: string;
+  salaryFrom: number;
+  salaryTo: number;
   experience: string[];
   schedule: string[];
   education: string[];
@@ -38,6 +39,7 @@ interface VacanciesState {
         | "description"
         | "excludedWords"
         | "salaryFrom"
+        | "salaryTo"
         | "experience"
         | "schedule"
         | "education"
@@ -57,7 +59,8 @@ interface VacanciesState {
 export const useVacanciesStore = create<VacanciesState>((set) => ({
   description: "",
   excludedWords: "",
-  salaryFrom: "",
+  salaryFrom: 0,
+  salaryTo: 1000000,
   experience: [],
   schedule: [],
   education: [],
@@ -78,7 +81,8 @@ export const useVacanciesStore = create<VacanciesState>((set) => ({
     set({
       description: "",
       excludedWords: "",
-      salaryFrom: "",
+      salaryFrom: 0,
+      salaryTo: 1000000,
       experience: [],
       schedule: [],
       education: [],

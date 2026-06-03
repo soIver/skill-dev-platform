@@ -19,10 +19,21 @@ class VacancyAreasResponse(BaseModel):
     items: list[VacancyAreaItem]
 
 
+class SalaryId(BaseModel):
+    id: str
+
+class SalaryRange(BaseModel):
+    currency: str = "RUR"
+    frequency: SalaryId | None = None
+    from_: int | None = Field(default=None, alias="from")
+    gross: bool = False
+    mode: SalaryId | None = None
+    to: int | None = None
+
 class VacancySearchRequest(BaseModel):
     description: str = Field(default="", max_length=255)
     excluded_words: str = Field(default="", max_length=255)
-    salary_from: int | None = Field(default=None, ge=0)
+    salary_range: SalaryRange | None = None
     area_ids: list[str] = Field(default_factory=list)
     experience: list[str] = Field(default_factory=list)
     schedule: list[str] = Field(default_factory=list)

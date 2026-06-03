@@ -132,8 +132,20 @@ class VacanciesService:
         if not isinstance(items, list):
             items = []
 
+        mapped_items = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if payload.salary_range and payload.salary_range.to is not None:
+                sal = item.get("salary")
+                if sal:
+                    sal_from = sal.get("from")
+                    if sal_from is not None and sal_from > payload.salary_range.to:
+                        continue
+            mapped_items.append(map_vacancy_item(item))
+
         return VacancySearchResponse(
-            items=[map_vacancy_item(item) for item in items if isinstance(item, dict)],
+            items=mapped_items,
             found=int(response_payload.get("found") or 0),
         )
 

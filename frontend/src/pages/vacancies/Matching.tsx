@@ -3,6 +3,7 @@ import { authJson } from "../../auth";
 import { BentoSearch } from "../../components/BentoSearch";
 import { VacancyCard } from "../../components/VacancyCard";
 import { Pagination } from "../../components/Pagination";
+import { RangeSlider } from "../../components/RangeSlider";
 import { useVacanciesStore, type VacancyAreaItem, type VacancySearchItem } from "../../hooks/useVacanciesStore";
 
 interface VacancyAreasResponse {
@@ -14,12 +15,6 @@ interface VacancySearchResponse {
   found: number;
 }
 
-const EXPERIENCE_OPTIONS = [
-  { value: "noExperience", label: "Нет опыта" },
-  { value: "between1And3", label: "От 1 года до 3 лет" },
-  { value: "between3And6", label: "От 3 до 6 лет" },
-  { value: "moreThan6", label: "Более 6 лет" },
-];
 const EDUCATION_OPTIONS = [
   { value: "higher", label: "Высшее" },
   { value: "special_secondary", label: "Среднее профессиональное" },
@@ -31,6 +26,7 @@ export default function VacancyMatching() {
     description,
     excludedWords,
     salaryFrom,
+    salaryTo,
     experience,
     schedule,
     education,
@@ -62,7 +58,14 @@ export default function VacancyMatching() {
         body: JSON.stringify({
           description,
           excluded_words: excludedWords,
-          salary_from: salaryFrom ? Number(salaryFrom) : null,
+          salary_range: (salaryFrom > 0 || salaryTo < 1000000) ? {
+            currency: "RUR",
+            frequency: { id: "MONTHLY" },
+            from: salaryFrom > 0 ? salaryFrom : null,
+            gross: false,
+            mode: { id: "MONTH" },
+            to: salaryTo < 1000000 ? salaryTo : null
+          } : null,
           area_ids: selectedAreas.map((area) => area.id),
           experience,
           schedule,
@@ -70,7 +73,7 @@ export default function VacancyMatching() {
           accredited_it_employer: accreditedItEmployer,
           less_than_10_negotiations: lessThan10Negotiations,
           only_with_salary: onlyWithSalary,
-          page: page - 1, // hh.ru expects 0-indexed page
+          page: page - 1, // hh.ru ожидает 0-индексацию страницы
         }),
       });
 
@@ -115,9 +118,6 @@ export default function VacancyMatching() {
 
   const isAreaDisabled = (area: VacancyAreaItem) => selectedAreas.some((selectedArea) => selectedArea.id === area.id);
 
-  const handleIntegerInputChange = (value: string) => {
-    setFilters({ salaryFrom: value.replace(/[^\d]/g, "") });
-  };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (event.key === "Enter" && !isSearching) {
@@ -168,25 +168,14 @@ export default function VacancyMatching() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Минимальный уровень дохода
-              </label>
-              <div className="relative flex items-center">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={salaryFrom}
-                  onChange={(event) => handleIntegerInputChange(event.target.value)}
-                  onKeyDown={handleInputKeyDown}
-                  className="input-field mt-0! w-full pr-12"
-                />
-                {salaryFrom && (
-                  <div className="pointer-events-none absolute left-0 top-0 bottom-0 flex items-center pl-2 text-base select-none whitespace-pre">
-                    <span className="text-transparent">{salaryFrom}</span>
-                    <span className="text-gray-400">&nbsp;₽</span>
-                  </div>
-                )}
-              </div>
+              <RangeSlider
+                min={0}
+                max={1000000}
+                step={500}
+                value={[salaryFrom, salaryTo]}
+                onChange={([from, to]) => setFilters({ salaryFrom: from, salaryTo: to })}
+                label="Уровень дохода в месяц"
+              />
             </div>
 
             <div>
@@ -217,35 +206,57 @@ export default function VacancyMatching() {
               </div>
             </div>
 
-            {/* Сетка чекбоксов для фильтров */}
+            {/* сетка чекбоксов для фильтров */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Ряд 1 - Опыт работы */}
+              {/* ряд 1 - Опыт работы */}
               <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
                 <span className="block text-sm font-semibold text-gray-800 mb-3">Опыт работы</span>
-                <div className="flex flex-col gap-2.5">
-                  {EXPERIENCE_OPTIONS.map((opt) => {
-                    const checked = experience.includes(opt.value);
-                    return (
-                      <label key={opt.value} className="flex items-start gap-3 text-sm text-gray-700 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const newExp = checked
-                              ? experience.filter((v) => v !== opt.value)
-                              : [...experience, opt.value];
-                            setFilters({ experience: newExp });
-                          }}
-                          className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary mt-0.5"
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    );
-                  })}
+                <div className="mt-6 mb-2">
+                  <RangeSlider
+                    min={0}
+                    max={4}
+                    step={1}
+                    value={(() => {
+                      if (experience.length === 0) return [0, 4];
+                      const experienceValues = ["noExperience", "between1And3", "between3And6", "moreThan6"];
+                      const indices = experience.map((val) => experienceValues.indexOf(val)).filter((i) => i !== -1);
+                      if (indices.length === 0) return [0, 4];
+                      return [Math.min(...indices), Math.max(...indices) + 1] as [number, number];
+                    })()}
+                    onChange={([left, right]) => {
+                      if (left === 0 && right === 4) {
+                        setFilters({ experience: [] });
+                        return;
+                      }
+                      const experienceValues = ["noExperience", "between1And3", "between3And6", "moreThan6"];
+                      const newExp = [];
+                      for (let i = left; i < right; i++) {
+                        newExp.push(experienceValues[i]);
+                      }
+                      setFilters({ experience: newExp });
+                    }}
+                    formatLabel={(val, type) => {
+                      if (type === "min") {
+                        switch (val) {
+                          case 1: return "от 1 года";
+                          case 2: return "от 3 лет";
+                          case 3: return "от 6 лет";
+                          default: return null;
+                        }
+                      } else {
+                        switch (val) {
+                          case 1: return "до 1 года";
+                          case 2: return "до 3 лет";
+                          case 3: return "до 6 лет";
+                          default: return null;
+                        }
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
-              {/* Ряд 1 - Образование */}
+              {/* ряд 1 - Образование */}
               <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
                 <span className="block text-sm font-semibold text-gray-800 mb-3">Образование</span>
                 <div className="flex flex-col gap-2.5">
