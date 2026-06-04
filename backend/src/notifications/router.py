@@ -13,12 +13,31 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 # глобальный сигнал остановки
 shutdown_event = asyncio.Event()
+active_pubsubs: set = set()
+
+
+def reset_shutdown_state():
+    shutdown_event.clear()
+
+
+def trigger_shutdown():
+    shutdown_event.set()
+
+
+async def close_active_streams():
+    active_pubsubs_snapshot = list(active_pubsubs)
+    for pubsub in active_pubsubs_snapshot:
+        try:
+            await pubsub.aclose()
+        except Exception:
+            pass
 
 
 async def event_generator(request: Request, user_id: int):
     redis = get_redis()
     pubsub = redis.pubsub()
     channel = f"notifications:{user_id}"
+    active_pubsubs.add(pubsub)
     await pubsub.subscribe(channel)
 
     logger.debug(f"Пользователь {user_id} подключился к потоку уведомлений")
@@ -56,6 +75,7 @@ async def event_generator(request: Request, user_id: int):
             await pubsub.aclose()
         except Exception:
             pass
+        active_pubsubs.discard(pubsub)
 
 
 @router.get("/stream")

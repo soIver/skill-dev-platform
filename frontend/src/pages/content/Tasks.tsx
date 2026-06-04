@@ -406,6 +406,8 @@ export default function ContentTasks() {
               placeholder="Поиск по навыку"
               className="flex-2"
               hideButton={true}
+              value={skillInput}
+              showClearButton={true}
             />
           </div>
           <div className="flex items-end">

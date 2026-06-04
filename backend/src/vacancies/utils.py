@@ -37,9 +37,8 @@ def flatten_area_leaves(areas_payload: list[dict[str, Any]]) -> list[dict[str, s
 def build_search_params(payload: VacancySearchRequest, it_roles: list[str]) -> dict[str, Any]:
     params: dict[str, Any] = {
         "per_page": 20,
-        "order_by": "publication_time",
+        "order_by": "relevance",
         "page": payload.page,
-        "only_with_salary": "true",
     }
 
     if it_roles:
@@ -49,8 +48,9 @@ def build_search_params(payload: VacancySearchRequest, it_roles: list[str]) -> d
     if payload.excluded_words:
         params["excluded_text"] = payload.excluded_words
     if payload.salary_range:
-        import json
         params["salary_range"] = payload.salary_range.model_dump_json(exclude_none=True, by_alias=True)
+    if payload.only_with_salary:
+        params["only_with_salary"] = "true"
     if payload.area_ids:
         params["area"] = payload.area_ids
     if payload.experience:

@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
+from typing import Any
 
 
 HH_EXPERIENCE_IDS = {
@@ -17,6 +18,15 @@ class VacancyAreaItem(BaseModel):
 
 class VacancyAreasResponse(BaseModel):
     items: list[VacancyAreaItem]
+
+
+class VacancyKeywordItem(BaseModel):
+    id: str
+    text: str
+
+
+class VacancyKeywordResponse(BaseModel):
+    items: list[VacancyKeywordItem]
 
 
 class SalaryId(BaseModel):

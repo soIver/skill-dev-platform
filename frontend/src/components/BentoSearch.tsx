@@ -1,5 +1,5 @@
-import React, { useState, useRef } from "react";
-import { Plus, X } from "lucide-react";
+import React, { useRef } from "react";
+import { X } from "lucide-react";
 import { AutocompleteSearch } from "./AutocompleteSearch";
 
 export interface BentoSearchProps<T, S> {
@@ -55,12 +55,10 @@ export function BentoSearch<
   searchItemToString,
   renderSearchItem,
   placeholder = "Поиск...",
-  buttonText = "Добавить",
+  buttonText: _buttonText,
   debounceMs,
   isSearchItemDisabled,
 }: BentoSearchProps<T, S>) {
-  const [isOpen, setIsOpen] = useState(false);
-
   // драг-н-дроп состояние
   const dragIndexRef = useRef<number | null>(null);
 
@@ -158,50 +156,22 @@ export function BentoSearch<
         );
       })}
 
-      {/* поле скрыто под шторкой */}
-      <div
-        className="relative h-11 flex items-center shrink-0 transition-all duration-300 ease-in-out"
-        style={{ width: isOpen ? "calc(100% - 1rem)" : "2.75rem", maxWidth: isOpen ? "22rem" : "2.75rem" }}
-      >
-        {/* поле поиска — раскрывается слева */}
-        <div className={`flex items-center gap-2 w-full transition-opacity duration-300 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          <AutocompleteSearch<S>
-            onSearch={onSearch}
-            onSelect={async (item) => {
-              await onAdd(item);
-              setIsOpen(false);
-            }}
-            itemToString={searchItemToString}
-            renderItem={renderSearchItem}
-            placeholder={placeholder}
-            buttonText={buttonText}
-            debounceMs={debounceMs}
-            isItemDisabled={isSearchItemDisabled}
-            className="flex-1"
-          />
-          {/* отступ для кнопки переключения */}
-          <div className="w-11 shrink-0" />
-        </div>
-
-        <div
-          className="absolute inset-y-0 right-0 bg-white border border-gray-400 border-dashed rounded-full z-10 transition-all duration-300 ease-in-out flex items-center overflow-hidden"
-          style={{ width: isOpen ? "2.75rem" : "100%" }}
-        >
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="h-11 w-11 pr-0.5 flex items-center justify-center text-gray-500 hover:text-gray-900 shrink-0 outline-none transition-colors"
-            title={isOpen ? "Отменить" : "Добавить"}
-          >
-            <Plus
-              className={`w-5 h-5 transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}
-            />
-          </button>
-          {!isOpen && (
-            <span className="text-sm text-gray-400 select-none pr-4 truncate">
-              {placeholder}
-            </span>
-          )}
-        </div>
+      <div className="flex-1 max-w-3xs">
+        <AutocompleteSearch<S>
+          onSearch={onSearch}
+          onSelect={async (item) => {
+            await onAdd(item);
+          }}
+          itemToString={searchItemToString}
+          renderItem={renderSearchItem}
+          placeholder={placeholder}
+          debounceMs={debounceMs}
+          isItemDisabled={isSearchItemDisabled}
+          className="ml-0!"
+          hideButton={true}
+          showClearButton={true}
+          clearOnSelect={true}
+        />
       </div>
     </div>
   );

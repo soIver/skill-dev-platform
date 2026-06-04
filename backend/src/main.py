@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -16,22 +17,47 @@ from .skills.router import router as skills_router
 from .tasks.router import router as tasks_router
 from .analysis.router import router as analysis_router
 from .notifications.router import router as notifications_router
-from .notifications.router import shutdown_event as notifications_shutdown_event
+from .notifications.router import close_active_streams, reset_shutdown_state, trigger_shutdown
 from .tests.router import router as tests_router
 from .utils.redis import RedisClient
 from .vacancies.router import router as vacancies_router
+
+previous_signal_handlers: dict[int, signal.Handlers] = {}
+
+
+def install_shutdown_signal_handlers():
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        previous_handler = signal.getsignal(sig)
+        previous_signal_handlers[sig] = previous_handler
+
+        def handler(signum, frame, prev_handler=previous_handler):
+            trigger_shutdown()
+            if callable(prev_handler):
+                prev_handler(signum, frame)
+
+        signal.signal(sig, handler)
+
+
+def restore_shutdown_signal_handlers():
+    for sig, handler in previous_signal_handlers.items():
+        signal.signal(sig, handler)
+    previous_signal_handlers.clear()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # запуск
+    reset_shutdown_state()
+    install_shutdown_signal_handlers()
     await init_database()
     yield
     # завершение работы
-    notifications_shutdown_event.set() # отправка сигнала SSE-генераторам
-    await asyncio.sleep(3) # запас времени для закрытия SSE-соединений
+    trigger_shutdown() # отправка сигнала SSE-генераторам
+    await close_active_streams() # принудительное закрытие активных SSE-потоков
+    await asyncio.sleep(0.1) # короткий запас времени для завершения генераторов
     await RedisClient.close() # закрытие Redis
     await db_engine.dispose() # закрытие пула БД
+    restore_shutdown_signal_handlers()
 
 
 app = FastAPI(lifespan=lifespan)

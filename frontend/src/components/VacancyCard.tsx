@@ -7,7 +7,7 @@ interface VacancyCardProps {
 
 export function VacancyCard({ vacancy, onAnalyze }: VacancyCardProps) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm min-w-0">
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm max-w-150">
       <h3 className="text-lg font-semibold text-gray-900">
         {vacancy.title}
       </h3>

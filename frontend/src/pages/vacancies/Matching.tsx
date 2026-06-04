@@ -1,5 +1,6 @@
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { authJson } from "../../auth";
+import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
 import { VacancyCard } from "../../components/VacancyCard";
 import { Pagination } from "../../components/Pagination";
@@ -8,6 +9,15 @@ import { useVacanciesStore, type VacancyAreaItem, type VacancySearchItem } from 
 
 interface VacancyAreasResponse {
   items: VacancyAreaItem[];
+}
+
+interface VacancyKeywordItem {
+  id: string;
+  text: string;
+}
+
+interface VacancyKeywordResponse {
+  items: VacancyKeywordItem[];
 }
 
 interface VacancySearchResponse {
@@ -46,6 +56,7 @@ export default function VacancyMatching() {
   } = useVacanciesStore();
 
   const [isSearching, setIsSearching] = useState(false);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleSearch = async (page: number = 1) => {
     setIsSearching(true);
@@ -105,6 +116,18 @@ export default function VacancyMatching() {
     }
   };
 
+  const handleKeywordSearch = async (query: string): Promise<VacancyKeywordItem[]> => {
+    try {
+      const response = await authJson<VacancyKeywordResponse>(
+        `/vacancies/keywords?q=${encodeURIComponent(query)}`
+      );
+      return response.items;
+    } catch (error) {
+      console.error("Failed to search vacancy keywords", error);
+      return [];
+    }
+  };
+
   const handleAddArea = (area: VacancyAreaItem) => {
     if (selectedAreas.some((selectedArea) => selectedArea.id === area.id)) {
       return;
@@ -131,20 +154,28 @@ export default function VacancyMatching() {
         <h2 className="workspace-panel-header">Фильтры поиска</h2>
 
         <div className="overflow-y-auto pr-2 flex-1 pl-1">
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Должность, ключевые слова
               </label>
               <div className="flex gap-3">
-                <input
-                  type="text"
+                <AutocompleteSearch<VacancyKeywordItem>
+                  onSearch={handleKeywordSearch}
+                  onSelect={(item) => setFilters({ description: item.text })}
+                  onSelectCustom={(value) => setFilters({ description: value })}
+                  onInputChange={(value) => setFilters({ description: value })}
+                  itemToString={(item) => item.text}
+                  debounceMs={300}
+                  hideButton={true}
+                  className="flex-1 ml-0!"
                   value={description}
-                  onChange={(event) => setFilters({ description: event.target.value })}
                   onKeyDown={handleInputKeyDown}
-                  className="input-field mt-0! flex-1"
+                  showClearButton={true}
+                  nextFocusRef={searchButtonRef}
                 />
                 <button
+                  ref={searchButtonRef}
                   onClick={() => void handleSearch(1)}
                   disabled={isSearching}
                   className="primary-button w-auto px-5 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -198,7 +229,7 @@ export default function VacancyMatching() {
                   onAdd={handleAddArea}
                   searchItemToString={(area) => area.name}
                   renderSearchItem={(area) => <span title={area.full_name}>{area.name}</span>}
-                  placeholder="Регион"
+                  placeholder="Название региона"
                   buttonText="Добавить"
                   debounceMs={300}
                   isSearchItemDisabled={isAreaDisabled}
@@ -207,52 +238,78 @@ export default function VacancyMatching() {
             </div>
 
             {/* сетка чекбоксов для фильтров */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* ряд 1 - Опыт работы */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
-                <span className="block text-sm font-semibold text-gray-800 mb-3">Опыт работы</span>
-                <div className="mt-6 mb-2">
-                  <RangeSlider
-                    min={0}
-                    max={4}
-                    step={1}
-                    value={(() => {
-                      if (experience.length === 0) return [0, 4];
-                      const experienceValues = ["noExperience", "between1And3", "between3And6", "moreThan6"];
-                      const indices = experience.map((val) => experienceValues.indexOf(val)).filter((i) => i !== -1);
-                      if (indices.length === 0) return [0, 4];
-                      return [Math.min(...indices), Math.max(...indices) + 1] as [number, number];
-                    })()}
-                    onChange={([left, right]) => {
-                      if (left === 0 && right === 4) {
-                        setFilters({ experience: [] });
-                        return;
-                      }
-                      const experienceValues = ["noExperience", "between1And3", "between3And6", "moreThan6"];
-                      const newExp = [];
-                      for (let i = left; i < right; i++) {
-                        newExp.push(experienceValues[i]);
-                      }
-                      setFilters({ experience: newExp });
-                    }}
-                    formatLabel={(val, type) => {
-                      if (type === "min") {
-                        switch (val) {
-                          case 1: return "от 1 года";
-                          case 2: return "от 3 лет";
-                          case 3: return "от 6 лет";
-                          default: return null;
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-3">
+                {/* ряд 1 - Опыт работы */}
+                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+                  <span className="block text-sm font-semibold text-gray-800 mb-2">Опыт работы</span>
+                  <div>
+                    <RangeSlider
+                      min={0}
+                      max={4}
+                      step={1}
+                      value={(() => {
+                        if (experience.length === 0) return [0, 4];
+                        const experienceValues = ["noExperience", "between1And3", "between3And6", "moreThan6"];
+                        const indices = experience.map((val) => experienceValues.indexOf(val)).filter((i) => i !== -1);
+                        if (indices.length === 0) return [0, 4];
+                        return [Math.min(...indices), Math.max(...indices) + 1] as [number, number];
+                      })()}
+                      onChange={([left, right]) => {
+                        if (left === 0 && right === 4) {
+                          setFilters({ experience: [] });
+                          return;
                         }
-                      } else {
-                        switch (val) {
-                          case 1: return "до 1 года";
-                          case 2: return "до 3 лет";
-                          case 3: return "до 6 лет";
-                          default: return null;
+                        const experienceValues = ["noExperience", "between1And3", "between3And6", "moreThan6"];
+                        const newExp = [];
+                        for (let i = left; i < right; i++) {
+                          newExp.push(experienceValues[i]);
                         }
-                      }
-                    }}
-                  />
+                        setFilters({ experience: newExp });
+                      }}
+                      formatLabel={(val, type) => {
+                        if (type === "min") {
+                          switch (val) {
+                            case 1: return "от 1 года";
+                            case 2: return "от 3 лет";
+                            case 3: return "от 6 лет";
+                            default: return null;
+                          }
+                        } else {
+                          switch (val) {
+                            case 1: return "без опыта";
+                            case 2: return "до 3 лет";
+                            case 3: return "до 6 лет";
+                            default: return null;
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+                  <span className="block text-sm font-semibold text-gray-800 mb-3">Дополнительно</span>
+                  <div className="flex flex-col gap-2.5">
+                    <label className="flex items-start gap-3 text-sm text-gray-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={onlyWithSalary}
+                        onChange={() => setFilters({ onlyWithSalary: !onlyWithSalary })}
+                        className="checkbox-field mt-0.5"
+                      />
+                      <span>Указан доход</span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm text-gray-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={accreditedItEmployer}
+                        onChange={() => setFilters({ accreditedItEmployer: !accreditedItEmployer })}
+                        className="checkbox-field mt-0.5"
+                      />
+                      <span>От аккредитованных ИТ-компаний</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -273,7 +330,7 @@ export default function VacancyMatching() {
                               : [...education, opt.value];
                             setFilters({ education: newEdu });
                           }}
-                          className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary mt-0.5"
+                          className="checkbox-field mt-0.5"
                         />
                         <span>{opt.label}</span>
                       </label>

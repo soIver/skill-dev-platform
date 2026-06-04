@@ -8,116 +8,105 @@ from fastapi import HTTPException, status
 from ..config import global_config
 from ..utils.logger import get_logger
 from ..utils.redis import get_redis
-from .schemas import VacancyAreasResponse, VacancySearchRequest, VacancySearchResponse
-from .utils import build_search_params, flatten_area_leaves, map_vacancy_item
+from .schemas import VacancyAreasResponse, VacancyKeywordItem, VacancyKeywordResponse, VacancySearchRequest, VacancySearchResponse
+from .utils import build_search_params, map_vacancy_item
 
 logger = get_logger("vacancies.service")
+IT_ROLE_CACHE_KEY = "hh:it_professional_roles_v5"
+EXCLUDED_IT_ROLE_IDS = {"12", "34", "107", "155", "157"}
 
 
 class VacanciesService:
 
     async def get_it_professional_roles(self) -> list[str]:
+        role_items = await self._get_it_professional_role_items()
+        role_ids = [str(item.get("id")) for item in role_items if item.get("id")]
+        return role_ids
+
+    async def _get_it_professional_role_items(self) -> list[dict[str, str]]:
         redis = get_redis()
-        cache_key = "hh:it_professional_roles_v2"
         try:
-            cached = await redis.get(cache_key)
+            cached = await redis.get(IT_ROLE_CACHE_KEY)
             if cached:
                 import json
-                return json.loads(cached)
+                role_items = json.loads(cached)
+                return self._normalize_role_items(role_items)
         except Exception as exc:
             logger.warning("не удалось прочитать роли из redis: %s", exc)
 
-        payload = await self._fetch_hh_json("/professional_roles")
-        roles_list = []
-        if isinstance(payload, dict):
-            categories = payload.get("categories") or []
-        elif isinstance(payload, list):
-            categories = payload
-        else:
-            categories = []
+        role_items = await self._fetch_it_professional_role_items()
 
-        for cat in categories:
-            if isinstance(cat, dict):
-                name = cat.get("name") or ""
-                name_lower = name.lower()
-                is_it_category = (
-                    "информационные технологии" in name_lower
-                    or "information technology" in name_lower
-                    or "it-специалисты" in name_lower
-                    or "ит-специалисты" in name_lower
-                    or "it, интернет" in name_lower
-                    or "ит, интернет" in name_lower
-                )
-                if is_it_category:
-                    for role in cat.get("roles") or []:
-                        if isinstance(role, dict) and role.get("id"):
-                            roles_list.append(str(role["id"]))
-
-        if roles_list:
+        if role_items:
             try:
                 import json
-                await redis.setex(cache_key, 86400, json.dumps(roles_list))
+                await redis.setex(IT_ROLE_CACHE_KEY, 86400, json.dumps(role_items))
             except Exception as exc:
                 logger.warning("не удалось сохранить роли в redis: %s", exc)
 
-        return roles_list
-
-    async def _get_all_flattened_areas(self) -> list[dict[str, Any]]:
-        redis = get_redis()
-        cache_key = "hh:all_flattened_areas"
-        try:
-            cached = await redis.get(cache_key)
-            if cached:
-                import json
-                return json.loads(cached)
-        except Exception as exc:
-            logger.warning("не удалось прочитать регионы из redis: %s", exc)
-
-        payload = await self._fetch_hh_json("/areas")
-        if not isinstance(payload, list):
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="HeadHunter вернул неожиданный ответ по регионам",
-            )
-
-        areas = flatten_area_leaves(payload)
-        try:
-            import json
-            await redis.setex(cache_key, 86400, json.dumps(areas))
-        except Exception as exc:
-            logger.warning("не удалось сохранить регионы в redis: %s", exc)
-
-        return areas
+        return role_items
 
     async def get_areas(self, q: str = "") -> VacancyAreasResponse:
-        all_areas = await self._get_all_flattened_areas()
-        normalized_query = q.strip().lower()
-        if not normalized_query:
-            return VacancyAreasResponse(items=all_areas[:20])
+        normalized_query = q.strip()
+        if len(normalized_query) < 2:
+            return VacancyAreasResponse(items=[])
 
-        matched = []
-        for area in all_areas:
-            full_name = area.get("full_name") or ""
-            name = area.get("name") or ""
-            if normalized_query in full_name.lower():
-                name_lower = name.lower()
-                if name_lower.startswith(normalized_query):
-                    score = 3
-                elif normalized_query in name_lower:
-                    score = 2
-                else:
-                    score = 1
-                matched.append((area, score))
+        payload = await self._fetch_hh_json("/suggests/area_leaves", params={"text": normalized_query})
+        items = payload.get("items") if isinstance(payload, dict) else []
+        result_items = []
 
-        matched.sort(
-            key=lambda x: (
-                -x[1],
-                len(x[0].get("name") or ""),
-                (x[0].get("name") or "").lower(),
-            )
-        )
-        result_items = [item[0] for item in matched[:20]]
-        return VacancyAreasResponse(items=result_items)
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+
+            area_id = str(item.get("id") or "").strip()
+            area_name = str(item.get("text") or "").strip()
+            if not area_id or not area_name:
+                continue
+
+            parent = item.get("parent") or {}
+            parent_name = str(parent.get("text") or "").strip()
+            full_name = area_name if not parent_name else f"{parent_name} / {area_name}"
+            result_items.append({
+                "id": area_id,
+                "name": area_name,
+                "full_name": full_name,
+            })
+
+        return VacancyAreasResponse(items=result_items[:20])
+
+    async def get_keywords(self, q: str = "") -> VacancyKeywordResponse:
+        normalized_query = q.strip()
+        if len(normalized_query) < 2:
+            return VacancyKeywordResponse(items=[])
+
+        it_role_ids = set(await self.get_it_professional_roles())
+        payload = await self._fetch_hh_json("/suggests/vacancy_positions", params={"text": normalized_query})
+        items = payload.get("items") if isinstance(payload, dict) else []
+        result_items = []
+        seen_texts: set[str] = set()
+
+        for index, item in enumerate(items or []):
+            if not isinstance(item, dict):
+                continue
+
+            role_matches = False
+            for role in item.get("professional_roles") or []:
+                if not isinstance(role, dict):
+                    continue
+                role_id = str(role.get("id") or "").strip()
+                if role_id and role_id in it_role_ids:
+                    role_matches = True
+                    break
+            if not role_matches:
+                continue
+
+            text = str(item.get("text") or "").strip()
+            if not text or text.lower() in seen_texts:
+                continue
+            seen_texts.add(text.lower())
+            result_items.append(VacancyKeywordItem(id=f"{index}:{text}", text=text))
+
+        return VacancyKeywordResponse(items=result_items[:20])
 
     async def search_vacancies(self, payload: VacancySearchRequest) -> VacancySearchResponse:
         it_roles = await self.get_it_professional_roles()
@@ -132,22 +121,86 @@ class VacanciesService:
         if not isinstance(items, list):
             items = []
 
-        mapped_items = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            if payload.salary_range and payload.salary_range.to is not None:
-                sal = item.get("salary")
-                if sal:
-                    sal_from = sal.get("from")
-                    if sal_from is not None and sal_from > payload.salary_range.to:
-                        continue
-            mapped_items.append(map_vacancy_item(item))
+        mapped_items = [
+            map_vacancy_item(item)
+            for item in items
+            if isinstance(item, dict)
+        ]
 
         return VacancySearchResponse(
             items=mapped_items,
             found=int(response_payload.get("found") or 0),
         )
+
+    async def _fetch_it_professional_role_items(self) -> list[dict[str, str]]:
+        payload = await self._fetch_hh_json("/professional_roles")
+        return self._extract_role_items_from_professional_roles(payload)
+
+    def _extract_role_items_from_professional_roles(self, payload: Any) -> list[dict[str, str]]:
+        if isinstance(payload, dict):
+            categories = payload.get("categories") or []
+        elif isinstance(payload, list):
+            categories = payload
+        else:
+            categories = []
+
+        role_items = []
+        seen_ids: set[str] = set()
+
+        for category in categories:
+            if not isinstance(category, dict):
+                continue
+
+            category_name = str(category.get("name") or "").strip().lower()
+            if not self._is_it_category_name(category_name):
+                continue
+
+            self._collect_allowed_roles(category.get("roles") or [], role_items, seen_ids, parent_excluded=False)
+
+        return role_items
+
+    def _normalize_role_items(self, role_items: Any) -> list[dict[str, str]]:
+        normalized_items = []
+        seen_ids: set[str] = set()
+
+        for item in role_items or []:
+            if not isinstance(item, dict):
+                continue
+            role_id = str(item.get("id") or "").strip()
+            role_name = str(item.get("name") or item.get("text") or "").strip()
+            if not role_id or not role_name or role_id in seen_ids:
+                continue
+            seen_ids.add(role_id)
+            normalized_items.append({"id": role_id, "name": role_name})
+
+        return normalized_items
+
+    def _is_it_category_name(self, category_name: str) -> bool:
+        return (
+            "информационные технологии" in category_name
+            or "information technology" in category_name
+            or "it-специалисты" in category_name
+            or "ит-специалисты" in category_name
+            or "it, интернет" in category_name
+            or "ит, интернет" in category_name
+        )
+
+    def _collect_allowed_roles(self, roles: Any, role_items: list[dict[str, str]], seen_ids: set[str], parent_excluded: bool):
+        for role in roles or []:
+            if not isinstance(role, dict):
+                continue
+
+            role_id = str(role.get("id") or "").strip()
+            role_name = str(role.get("name") or "").strip()
+            is_excluded = parent_excluded or role_id in EXCLUDED_IT_ROLE_IDS
+
+            if role_id and role_name and not is_excluded and role_id not in seen_ids:
+                seen_ids.add(role_id)
+                role_items.append({"id": role_id, "name": role_name})
+
+            nested_roles = role.get("roles") or role.get("children") or []
+            if nested_roles:
+                self._collect_allowed_roles(nested_roles, role_items, seen_ids, is_excluded)
 
     # in-memory кэш токена
     _in_memory_token: str | None = None

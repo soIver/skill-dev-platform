@@ -359,12 +359,6 @@ export default function Tasks() {
                       </span>
                     )}
                   </div>
-
-                  <div className="mt-auto pt-2">
-                    <span className="text-primary font-medium text-sm transition-colors">
-                      Подробнее
-                    </span>
-                  </div>
                 </div>
               ))}
             </div>
