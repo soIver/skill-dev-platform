@@ -32,6 +32,7 @@ export interface BentoSearchProps<T, S> {
   buttonText?: string;
   debounceMs?: number;
   isSearchItemDisabled?: (item: S) => boolean;
+  searchFieldClassName?: string;
 }
 
 export function BentoSearch<
@@ -58,6 +59,7 @@ export function BentoSearch<
   buttonText: _buttonText,
   debounceMs,
   isSearchItemDisabled,
+  searchFieldClassName = "",
 }: BentoSearchProps<T, S>) {
   // драг-н-дроп состояние
   const dragIndexRef = useRef<number | null>(null);
@@ -132,7 +134,7 @@ export function BentoSearch<
                 onItemClick?.(item);
               }
             }}
-            className={`px-4 py-2 rounded-xl select-none transition-all border text-sm font-medium max-w-full truncate flex items-center gap-2 ${reorderEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+            className={`px-4 py-2 rounded-xl select-none transition-all border text-sm font-medium gap-1 max-w-full truncate flex items-center ${reorderEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
               } ${isActive
                 ? "bg-primary text-white border-primary shadow-md"
                 : "bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-400"
@@ -167,7 +169,7 @@ export function BentoSearch<
           placeholder={placeholder}
           debounceMs={debounceMs}
           isItemDisabled={isSearchItemDisabled}
-          className="ml-0!"
+          className={`ml-0! ${searchFieldClassName}`.trim()}
           hideButton={true}
           showClearButton={true}
           clearOnSelect={true}

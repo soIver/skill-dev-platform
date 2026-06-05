@@ -4,32 +4,20 @@ import { ITEMS_PER_PAGE, TASK, SEARCH_DEBOUNCE_MS, ITEMS_PER_TABLE_PAGE } from "
 import { BentoSearch } from "../components/BentoSearch";
 import { AutocompleteSearch } from "../components/AutocompleteSearch";
 import { Pagination } from "../components/Pagination";
+import { TaskCard } from "../components/TaskCard";
 import { useToast } from "../components/ToastProvider";
 import { useRepositoriesStore, type RepoItem } from "../hooks/useRepositoriesStore";
+import { useTasksStore, type SkillLevelItem, type TaskPublicItem } from "../hooks/useTasksStore";
 import { useUserStore } from "../hooks/useUserStore";
 import GitHubIcon from "../assets/icons/github.svg?react";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 // интерфейсы
-
-interface TaskPublicItem {
-  id: number;
-  title: string;
-  description_preview: string;
-  skills: { skill_name: string; level_name: string }[];
-  attached_repo_name?: string | null;
-}
 
 interface TaskPublicSearchResponse {
   items: TaskPublicItem[];
   total_pages: number;
   current_page: number;
-}
-
-interface SkillLevelItem {
-  id: number;
-  skill_name: string;
-  level_name: string;
 }
 
 interface SkillLevelSearchResponse {
@@ -45,26 +33,21 @@ interface TaskDetail {
   attached_repo_name?: string | null;
 }
 
-// максимальная длина превью описания (аналогично content/Tasks.tsx)
-const DESCRIPTION_PREVIEW_MAX = 120;
-
-function truncateDescription(text: string): string {
-  if (text.length <= DESCRIPTION_PREVIEW_MAX) return text;
-  return text.slice(0, DESCRIPTION_PREVIEW_MAX) + "…";
-}
-
 export default function Tasks() {
-  const [keywordInput, setKeywordInput] = useState("");
-  const [selectedSkills, setSelectedSkills] = useState<SkillLevelItem[]>([]);
-  const [results, setResults] = useState<TaskPublicItem[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const {
+    keywordInput,
+    selectedSkills,
+    results,
+    currentPage,
+    totalPages,
+    hasSearched,
+    lastSearchKeyword,
+    lastSearchSkillIds,
+    setKeywordInput,
+    setSelectedSkills,
+    setSearchState,
+  } = useTasksStore();
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-
-  // храним параметры последнего выполненного поиска
-  const [lastSearchKeyword, setLastSearchKeyword] = useState("");
-  const [lastSearchSkillIds, setLastSearchSkillIds] = useState<number[]>([]);
 
   // состояние модального окна
   const [selectedTask, setSelectedTask] = useState<TaskDetail | null>(null);
@@ -96,14 +79,14 @@ export default function Tasks() {
         params.append("skill_level_ids", String(s.id));
       }
       const data = await authJson<TaskPublicSearchResponse>(`/tasks?${params.toString()}`);
-      setResults(data.items);
-      setCurrentPage(data.current_page);
-      setTotalPages(data.total_pages);
-      setHasSearched(true);
-
-      // запоминаем успешный поиск
-      setLastSearchKeyword(keyword.trim());
-      setLastSearchSkillIds(skills.map(s => s.id));
+      setSearchState({
+        results: data.items,
+        currentPage: data.current_page,
+        totalPages: data.total_pages,
+        hasSearched: true,
+        lastSearchKeyword: keyword.trim(),
+        lastSearchSkillIds: skills.map((skill) => skill.id),
+      });
     } catch (e) {
       console.error("Failed to search tasks", e);
     } finally {
@@ -113,7 +96,9 @@ export default function Tasks() {
 
   // начальная загрузка первой страницы при монтировании
   useEffect(() => {
-    doSearch(1, "", []);
+    if (!hasSearched) {
+      doSearch(1, keywordInput, selectedSkills);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -142,18 +127,18 @@ export default function Tasks() {
     return data.items;
   }, []);
 
-  // фильтрация: нельзя добавить другой уровень того же навыка
+  // фильтрация: не добавляем только точные дубликаты одного и того же уровня
   const fetchSkillsForSearch = useCallback(async (query: string): Promise<SkillLevelItem[]> => {
     const items = await fetchSkillLevels(query);
-    return items.filter(item => !selectedSkills.some(s => s.skill_name === item.skill_name));
+    return items.filter(item => !selectedSkills.some(s => s.id === item.id));
   }, [fetchSkillLevels, selectedSkills]);
 
   const handleAddSkill = (item: SkillLevelItem) => {
-    setSelectedSkills(prev => [...prev, item]);
+    setSelectedSkills([...selectedSkills, item]);
   };
 
   const handleRemoveSkill = (item: SkillLevelItem) => {
-    setSelectedSkills(prev => prev.filter(s => s.id !== item.id));
+    setSelectedSkills(selectedSkills.filter((skill) => skill.id !== item.id));
   };
 
   const openTaskDetails = async (taskId: number) => {
@@ -262,6 +247,8 @@ export default function Tasks() {
     <div className="flex flex-col flex-1 min-h-0">
       {/* sticky панель поиска — bg совпадает с фоном, без рамок */}
       <div className="sticky top-0 z-20 bg-gray-50 px-8 pt-6">
+        <h1 className="text-3xl font-extrabold text-gray-800">Банк заданий</h1>
+        <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для закрепления навыков на практике</h2>
         {/* поле по названию/описанию + кнопка — занимают половину ширины, соотношение 3:1 */}
         <div className="flex gap-3 items-center mb-4 w-1/2 min-w-md">
           <input
@@ -306,7 +293,7 @@ export default function Tasks() {
                 {s.skill_name} - <span className="text-gray-500">{s.level_name}</span>
               </>
             )}
-            placeholder="Навык - Уровень"
+            placeholder="Название навыка"
             buttonText="Добавить"
             debounceMs={SEARCH_DEBOUNCE_MS}
           />
@@ -330,36 +317,7 @@ export default function Tasks() {
           <>
             <div className="grid grid-cols-2 gap-4">
               {results.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => openTaskDetails(task.id)}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-2 hover:border-gray-400 hover:shadow-md transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-gray-900 truncate" title={task.title}>
-                      {task.title}
-                    </p>
-                    {task.attached_repo_name && (
-                      <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    {truncateDescription(task.description_preview)}
-                  </p>
-
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {task.skills.slice(0, 5).map((s, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-100 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                        {s.skill_name} — {s.level_name}
-                      </span>
-                    ))}
-                    {task.skills.length > 5 && (
-                      <span className="px-2 py-0.5 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
-                        +{task.skills.length - 5}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <TaskCard key={task.id} task={task} onClick={openTaskDetails} />
               ))}
             </div>
 
@@ -409,16 +367,22 @@ export default function Tasks() {
                     <div className="flex gap-4">
                       <button
                         onClick={() => setIsModalOpen(false)}
-                        className="flex-1 py-3 px-6 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                        className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl cursor-pointer hover:bg-gray-50 transition-all"
                       >
                         Вернуться
                       </button>
-                      <button
-                        onClick={() => setModalView("attach")}
-                        className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
-                      >
-                        Прикрепить репозиторий
-                      </button>
+                      {selectedTask.attached_repo_name ? (
+                        <div className="flex-1 py-3 px-6 border border-success text-success font-semibold rounded-xl text-center bg-transparent">
+                          Задание выполнено
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setModalView("attach")}
+                          className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl cursor-pointer hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
+                        >
+                          Прикрепить репозиторий
+                        </button>
+                      )}
                     </div>
 
                     {selectedTask?.attached_repo_name && (
@@ -454,7 +418,7 @@ export default function Tasks() {
                     <button
                       onClick={() => setModalView("details")}
                       disabled={isSubmitting}
-                      className="w-1/4 py-3 px-6 border border-gray-200 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition-all disabled:opacity-50"
+                      className="w-1/4 py-3 px-6 border border-gray-200 text-gray-700 font-semibold rounded-full cursor-pointer hover:bg-gray-50 transition-all disabled:opacity-50"
                     >
                       Назад
                     </button>
@@ -489,7 +453,7 @@ export default function Tasks() {
                     <button
                       onClick={() => setModalView("details")}
                       disabled={isSubmitting}
-                      className=" px-6 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all disabled:opacity-50"
+                      className="px-6 border border-gray-200 text-gray-700 font-semibold rounded-xl cursor-pointer hover:bg-gray-50 transition-all disabled:opacity-50"
                     >
                       Назад
                     </button>

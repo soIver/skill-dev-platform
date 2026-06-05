@@ -32,6 +32,7 @@ async def search_tasks(
 ):
     """поиск заданий — расширенный ответ для куратора/администратора, публичный для пользователя"""
     is_privileged = claims.role in ("curator", "admin")
+    skill_level_sq = None
 
     # базовые условия
     if is_privileged and not only_published:
@@ -63,10 +64,10 @@ async def search_tasks(
             skill_sq = skill_sq.where(Level.name.ilike(f"%{level_part}%"))
         base_query = base_query.where(Task.id.in_(skill_sq))
 
-    # AND-фильтрация по конкретным skill_level_id (для всех ролей)
-    for sl_id in skill_level_ids:
-        sq = select(SkillLevelTask.task_id).where(SkillLevelTask.skill_level_id == sl_id)
-        base_query = base_query.where(Task.id.in_(sq))
+    # OR-фильтрация по конкретным skill_level_id (для всех ролей)
+    if skill_level_ids:
+        skill_level_sq = select(SkillLevelTask.task_id).where(SkillLevelTask.skill_level_id.in_(skill_level_ids))
+        base_query = base_query.where(Task.id.in_(skill_level_sq))
 
     # подсчёт
     count_query = select(func.count()).select_from(
@@ -89,9 +90,8 @@ async def search_tasks(
             full_query = full_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
         if skill_sq is not None:
             full_query = full_query.where(Task.id.in_(skill_sq))
-        for sl_id in skill_level_ids:
-            sq = select(SkillLevelTask.task_id).where(SkillLevelTask.skill_level_id == sl_id)
-            full_query = full_query.where(Task.id.in_(sq))
+        if skill_level_sq is not None:
+            full_query = full_query.where(Task.id.in_(skill_level_sq))
         if not is_privileged or only_published:
             full_query = full_query.where(Task.is_published == True)
 

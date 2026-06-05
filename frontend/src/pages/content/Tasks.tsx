@@ -6,6 +6,7 @@ import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
+import { BentoSearch } from "../../components/BentoSearch";
 import { useToast } from "../../components/ToastProvider";
 interface SearchResponse {
   items: TaskItem[];
@@ -523,43 +524,36 @@ export default function ContentTasks() {
               </div>
             </div>
 
-            <div className="mb-4">
-              <h3 className="text-xl ml-1 font-medium text-gray-900 mb-3">Связанные навыки</h3>
+            <div className="mb-4 max-w-150">
+              <h3 className="text-xl ml-1 mb-3 font-medium text-gray-900">Связанные навыки</h3>
 
-              <AutocompleteSearch<SkillLevelItemLocal>
-                onSearch={fetchSkillsToAttach}
-                onSelect={handleAddSkill}
-                itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
-                renderItem={(p) => (
+              <BentoSearch
+                items={editorData.skills}
+                itemToString={(skill) => `${skill.skill_name} - ${skill.level_name}`}
+                itemToId={(skill) => skill.skill_level_id}
+                renderItem={(skill) => (
                   <>
-                    {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
+                    {skill.skill_name} - <span className="text-gray-500">{skill.level_name}</span>
                   </>
                 )}
-                placeholder="Поиск по названию"
-                buttonText="Добавить"
-                isItemDisabled={isSkillAlreadySelected}
+                closeable={true}
+                onRemove={(skill) => handleRemoveSkill(skill.skill_level_id)}
+                onSearch={fetchSkillsToAttach}
+                onAdd={handleAddSkill}
+                searchItemToString={(skill) => `${skill.skill_name} - ${skill.level_name}`}
+                renderSearchItem={(skill) => (
+                  <>
+                    {skill.skill_name} - <span className="text-gray-500">{skill.level_name}</span>
+                  </>
+                )}
+                placeholder="Название навыка"
                 debounceMs={SEARCH_DEBOUNCE_MS}
+                isSearchItemDisabled={isSkillAlreadySelected}
               />
 
-              <div className="mt-4 flex flex-col gap-2">
-                {editorData.skills.length === 0 ? (
-                  <p className="text-gray-500 text-sm ml-1">Связанные навыки отсутствуют.</p>
-                ) : (
-                  editorData.skills.map(s => (
-                    <div key={s.skill_level_id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                      <span className="text-md text-gray-800 font-medium">
-                        {s.skill_name} - <span className="text-gray-500 font-normal">{s.level_name}</span>
-                      </span>
-                      <button
-                        onClick={() => handleRemoveSkill(s.skill_level_id)}
-                        className="text-sm font-medium text-danger hover:text-danger-hover px-2 py-1"
-                      >
-                        Отвязать
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
+              {editorData.skills.length === 0 && (
+                <p className="mt-3 text-gray-500 text-sm ml-1">Связанные навыки отсутствуют.</p>
+              )}
             </div>
           </div>
         ) : (

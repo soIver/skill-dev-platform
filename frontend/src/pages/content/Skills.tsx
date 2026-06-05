@@ -575,9 +575,10 @@ export default function SkillsAdmin() {
                 }}
                 searchItemToString={(l) => l.name}
                 renderSearchItem={(l) => <span>{l.name}</span>}
-                placeholder="Название уровня..."
+                placeholder="Название уровня"
                 buttonText="Добавить"
                 debounceMs={SEARCH_DEBOUNCE_MS}
+                searchFieldClassName="min-w-3xs"
               />
               {editorData.levels.length === 0 && (
                 <p className="text-gray-500 text-sm ml-1 self-center mt-2">Уровни отсутствуют.</p>

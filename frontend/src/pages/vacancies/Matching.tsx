@@ -213,7 +213,7 @@ export default function VacancyMatching() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Регионы
               </label>
-              <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+              <div className="rounded-xl max-w-150 border border-gray-200 bg-gray-50/70 p-3">
                 <BentoSearch<VacancyAreaItem, VacancyAreaItem>
                   items={selectedAreas}
                   itemToString={(area) => area.name}
