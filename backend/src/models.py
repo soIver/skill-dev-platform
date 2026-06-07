@@ -38,6 +38,54 @@ class CodeType(Base):
     name = Column(String, unique=True, nullable=False)
 
 
+class ProfStandard(Base):
+    __tablename__ = "prof_standards"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(Integer, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+
+    functions_groups = relationship("PsFunctionsGroup", back_populates="prof_standard", cascade="all, delete-orphan")
+
+
+class PsFunctionsGroup(Base):
+    __tablename__ = "ps_functions_groups"
+    __table_args__ = (
+        UniqueConstraint("ps_id", "code", name="uq_ps_functions_groups_ps_code"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    ps_id = Column(
+        Integer,
+        ForeignKey("prof_standards.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    code = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+
+    prof_standard = relationship("ProfStandard", back_populates="functions_groups", lazy="select")
+    functions = relationship("PsFunction", back_populates="functions_group", cascade="all, delete-orphan")
+
+
+class PsFunction(Base):
+    __tablename__ = "ps_functions"
+    __table_args__ = (
+        UniqueConstraint("ps_functions_group_id", "code", name="uq_ps_functions_group_code"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    ps_functions_group_id = Column(
+        Integer,
+        ForeignKey("ps_functions_groups.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    code = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
+
+    functions_group = relationship("PsFunctionsGroup", back_populates="functions", lazy="select")
+
+
 class GitHubProfile(Base):
     __tablename__ = "github_profiles"
 
