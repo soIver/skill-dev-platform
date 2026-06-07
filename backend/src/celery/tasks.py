@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from .app import celery_app
 from ..analysis.analysers import analyzer
-from ..models import UserRepo, RepoSkill, SkillLevel
+from ..models import UserRepo, GitHubRepo, RepoSkill, SkillLevel, TaskHistory
 from ..config import global_config
 from ..utils.logger import get_logger
 
@@ -58,8 +58,10 @@ async def _process_repository(
     try:
         async with TaskSession() as db:
             # запись уже создана роутером analysis/router.py
-            query = select(UserRepo).where(
-                UserRepo.user_id == user_id, UserRepo.name == repo_name
+            query = (
+                select(UserRepo)
+                .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
+                .where(UserRepo.user_id == user_id, GitHubRepo.name == repo_name)
             )
             result = await db.execute(query)
             repo = result.scalar_one_or_none()
@@ -89,7 +91,13 @@ async def _process_repository(
 
             repo.analyzed_at = datetime.now(timezone.utc)
             if task_id:
-                repo.task_id = task_id
+                db.add(TaskHistory(
+                    user_id=user_id,
+                    task_id=task_id,
+                    repo_id=repo.id,
+                    completed_at=repo.analyzed_at,
+                    successful=True,
+                ))
             await db.commit()
 
         # уведомление об успехе
@@ -125,8 +133,10 @@ async def _cleanup_repository_state(
     try:
         TaskSession = async_sessionmaker(internal_engine, class_=AsyncSession, expire_on_commit=False)
         async with TaskSession() as db:
-            query = select(UserRepo).where(
-                UserRepo.user_id == user_id, UserRepo.name == repo_name
+            query = (
+                select(UserRepo)
+                .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
+                .where(UserRepo.user_id == user_id, GitHubRepo.name == repo_name)
             )
             result = await db.execute(query)
             repo = result.scalar_one_or_none()

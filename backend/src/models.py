@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Float, String, Text, Date, func
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Float, String, Text, Date, func, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, relationship
 from pgvector.sqlalchemy import Vector
@@ -22,8 +22,6 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
-    github_id = Column(BigInteger, unique=True, nullable=True)
-    github_token = Column(String, nullable=True)
     role_id = Column(
         Integer,
         ForeignKey("roles.id", ondelete="RESTRICT"),
@@ -40,8 +38,39 @@ class CodeType(Base):
     name = Column(String, unique=True, nullable=False)
 
 
+class GitHubProfile(Base):
+    __tablename__ = "github_profiles"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    github_token = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", lazy="select")
+
+
+class GitHubRepo(Base):
+    __tablename__ = "github_repos"
+
+    id = Column(Integer, primary_key=True)
+    gh_id = Column(BigInteger, unique=True, nullable=True)
+    name = Column(String, nullable=False)
+    url = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class UserRepo(Base):
     __tablename__ = "user_repos"
+    __table_args__ = (
+        UniqueConstraint("user_id", "repo_id", name="uq_user_repos_user_repo"),
+    )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
@@ -49,16 +78,15 @@ class UserRepo(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    task_id = Column(
+    repo_id = Column(
         Integer,
-        ForeignKey("tasks.id"),
-        nullable=True,
+        ForeignKey("github_repos.id", ondelete="CASCADE"),
+        nullable=False,
     )
-    gh_id = Column(Integer, nullable=False)
-    name = Column(String, nullable=False)
     analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", lazy="select")
+    repo = relationship("GitHubRepo", lazy="select")
 
 
 class RepoSkill(Base):
@@ -224,19 +252,14 @@ class TestAttempt(Base):
 class Vacancy(Base):
     __tablename__ = "vacancies"
 
-    id = Column(Integer, primary_key=True)
-    hh_id = Column(String, unique=True, nullable=True)
+    id = Column(Integer, primary_key=True) # hh id
     title = Column(String, nullable=False)
-    company = Column(String, nullable=True)
-    salary_min = Column(Integer, nullable=True)
-    salary_max = Column(Integer, nullable=True)
-    exp_years_min = Column(Integer, nullable=True)
     url = Column(String, nullable=False)
     analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
 
-class VacancySkillLevel(Base):
-    __tablename__ = "vacancy_skill_levels"
+class VacancySkill(Base):
+    __tablename__ = "vacancy_skills"
 
     id = Column(Integer, primary_key=True)
     vacancy_id = Column(
@@ -244,14 +267,14 @@ class VacancySkillLevel(Base):
         ForeignKey("vacancies.id", ondelete="CASCADE"),
         nullable=False,
     )
-    skill_level_id = Column(
+    skill_id = Column(
         Integer,
-        ForeignKey("skill_levels.id"),
+        ForeignKey("skills.id"),
         nullable=True,
     )
 
     vacancy = relationship("Vacancy", lazy="select")
-    skill_level = relationship("SkillLevel", lazy="select")
+    skill_level = relationship("Skill", lazy="select")
 
 
 class VacancyHistory(Base):
@@ -313,6 +336,33 @@ class TaskScore(Base):
     
     user = relationship("User", lazy="select")
     task = relationship("Task", lazy="select")
+
+
+class TaskHistory(Base):
+    __tablename__ = "task_history"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    repo_id = Column(
+        Integer,
+        ForeignKey("user_repos.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    successful = Column(Boolean, default=False, nullable=False)
+
+    user = relationship("User", lazy="select")
+    task = relationship("Task", lazy="select")
+    repo = relationship("UserRepo", lazy="select")
 
 
 class SkillLevelTask(Base):

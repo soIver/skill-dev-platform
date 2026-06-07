@@ -6,7 +6,10 @@ from sqlalchemy.orm import selectinload
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
-from ..models import Task, UserRepo, UserRecommendation, TaskScore, SkillLevelTask, SkillLevel, Skill, Level
+from ..models import (
+    Task, UserRepo, GitHubRepo, TaskHistory, UserRecommendation, TaskScore,
+    SkillLevelTask, SkillLevel, Skill, Level,
+)
 from .schemas import (
     TaskSearchResponse,
     TaskItem,
@@ -18,6 +21,32 @@ from .schemas import (
 )
 
 router = APIRouter(tags=["tasks"])
+
+
+async def _load_successful_task_repos(
+    db: AsyncSession,
+    user_id: int,
+    task_ids: list[int],
+) -> dict[int, str]:
+    if not task_ids:
+        return {}
+
+    result = await db.execute(
+        select(TaskHistory.task_id, GitHubRepo.name)
+        .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
+        .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
+        .where(
+            TaskHistory.user_id == user_id,
+            TaskHistory.task_id.in_(task_ids),
+            TaskHistory.successful == True,
+        )
+        .order_by(TaskHistory.completed_at.desc())
+    )
+
+    attached_map = {}
+    for task_id, repo_name in result.all():
+        attached_map.setdefault(task_id, repo_name)
+    return attached_map
 
 @router.get("/tasks")
 async def search_tasks(
@@ -104,15 +133,7 @@ async def search_tasks(
         rows = result.all()
         task_ids = [row[0].id for row in rows]
 
-        attached_map = {}
-        if task_ids:
-            try:
-                attached_repos_q = select(UserRepo).where(UserRepo.user_id == claims.user_id, UserRepo.task_id.in_(task_ids))
-                attached_repos_res = await db.execute(attached_repos_q)
-                attached_map = {r.task_id: r for r in attached_repos_res.scalars().all()}
-            except Exception as e:
-                # временный лог ошибки в stderr (если доступно)
-                print(f"Error fetching attached repos: {e}")
+        attached_map = await _load_successful_task_repos(db, claims.user_id, task_ids)
 
         items = []
         for row in rows:
@@ -122,7 +143,7 @@ async def search_tasks(
             rating_str = "-" if avg_rating is None or avg_rating == 0 else str(round(avg_rating, 1))
             status = "Опубликовано" if task_obj.is_published else "Сохранено"
             
-            repo = attached_map.get(task_obj.id)
+            repo_name = attached_map.get(task_obj.id)
             
             items.append(TaskItem(
                 id=task_obj.id,
@@ -138,7 +159,7 @@ async def search_tasks(
                         level_name=slt.skill_level.level.name
                     ) for slt in task_obj.skill_level_tasks
                 ],
-                attached_repo_name=repo.name if repo else None
+                attached_repo_name=repo_name
             ))
 
         return TaskSearchResponse(items=items, total_pages=total_pages, current_page=page)
@@ -154,14 +175,7 @@ async def search_tasks(
         tasks = result.scalars().all()
         
         task_ids = [t.id for t in tasks]
-        attached_map = {}
-        if task_ids:
-            try:
-                attached_repos_q = select(UserRepo).where(UserRepo.user_id == claims.user_id, UserRepo.task_id.in_(task_ids))
-                attached_repos_res = await db.execute(attached_repos_q)
-                attached_map = {r.task_id: r for r in attached_repos_res.scalars().all()}
-            except Exception as e:
-                print(f"Error fetching attached repos (public): {e}")
+        attached_map = await _load_successful_task_repos(db, claims.user_id, task_ids)
 
         items = [
             TaskPublicItem(
@@ -175,7 +189,7 @@ async def search_tasks(
                         level_name=slt.skill_level.level.name
                     ) for slt in task.skill_level_tasks
                 ],
-                attached_repo_name=attached_map.get(task.id).name if attached_map.get(task.id) else None
+                attached_repo_name=attached_map.get(task.id)
             ) for task in tasks
         ]
         return TaskPublicSearchResponse(items=items, total_pages=total_pages, current_page=page)
@@ -220,10 +234,7 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
             level_name=lv.name
         ))
 
-    # поиск прикрепленного репозитория
-    repo_q = select(UserRepo).where(UserRepo.task_id == rec_id, UserRepo.user_id == claims.user_id)
-    repo_res = await db.execute(repo_q)
-    repo = repo_res.scalar_one_or_none()
+    attached_map = await _load_successful_task_repos(db, claims.user_id, [rec_id])
 
     return TaskDetail(
         id=rec.id,
@@ -231,7 +242,7 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
         description=rec.description,
         is_published=rec.is_published,
         skills=skills_items,
-        attached_repo_name=repo.name if repo else None
+        attached_repo_name=attached_map.get(rec_id)
     )
 
 @router.get("/tasks/{task_id}/public", response_model=TaskDetail)
@@ -264,10 +275,7 @@ async def get_task_public(
             level_name=lv.name
         ))
 
-    # поиск прикрепленного репозитория
-    repo_q = select(UserRepo).where(UserRepo.task_id == task_id, UserRepo.user_id == claims.user_id)
-    repo_res = await db.execute(repo_q)
-    repo_obj = repo_res.scalar_one_or_none()
+    attached_map = await _load_successful_task_repos(db, claims.user_id, [task_id])
 
     return TaskDetail(
         id=task.id,
@@ -275,7 +283,7 @@ async def get_task_public(
         description=task.description,
         is_published=True,
         skills=skills_items,
-        attached_repo_name=repo_obj.name if repo_obj else None
+        attached_repo_name=attached_map.get(task_id)
     )
 
 @router.post("/tasks", response_model=TaskDetail)

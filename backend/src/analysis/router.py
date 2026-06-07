@@ -8,7 +8,7 @@ from .schemas import AnalyzeRepoRequest
 from ..auth.utils import TokenClaims, get_current_user
 from ..celery.tasks import analyze_repository_task
 from ..utils.database import get_db
-from ..models import UserRepo, SkillLevelTask, SkillLevel, Skill
+from ..models import UserRepo, GitHubRepo, SkillLevelTask, SkillLevel, Skill
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -20,9 +20,33 @@ async def analyze_repo(
     db: AsyncSession = Depends(get_db),
 ):
     try:
+        github_repo = None
+        if request.gh_id is not None:
+            github_repo_result = await db.execute(
+                select(GitHubRepo).where(GitHubRepo.gh_id == request.gh_id)
+            )
+            github_repo = github_repo_result.scalar_one_or_none()
+        if github_repo is None:
+            github_repo_result = await db.execute(
+                select(GitHubRepo).where(GitHubRepo.url == request.repo_url)
+            )
+            github_repo = github_repo_result.scalar_one_or_none()
+        if github_repo is None:
+            github_repo = GitHubRepo(
+                gh_id=request.gh_id,
+                name=request.repo_name,
+                url=request.repo_url,
+            )
+            db.add(github_repo)
+            await db.flush()
+        else:
+            github_repo.gh_id = request.gh_id if request.gh_id is not None else github_repo.gh_id
+            github_repo.name = request.repo_name
+            github_repo.url = request.repo_url
+
         query = select(UserRepo).where(
             UserRepo.user_id == claims.user_id,
-            UserRepo.name == request.repo_name,
+            UserRepo.repo_id == github_repo.id,
         )
         result = await db.execute(query)
         repo = result.scalar_one_or_none()
@@ -51,8 +75,7 @@ async def analyze_repo(
         else:
             repo = UserRepo(
                 user_id=claims.user_id,
-                gh_id=0,
-                name=request.repo_name,
+                repo_id=github_repo.id,
                 analyzed_at=None,
             )
             db.add(repo)

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from ..config import global_config
-from ..models import User, Role
+from ..models import User, Role, GitHubProfile
 from ..utils.crypto import Hasher, JwtCodec
 from ..utils.logger import get_logger
 from ..utils.redis import get_redis
@@ -283,6 +283,13 @@ class AuthService:
                 raise UserAlreadyExistsError("Пользователь с таким email уже существует")
             raise UserAlreadyExistsError("Пользователь с таким именем уже существует")
 
+        if github_id is not None:
+            existing_github_profile = await self.db.execute(
+                select(GitHubProfile).where(GitHubProfile.id == github_id)
+            )
+            if existing_github_profile.scalar_one_or_none() is not None:
+                raise UserAlreadyExistsError("Профиль GitHub уже привязан к другому аккаунту")
+
         role_result = await self.db.execute(select(Role).where(Role.name == "user"))
         user_role = role_result.scalar_one_or_none()
         if user_role is None:
@@ -293,10 +300,17 @@ class AuthService:
             email=email,
             password_hash=password_hasher.hash(password),
             role=user_role,
-            github_token=github_token,
-            github_id=github_id,
         )
         self.db.add(new_user)
+        await self.db.flush()
+
+        if github_id is not None and github_token:
+            self.db.add(GitHubProfile(
+                id=github_id,
+                user_id=new_user.id,
+                github_token=github_token,
+            ))
+
         await self.db.commit()
 
         result = await self.db.execute(

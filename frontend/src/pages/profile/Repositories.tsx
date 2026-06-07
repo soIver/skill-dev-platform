@@ -82,6 +82,7 @@ export default function Repositories() {
       await authJson("/analysis/repository", {
         method: "POST",
         body: JSON.stringify({
+          gh_id: repo.gh_id,
           repo_name: repo.name,
           repo_url: repo.url,
           last_commit_date: repo.last_commit_date,

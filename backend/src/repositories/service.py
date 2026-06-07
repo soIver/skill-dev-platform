@@ -15,7 +15,7 @@ from .utils import (
     build_github_authorization_url,
     get_user_by_id,
 )
-from ..models import User
+from ..models import User, GitHubProfile, GitHubRepo, UserRepo
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -27,7 +27,7 @@ string_cipher = Cipher(
 
 
 @dataclass(slots=True)
-class GitHubProfile:
+class GitHubProfileData:
     id: int
     login: str
     name: str | None
@@ -124,20 +124,25 @@ class GitHubService:
 
             # Проверка, не привязан ли этот профиль GitHub к другому аккаунту
             duplicate_result = await self.db.execute(
-                select(User).where(User.github_id == profile.id, User.id != user_id)
+                select(GitHubProfile).where(GitHubProfile.id == profile.id, GitHubProfile.user_id != user_id)
             )
             if duplicate_result.scalar_one_or_none():
                 return ("connect_error", "Этот профиль GitHub уже привязан к другому аккаунту")
 
-            user.github_id = profile.id
-            user.github_token = string_cipher.encrypt(access_token)
+            await self._upsert_github_profile(
+                user_id=user_id,
+                github_id=profile.id,
+                encrypted_token=string_cipher.encrypt(access_token),
+            )
             await self.db.commit()
             return ("connect", self._build_frontend_redirect_url(status="connected", login=profile.login))
         
         elif action_type == "login":
-            # Сначала пытаемся найти по github_id
             result = await self.db.execute(
-                select(User).options(joinedload(User.role)).where(User.github_id == profile.id)
+                select(User)
+                .options(joinedload(User.role))
+                .join(GitHubProfile, GitHubProfile.user_id == User.id)
+                .where(GitHubProfile.id == profile.id)
             )
             user = result.unique().scalar_one_or_none()
             
@@ -153,9 +158,11 @@ class GitHubService:
             encrypted_token = string_cipher.encrypt(access_token)
             
             if user:
-                # Обновляем ID и токен
-                user.github_id = profile.id
-                user.github_token = encrypted_token
+                await self._upsert_github_profile(
+                    user_id=user.id,
+                    github_id=profile.id,
+                    encrypted_token=encrypted_token,
+                )
                 await self.db.commit()
                 return ("login", user)
             else:
@@ -171,35 +178,36 @@ class GitHubService:
         
         raise ValueError("Неизвестный тип действия OAuth")
 
-    async def get_connection_profile(self, user_id: int) -> GitHubProfile | None:
+    async def get_connection_profile(self, user_id: int) -> GitHubProfileData | None:
         user = await get_user_by_id(self.db, user_id)
-        if user is None or not user.github_token:
+        github_profile = await self._get_profile_by_user_id(user_id)
+        if user is None or not github_profile:
             return None
 
         try:
-            access_token = string_cipher.decrypt(user.github_token)
+            access_token = string_cipher.decrypt(github_profile.github_token)
             return await self._fetch_github_profile(access_token)
         except (ValueError, httpx.HTTPError) as exc:
             logger.warning("Не удалось получить GitHub-профиль пользователя %s: %s", user_id, exc)
-            user.github_token = None
+            await self.db.delete(github_profile)
             await self.db.commit()
             return None
 
     async def get_user_repositories(self, user_id: int, page: int = 1, limit: int = 10) -> dict:
-        from ..models import UserRepo
         import math
         import asyncio
         from datetime import datetime
 
         user = await get_user_by_id(self.db, user_id)
-        if user is None or not user.github_token:
+        github_profile = await self._get_profile_by_user_id(user_id)
+        if user is None or not github_profile:
             return {"items": [], "total_pages": 0, "current_page": page, "total_items": 0}
 
         try:
-            access_token = string_cipher.decrypt(user.github_token)
+            access_token = string_cipher.decrypt(github_profile.github_token)
             
             redis = get_redis()
-            cache_key = f"github:repos:{user_id}"
+            cache_key = f"github:repos:v2:{user_id}"
             
             cached_data = None
             if redis:
@@ -218,6 +226,7 @@ class GitHubService:
                         repositories(first: 100, ownerAffiliations: [OWNER], privacy: PUBLIC, orderBy: {field: PUSHED_AT, direction: DESC}) {
                           nodes {
                             name
+                            databaseId
                             url
                             description
                             defaultBranchRef {
@@ -254,6 +263,7 @@ class GitHubService:
                             last_commit = node["defaultBranchRef"]["target"].get("authoredDate")
                             
                         all_repos.append({
+                            "gh_id": node.get("databaseId"),
                             "name": node["name"],
                             "url": node["url"],
                             "description": node.get("description"),
@@ -270,11 +280,15 @@ class GitHubService:
             page_repos = all_repos[start_idx:end_idx]
 
             # Fetch DB repos for this page
-            repo_names = [r["name"] for r in page_repos]
-            db_repos_query = select(UserRepo).where(UserRepo.user_id == user_id, UserRepo.name.in_(repo_names))
+            repo_ids = [r["gh_id"] for r in page_repos if r.get("gh_id") is not None]
+            db_repos_query = (
+                select(UserRepo, GitHubRepo)
+                .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
+                .where(UserRepo.user_id == user_id, GitHubRepo.gh_id.in_(repo_ids))
+            )
             db_repos_result = await self.db.execute(db_repos_query)
-            db_repos = db_repos_result.scalars().all()
-            user_repo_map = {r.name: r for r in db_repos}
+            db_repos = db_repos_result.all()
+            user_repo_map = {github_repo.gh_id: user_repo for user_repo, github_repo in db_repos}
 
             async def check_repo_status(repo, client):
                 status = "Доступен"
@@ -295,8 +309,8 @@ class GitHubService:
                     pass
                 
                 analyzed_at_str = None
-                if repo["name"] in user_repo_map:
-                    db_repo = user_repo_map[repo["name"]]
+                if repo.get("gh_id") in user_repo_map:
+                    db_repo = user_repo_map[repo["gh_id"]]
                     analyzed_at_str = db_repo.analyzed_at.isoformat() if db_repo.analyzed_at else None
                     
                     if db_repo.analyzed_at is None:
@@ -332,17 +346,17 @@ class GitHubService:
 
     async def disconnect(self, user_id: int) -> None:
         user = await get_user_by_id(self.db, user_id)
-        if user is None or not user.github_token:
+        github_profile = await self._get_profile_by_user_id(user_id)
+        if user is None or not github_profile:
             return
 
-        encrypted_token = user.github_token
+        encrypted_token = github_profile.github_token
         try:
             access_token = string_cipher.decrypt(
                 encrypted_token)
         except ValueError:
             logger.exception("Не удалось расшифровать GitHub token при отвязке для пользователя %s", user_id)
-            user.github_token = None
-            user.github_id = None
+            await self.db.delete(github_profile)
             await self.db.commit()
             return
 
@@ -356,9 +370,41 @@ class GitHubService:
             logger.exception("Не удалось отозвать GitHub authorization для пользователя %s", user_id)
             raise RuntimeError("Не удалось отвязать профиль GitHub.")
 
-        user.github_token = None
-        user.github_id = None
+        await self.db.delete(github_profile)
         await self.db.commit()
+
+    async def _get_profile_by_user_id(self, user_id: int) -> GitHubProfile | None:
+        result = await self.db.execute(
+            select(GitHubProfile).where(GitHubProfile.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def _upsert_github_profile(
+        self,
+        user_id: int,
+        github_id: int,
+        encrypted_token: str,
+    ):
+        existing_by_id = await self.db.execute(
+            select(GitHubProfile).where(GitHubProfile.id == github_id)
+        )
+        profile = existing_by_id.scalar_one_or_none()
+        if profile:
+            profile.user_id = user_id
+            profile.github_token = encrypted_token
+            return
+
+        existing_by_user = await self._get_profile_by_user_id(user_id)
+        if existing_by_user:
+            existing_by_user.id = github_id
+            existing_by_user.github_token = encrypted_token
+            return
+
+        self.db.add(GitHubProfile(
+            id=github_id,
+            user_id=user_id,
+            github_token=encrypted_token,
+        ))
 
     async def _exchange_code_for_token(self, code: str, code_verifier: str) -> str:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -391,7 +437,7 @@ class GitHubService:
             raise ValueError("GitHub не завершил авторизацию. Попробуйте ещё раз.")
         return access_token
 
-    async def _fetch_github_profile(self, access_token: str) -> GitHubProfile:
+    async def _fetch_github_profile(self, access_token: str) -> GitHubProfileData:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 "https://api.github.com/user",
@@ -415,7 +461,7 @@ class GitHubService:
             )
 
         payload = response.json()
-        return GitHubProfile(
+        return GitHubProfileData(
             id=payload["id"],
             login=payload["login"],
             name=payload.get("name"),

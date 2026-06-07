@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export interface RepoItem {
   id: string;
+  gh_id: number | null;
   name: string;
   url: string;
   description?: string;
