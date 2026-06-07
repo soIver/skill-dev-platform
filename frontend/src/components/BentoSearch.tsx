@@ -33,6 +33,7 @@ export interface BentoSearchProps<T, S> {
   debounceMs?: number;
   isSearchItemDisabled?: (item: S) => boolean;
   searchFieldClassName?: string;
+  hideSearch?: boolean;
 }
 
 export function BentoSearch<
@@ -56,10 +57,10 @@ export function BentoSearch<
   searchItemToString,
   renderSearchItem,
   placeholder = "Поиск...",
-  buttonText: _buttonText,
   debounceMs,
   isSearchItemDisabled,
   searchFieldClassName = "",
+  hideSearch = false,
 }: BentoSearchProps<T, S>) {
   // драг-н-дроп состояние
   const dragIndexRef = useRef<number | null>(null);
@@ -158,23 +159,25 @@ export function BentoSearch<
         );
       })}
 
-      <div className="flex-1 max-w-3xs">
-        <AutocompleteSearch<S>
-          onSearch={onSearch}
-          onSelect={async (item) => {
-            await onAdd(item);
-          }}
-          itemToString={searchItemToString}
-          renderItem={renderSearchItem}
-          placeholder={placeholder}
-          debounceMs={debounceMs}
-          isItemDisabled={isSearchItemDisabled}
-          className={`ml-0! ${searchFieldClassName}`.trim()}
-          hideButton={true}
-          showClearButton={true}
-          clearOnSelect={true}
-        />
-      </div>
+      {!hideSearch && (
+        <div className="flex-1 max-w-3xs">
+          <AutocompleteSearch<S>
+            onSearch={onSearch}
+            onSelect={async (item) => {
+              await onAdd(item);
+            }}
+            itemToString={searchItemToString}
+            renderItem={renderSearchItem}
+            placeholder={placeholder}
+            debounceMs={debounceMs}
+            isItemDisabled={isSearchItemDisabled}
+            className={`ml-0! ${searchFieldClassName}`.trim()}
+            hideButton={true}
+            showClearButton={true}
+            clearOnSelect={true}
+          />
+        </div>
+      )}
     </div>
   );
 }

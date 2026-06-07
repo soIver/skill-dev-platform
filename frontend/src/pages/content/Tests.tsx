@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
-import { SEARCH_DEBOUNCE_MS } from "../../config";
+import { SEARCH_DEBOUNCE_MS, TEST } from "../../config";
 import { useContentStore, type TestItem, type SkillLevelItem, type QuestionEditorItem, type AnswerEditorItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
@@ -78,7 +78,8 @@ const getPointsWord = (count: number): string => {
 export default function ContentTests() {
   const { tests, setTestsState } = useContentStore();
   const {
-    searchInput,
+    keywordInput,
+    skillInput,
     results,
     currentPage,
     totalPages,
@@ -93,22 +94,24 @@ export default function ContentTests() {
   const [isSearching, setIsSearching] = useState(false);
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedSkillToCreate, setSelectedSkillToCreate] = useState<SkillLevelItem | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newSkillLevelRef = useRef<SkillLevelItem | null>(null);
 
-  const fetchTests = async (search: string, page: number) => {
+  const fetchTests = async (keyword: string, skill: string, page: number) => {
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ page: page.toString() });
-      if (search) params.append("search", search);
+      if (keyword) params.append("keyword", keyword);
+      if (skill) params.append("skill_query", skill);
 
       const response = await authJson<SearchResponse>(`/tests?${params.toString()}`);
       setTestsState({
         results: response.items,
         totalPages: response.total_pages,
         currentPage: response.current_page,
-        lastSearch: { search, page }
+        lastSearch: { keyword, skill, page }
       });
     } catch (error) {
       console.error("Failed to fetch tests", error);
@@ -124,17 +127,21 @@ export default function ContentTests() {
     if (timerRef.current) clearTimeout(timerRef.current);
 
     timerRef.current = setTimeout(() => {
-      if (searchInput === lastSearch.search && results.length > 0) {
+      if (
+        keywordInput === lastSearch.keyword &&
+        skillInput === lastSearch.skill &&
+        results.length > 0
+      ) {
         setIsDebouncing(false);
         return;
       }
-      fetchTests(searchInput, 1);
+      fetchTests(keywordInput, skillInput, 1);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [searchInput]);
+  }, [keywordInput, skillInput]);
 
   const fetchSkillLevels = async (query: string) => {
     let skill = query;
@@ -160,6 +167,7 @@ export default function ContentTests() {
     newSkillLevelRef.current = item;
 
     const newTestData = {
+      description: "",
       time_limit_minutes: 3,
       threshold_score: 1,
       is_published: false,
@@ -196,7 +204,12 @@ export default function ContentTests() {
   };
 
   const handleInputChange = (value: string) => {
-    setTestsState({ searchInput: value });
+    setTestsState({ skillInput: value });
+  };
+
+  const handleCreateSelectedTest = () => {
+    if (!selectedSkillToCreate) return;
+    handleSelectCreate(selectedSkillToCreate);
   };
 
   const loadTest = async (id: number) => {
@@ -207,6 +220,7 @@ export default function ContentTests() {
         editorData: {
           time_limit_minutes: response.time_limit_minutes,
           threshold_score: response.threshold_score,
+          description: response.description ?? "",
           is_published: response.is_published,
           skill_level_id: response.skill_level_id,
           skill_name: response.skill_name,
@@ -250,6 +264,7 @@ export default function ContentTests() {
 
     try {
       const payload = {
+        description: editorData.description.trim(),
         time_limit_minutes: Number(editorData.time_limit_minutes),
         threshold_score: Number(editorData.threshold_score),
         is_published: newPublishStatus,
@@ -272,7 +287,7 @@ export default function ContentTests() {
 
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
       await loadTest(response.id);
-      fetchTests(lastSearch.search, currentPage);
+      fetchTests(lastSearch.keyword, lastSearch.skill, currentPage);
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
@@ -288,7 +303,7 @@ export default function ContentTests() {
       await authJson(`/tests/${selectedId}`, { method: "DELETE" });
       setTestsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Тест удален", variant: "success" });
-      fetchTests(lastSearch.search, currentPage);
+      fetchTests(lastSearch.keyword, lastSearch.skill, currentPage);
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось удалить тест", variant: "error" });
     }
@@ -301,6 +316,7 @@ export default function ContentTests() {
       setTestsState({
         selectedId: "new",
         editorData: {
+          description: "",
           time_limit_minutes: 3,
           threshold_score: 1,
           is_published: false,
@@ -537,7 +553,7 @@ export default function ContentTests() {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchTests(lastSearch.search, newPage);
+      fetchTests(lastSearch.keyword, lastSearch.skill, newPage);
     }
   };
 
@@ -577,20 +593,43 @@ export default function ContentTests() {
       <div className="workspace-panel flex-1 flex flex-col h-full min-w-0">
         <h2 className="workspace-panel-header mb-4">Список тестов</h2>
 
-        <div className="mb-6">
-          <AutocompleteSearch<SkillLevelItem>
-            onSearch={fetchSkillLevels}
-            onSelect={handleSelectCreate}
-            onInputChange={handleInputChange}
-            itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
-            renderItem={(p) => (
-              <>
-                {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
-              </>
-            )}
-            placeholder="Поиск по навыку"
-            buttonText="Создать"
-          />
+        <div className="flex gap-4 mb-6 items-center">
+          <div className="flex-1 flex gap-4">
+            <input
+              type="text"
+              value={keywordInput}
+              onChange={(e) => setTestsState({ keywordInput: e.target.value })}
+              maxLength={TEST.SEARCH_KEYWORDS.MAX_LENGTH}
+              className="input-field mt-0! flex-3"
+              placeholder="Поиск по содержанию"
+            />
+            <AutocompleteSearch<SkillLevelItem>
+              onSearch={fetchSkillLevels}
+              onSelect={setSelectedSkillToCreate}
+              onInputChange={handleInputChange}
+              itemToString={(p) => `${p.skill_name} - ${p.level_name}`}
+              renderItem={(p) => (
+                <>
+                  {p.skill_name} - <span className="text-gray-500">{p.level_name}</span>
+                </>
+              )}
+              placeholder="Поиск по навыку"
+              className="flex-2"
+              hideButton={true}
+              value={skillInput}
+              showClearButton={true}
+              onSelectedItemChange={setSelectedSkillToCreate}
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleCreateSelectedTest}
+              disabled={!selectedSkillToCreate}
+              className="primary-button disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Создать
+            </button>
+          </div>
         </div>
 
         <PaginatedTable
@@ -612,7 +651,7 @@ export default function ContentTests() {
             {selectedId === "new"
               ? `Новый тест «${editorData.skill_name} - ${editorData.level_name}»`
               : typeof selectedId === "number"
-                ? `Тест «${editorData.skill_name} - ${editorData.level_name} №${editorData.variant_number}»`
+                ? `Тест «${editorData.skill_name} - ${editorData.level_name}» №${editorData.variant_number}`
                 : "Редактор тестов"}
           </h2>
           {selectedId && (
@@ -643,6 +682,27 @@ export default function ContentTests() {
 
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1 min-w-0">
+              {/* содержание теста */}
+              <div className="mb-4">
+                <textarea
+                  value={editorData.description}
+                  onChange={(e) => updateEditorData({ description: e.target.value })}
+                  placeholder="Описание содержания теста"
+                  className="input-field resize-y mb-1"
+                  style={{ minHeight: "120px" }}
+                />
+                <div className="text-xs flex justify-between">
+                  <span className="text-gray-500">
+                    {editorData.description.trim().length > 0 && editorData.description.trim().length < TEST.DESCRIPTION.MIN_LENGTH
+                      ? "Слишком короткое содержание"
+                      : ""}
+                  </span>
+                  <span className={editorData.description.length > TEST.DESCRIPTION.MAX_LENGTH ? "text-danger" : "text-gray-500"}>
+                    {editorData.description.length}/{TEST.DESCRIPTION.MAX_LENGTH}
+                  </span>
+                </div>
+              </div>
+
               {/* параметры времени и порога */}
               <div className="flex gap-4 mb-4">
                 <div className="flex-1">

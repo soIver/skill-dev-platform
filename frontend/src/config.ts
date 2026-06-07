@@ -24,6 +24,16 @@ export const TASK = {
   },
 } as const;
 
+export const TEST = {
+  DESCRIPTION: {
+    MIN_LENGTH: 64,
+    MAX_LENGTH: 1024,
+  },
+  SEARCH_KEYWORDS: {
+    MAX_LENGTH: 48,
+  },
+} as const;
+
 export const SKILL_LEVEL = {
   SEARCH_SKILL: {
     MAX_LENGTH: 16,
@@ -42,4 +52,5 @@ export const ITEMS_PER_TABLE_PAGE = {
 
 export const ITEMS_PER_PAGE = {
   TASKS: 20,
+  TESTS: 20,
 } as const;

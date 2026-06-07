@@ -150,6 +150,7 @@ class Test(Base):
         ForeignKey("skill_levels.id"),
         nullable=True,
     )
+    description = Column(Text, nullable=False, server_default="")
     time_limit_minutes = Column(Integer, nullable=True)
     threshold_score = Column(Integer, nullable=True)
     is_published = Column(Boolean, default=False)

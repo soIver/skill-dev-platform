@@ -25,6 +25,7 @@ export interface QuestionEditorItem {
 }
 
 export interface TestEditorData {
+  description: string;
   time_limit_minutes: number | null;
   threshold_score: number | null;
   is_published: boolean;
@@ -36,11 +37,12 @@ export interface TestEditorData {
 }
 
 interface TestsState {
-  searchInput: string;
+  keywordInput: string;
+  skillInput: string;
   results: TestItem[];
   currentPage: number;
   totalPages: number;
-  lastSearch: { search: string; page: number };
+  lastSearch: { keyword: string; skill: string; page: number };
   
   selectedId: number | "new" | null;
   editorData: TestEditorData;
@@ -164,13 +166,14 @@ const initialTasksState: TasksState = {
 };
 
 const initialTestsState: TestsState = {
-  searchInput: "",
+  keywordInput: "",
+  skillInput: "",
   results: [],
   currentPage: 1,
   totalPages: 1,
-  lastSearch: { search: "", page: 1 },
+  lastSearch: { keyword: "", skill: "", page: 1 },
   selectedId: null,
-  editorData: { time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null, questions: [] },
+  editorData: { description: "", time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null, questions: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };

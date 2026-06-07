@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, case, delete
+from sqlalchemy import select, func, and_, case, delete, or_
 from sqlalchemy.orm import aliased
 
 from .schemas import (
     TestSearchResponse, TestItem, TestDetail, TestCreateUpdate,
-    QuestionDetail, AnswerDetail
+    QuestionDetail, AnswerDetail, TestPublicSearchResponse, TestPublicItem,
+    TestPublicLevelItem
 )
 from ..auth.utils import require_role
 from ..auth.service import TokenClaims
@@ -17,11 +18,19 @@ router = APIRouter(prefix="/tests", tags=["Tests"])
 @router.get("", response_model=TestSearchResponse)
 async def search_tests(
     search: str = Query(None),
+    keyword: str = Query(None),
+    skill_query: str = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
+    if search and not keyword and not skill_query:
+        if " - " in search:
+            skill_query = search
+        else:
+            keyword = search
+
     t_alias = aliased(Test)
     variant_subq = select(func.count(t_alias.id)).where(
         t_alias.skill_level_id == Test.skill_level_id,
@@ -41,14 +50,17 @@ async def search_tests(
      .outerjoin(Level, SkillLevel.level_id == Level.id) \
      .outerjoin(TestAttempt, TestAttempt.test_id == Test.id)
 
-    if search:
-        if " - " in search:
-            parts = search.split(" - ")
+    if keyword:
+        query = query.where(or_(Skill.name.ilike(f"%{keyword}%"), Test.description.ilike(f"%{keyword}%")))
+
+    if skill_query:
+        if " - " in skill_query:
+            parts = skill_query.split(" - ")
             skill_part = parts[0].strip()
             level_part = " - ".join(parts[1:]).strip()
             query = query.where(and_(Skill.name.ilike(f"%{skill_part}%"), Level.name.ilike(f"%{level_part}%")))
         else:
-            query = query.where(Skill.name.ilike(f"%{search}%"))
+            query = query.where(Skill.name.ilike(f"%{skill_query}%"))
 
     query = query.group_by(Test.id, Skill.name, Level.name, Test.is_published, Test.skill_level_id)
     query = query.order_by(Test.id.desc())
@@ -56,7 +68,24 @@ async def search_tests(
     offset = (page - 1) * limit
     
     count_query = select(func.count()).select_from(Test)
-    if search:
+    if keyword or skill_query:
+        count_query = count_query.outerjoin(SkillLevel, Test.skill_level_id == SkillLevel.id) \
+                                 .outerjoin(Skill, SkillLevel.skill_id == Skill.id) \
+                                 .outerjoin(Level, SkillLevel.level_id == Level.id)
+
+        if keyword:
+            count_query = count_query.where(or_(Skill.name.ilike(f"%{keyword}%"), Test.description.ilike(f"%{keyword}%")))
+
+        if skill_query:
+            if " - " in skill_query:
+                parts = skill_query.split(" - ")
+                skill_part = parts[0].strip()
+                level_part = " - ".join(parts[1:]).strip()
+                count_query = count_query.where(and_(Skill.name.ilike(f"%{skill_part}%"), Level.name.ilike(f"%{level_part}%")))
+            else:
+                count_query = count_query.where(Skill.name.ilike(f"%{skill_query}%"))
+
+    elif search:
         count_query = count_query.outerjoin(SkillLevel, Test.skill_level_id == SkillLevel.id) \
                                  .outerjoin(Skill, SkillLevel.skill_id == Skill.id) \
                                  .outerjoin(Level, SkillLevel.level_id == Level.id)
@@ -66,7 +95,7 @@ async def search_tests(
             level_part = " - ".join(parts[1:]).strip()
             count_query = count_query.where(and_(Skill.name.ilike(f"%{skill_part}%"), Level.name.ilike(f"%{level_part}%")))
         else:
-            count_query = count_query.where(Skill.name.ilike(f"%{search}%"))
+            count_query = count_query.where(or_(Skill.name.ilike(f"%{search}%"), Test.description.ilike(f"%{search}%")))
 
     total_count = await db.scalar(count_query)
     total_pages = (total_count + limit - 1) // limit if total_count else 1
@@ -93,6 +122,121 @@ async def search_tests(
         current_page=page,
     )
 
+@router.get("/public", response_model=TestPublicSearchResponse)
+async def search_public_tests(
+    keyword: str = Query(None),
+    skill_level_ids: list[int] = Query(default=[]),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
+):
+    latest_published_tests = (
+        select(Test.skill_level_id, func.max(Test.id).label("test_id"))
+        .where(Test.is_published == True)
+        .group_by(Test.skill_level_id)
+        .subquery()
+    )
+
+    filters = []
+    if keyword:
+        trimmed_keyword = keyword.strip()
+        if trimmed_keyword:
+            filters.append(or_(
+                Skill.name.ilike(f"%{trimmed_keyword}%"),
+                Level.name.ilike(f"%{trimmed_keyword}%"),
+                Test.description.ilike(f"%{trimmed_keyword}%"),
+            ))
+    if skill_level_ids:
+        filters.append(SkillLevel.id.in_(skill_level_ids))
+
+    matching_skill_ids = (
+        select(Skill.id)
+        .join(SkillLevel, SkillLevel.skill_id == Skill.id)
+        .join(latest_published_tests, latest_published_tests.c.skill_level_id == SkillLevel.id)
+        .join(Test, Test.id == latest_published_tests.c.test_id)
+        .join(Level, SkillLevel.level_id == Level.id)
+        .where(*filters)
+        .group_by(Skill.id)
+        .subquery()
+    )
+
+    total_count = await db.scalar(select(func.count()).select_from(matching_skill_ids))
+    total_pages = (total_count + limit - 1) // limit if total_count else 1
+
+    skills_query = (
+        select(Skill.id, Skill.name)
+        .where(Skill.id.in_(select(matching_skill_ids.c.id)))
+        .order_by(Skill.name)
+        .offset((page - 1) * limit)
+        .limit(limit)
+    )
+    skills_result = await db.execute(skills_query)
+    skill_rows = skills_result.all()
+    skill_ids = [row.id for row in skill_rows]
+
+    if not skill_ids:
+        return TestPublicSearchResponse(items=[], total_pages=total_pages, current_page=page)
+
+    question_count_sq = (
+        select(func.count(TestQuestion.id))
+        .where(TestQuestion.test_id == Test.id)
+        .scalar_subquery()
+    )
+    total_score_sq = (
+        select(func.coalesce(func.sum(TestQuestion.points), 0))
+        .where(TestQuestion.test_id == Test.id)
+        .scalar_subquery()
+    )
+
+    levels_query = (
+        select(
+            Skill.id.label("skill_id"),
+            Skill.name.label("skill_name"),
+            SkillLevel.id.label("skill_level_id"),
+            Level.name.label("level_name"),
+            Test.id.label("test_id"),
+            Test.description,
+            Test.time_limit_minutes,
+            Test.threshold_score,
+            question_count_sq.label("question_count"),
+            total_score_sq.label("total_score"),
+        )
+        .join(SkillLevel, SkillLevel.skill_id == Skill.id)
+        .join(latest_published_tests, latest_published_tests.c.skill_level_id == SkillLevel.id)
+        .join(Test, Test.id == latest_published_tests.c.test_id)
+        .join(Level, SkillLevel.level_id == Level.id)
+        .where(Skill.id.in_(skill_ids))
+        .order_by(Skill.name, SkillLevel.order_index, Level.name)
+    )
+    levels_result = await db.execute(levels_query)
+
+    items_by_skill = {
+        row.id: TestPublicItem(id=row.id, skill_id=row.id, skill_name=row.name, levels=[])
+        for row in skill_rows
+    }
+    for row in levels_result.all():
+        item = items_by_skill.get(row.skill_id)
+        if not item:
+            continue
+        item.levels.append(TestPublicLevelItem(
+            id=row.skill_level_id,
+            test_id=row.test_id,
+            skill_level_id=row.skill_level_id,
+            level_name=row.level_name or "Неизвестно",
+            description_preview=row.description or "",
+            question_count=row.question_count or 0,
+            total_score=row.total_score or 0,
+            threshold_score=row.threshold_score or 0,
+            time_limit_minutes=row.time_limit_minutes or 0,
+        ))
+
+    return TestPublicSearchResponse(
+        items=[items_by_skill[row.id] for row in skill_rows],
+        total_pages=total_pages,
+        current_page=page,
+    )
+
 @router.get("/{test_id}", response_model=TestDetail)
 async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     query = select(Test).where(Test.id == test_id)
@@ -103,6 +247,7 @@ async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: Tok
 
     # получение навыка и уровня
     skill_level_q = select(Skill.name.label("skill_name"), Level.name.label("level_name")) \
+        .select_from(SkillLevel) \
         .join(Skill, SkillLevel.skill_id == Skill.id) \
         .join(Level, SkillLevel.level_id == Level.id) \
         .where(SkillLevel.id == test_obj.skill_level_id)
@@ -147,6 +292,7 @@ async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: Tok
         skill_level_id=test_obj.skill_level_id,
         skill_name=skill_name,
         level_name=level_name,
+        description=test_obj.description or "",
         time_limit_minutes=test_obj.time_limit_minutes or 0,
         threshold_score=test_obj.threshold_score or 0,
         is_published=test_obj.is_published,
@@ -166,6 +312,7 @@ async def create_test(data: TestCreateUpdate, db: AsyncSession = Depends(get_db)
 
     new_test = Test(
         skill_level_id=data.skill_level_id,
+        description=data.description,
         time_limit_minutes=data.time_limit_minutes,
         threshold_score=data.threshold_score,
         is_published=data.is_published,
@@ -217,6 +364,7 @@ async def update_test(
     if data.threshold_score > total_points:
         raise HTTPException(status_code=400, detail="Порог прохождения не может превышать сумму баллов за вопросы")
 
+    test_obj.description = data.description
     test_obj.time_limit_minutes = data.time_limit_minutes
     test_obj.threshold_score = data.threshold_score
     test_obj.is_published = data.is_published

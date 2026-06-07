@@ -20,6 +20,7 @@ interface AutocompleteSearchProps<T> {
   showClearButton?: boolean;
   clearOnSelect?: boolean;
   nextFocusRef?: RefObject<HTMLButtonElement | null>;
+  onSelectedItemChange?: (item: T | null) => void;
 }
 
 export function AutocompleteSearch<T extends { id: number | string }>({
@@ -40,6 +41,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   showClearButton = false,
   clearOnSelect = false,
   nextFocusRef,
+  onSelectedItemChange,
 }: AutocompleteSearchProps<T>) {
   const [inputValue, setInputValue] = useState(value ?? "");
   const [results, setResults] = useState<T[]>([]);
@@ -82,8 +84,9 @@ export function AutocompleteSearch<T extends { id: number | string }>({
     setInputValue(value);
     if (!value) {
       setSelectedItem(null);
+      onSelectedItemChange?.(null);
     }
-  }, [value]);
+  }, [onSelectedItemChange, value]);
 
   useEffect(() => {
     optionRefs.current = optionRefs.current.slice(0, results.length);
@@ -94,6 +97,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
 
     if (inputValue && (!selectedItem || itemToStringRef.current(selectedItem) !== inputValue)) {
       setSelectedItem(null);
+      onSelectedItemChange?.(null);
 
       const performSearch = async () => {
         setIsLoading(true);
@@ -119,12 +123,13 @@ export function AutocompleteSearch<T extends { id: number | string }>({
       setResults([]);
       setShowDropdown(false);
       setSelectedItem(null);
+      onSelectedItemChange?.(null);
     }
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [inputValue, debounceMs, selectedItem]);
+  }, [inputValue, debounceMs, onSelectedItemChange, selectedItem]);
 
   const handleItemClick = (item: T) => {
     const str = itemToString(item);
@@ -132,6 +137,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
       onSelect(item);
       setInputValue("");
       setSelectedItem(null);
+      onSelectedItemChange?.(null);
       setResults([]);
       setShowDropdown(false);
       shouldRevealResultsRef.current = false;
@@ -141,6 +147,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
 
     setInputValue(str);
     setSelectedItem(item);
+    onSelectedItemChange?.(item);
     setShowDropdown(false);
     shouldRevealResultsRef.current = false;
     if (onInputChange) onInputChange(str);
@@ -161,12 +168,14 @@ export function AutocompleteSearch<T extends { id: number | string }>({
       setInputValue("");
       if (onInputChange) onInputChange("");
       setSelectedItem(null);
+      onSelectedItemChange?.(null);
       shouldRevealResultsRef.current = false;
     } else if (onSelectCustom && inputValue.trim().length > 0) {
       onSelectCustom(inputValue.trim());
       setInputValue("");
       if (onInputChange) onInputChange("");
       setSelectedItem(null);
+      onSelectedItemChange?.(null);
       shouldRevealResultsRef.current = false;
     }
   };
@@ -175,6 +184,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
     setInputValue("");
     setResults([]);
     setSelectedItem(null);
+    onSelectedItemChange?.(null);
     setShowDropdown(false);
     shouldRevealResultsRef.current = false;
     if (onInputChange) onInputChange("");
