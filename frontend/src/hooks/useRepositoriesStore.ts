@@ -8,7 +8,7 @@ export interface RepoItem {
   description?: string;
   analyzed_at: string | null;
   last_commit_date: string | null;
-  status: "Доступен" | "Недоступен" | "Проверен" | "В процессе...";
+  status: "Доступен" | "Недоступен" | "Проверен" | "Подготовка" | "В процессе...";
 }
 
 interface RepositoriesState {

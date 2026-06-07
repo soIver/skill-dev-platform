@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from .analysers import analyzer
 from .schemas import AnalyzeRepoRequest
 from ..auth.utils import TokenClaims, get_current_user
 from ..celery.tasks import analyze_repository_task
@@ -11,6 +12,15 @@ from ..utils.database import get_db
 from ..models import UserRepo, GitHubRepo, SkillLevelTask, SkillLevel, Skill
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+
+
+def _parse_github_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 @router.post("/repository", status_code=status.HTTP_202_ACCEPTED)
@@ -31,6 +41,7 @@ async def analyze_repo(
                 select(GitHubRepo).where(GitHubRepo.url == request.repo_url)
             )
             github_repo = github_repo_result.scalar_one_or_none()
+
         if github_repo is None:
             github_repo = GitHubRepo(
                 gh_id=request.gh_id,
@@ -44,6 +55,8 @@ async def analyze_repo(
             github_repo.name = request.repo_name
             github_repo.url = request.repo_url
 
+        commit_dt = _parse_github_datetime(request.last_commit_date)
+
         query = select(UserRepo).where(
             UserRepo.user_id == claims.user_id,
             UserRepo.repo_id == github_repo.id,
@@ -55,18 +68,14 @@ async def analyze_repo(
 
         if repo:
             # защита от повторного анализа неизменённого кода
-            if repo.analyzed_at and request.last_commit_date:
-                try:
-                    commit_dt = datetime.fromisoformat(
-                        request.last_commit_date.replace("Z", "+00:00")
-                    )
-                    if repo.analyzed_at >= commit_dt:
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail="Репозиторий уже проверен для текущей версии кода",
-                        )
-                except ValueError:
-                    pass
+            if repo.analyzed_at and commit_dt and repo.analyzed_at >= commit_dt:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Репозиторий уже проверен для текущей версии кода",
+                )
+
+            if repo.analyzed_at and commit_dt and commit_dt > repo.analyzed_at:
+                github_repo.tokens = None
 
             previous_analyzed_at = (
                 repo.analyzed_at.isoformat() if repo.analyzed_at else None
@@ -79,6 +88,12 @@ async def analyze_repo(
                 analyzed_at=None,
             )
             db.add(repo)
+
+        if analyzer.is_repository_too_large(github_repo.tokens):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Репозиторий слишком большой для автоматического анализа.",
+            )
 
         await db.commit()
 

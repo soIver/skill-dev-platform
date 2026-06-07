@@ -214,16 +214,15 @@ export default function Tasks() {
         message: `Репозиторий ${repo.name} поставлен в очередь на обработку.`,
         variant: "success",
       });
-      updateRepoStatus(repo.name, "В процессе...");
+      updateRepoStatus(repo.name, "Подготовка");
       setIsModalOpen(false);
       // обновление списка для отображения статуса "выполнено" (галочки)
       doSearch(currentPage, keywordInput, selectedSkills);
-    } catch (e) {
-      showToast({
-        title: "Ошибка",
-        message: e instanceof Error ? e.message : "Не удалось запустить анализ",
-        variant: "error",
-      });
+    } catch (err) {
+      // ошибка уже показана authJson
+      if (err instanceof Error && err.message.includes("Репозиторий слишком большой")) {
+        updateRepoStatus(repo.name, "Недоступен");
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -7,6 +7,7 @@
     --color-danger-hover: #ef6161;
     --color-success: #10b981;
     --color-success-hover: #059669;
+    --color-warning: #f59e0b;
 }
 
 @layer base {

@@ -15,6 +15,7 @@ from .utils import (
     build_github_authorization_url,
     get_user_by_id,
 )
+from ..analysis.analysers import analyzer
 from ..models import User, GitHubProfile, GitHubRepo, UserRepo
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -279,16 +280,47 @@ class GitHubService:
             end_idx = start_idx + limit
             page_repos = all_repos[start_idx:end_idx]
 
-            # Fetch DB repos for this page
             repo_ids = [r["gh_id"] for r in page_repos if r.get("gh_id") is not None]
-            db_repos_query = (
-                select(UserRepo, GitHubRepo)
-                .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
-                .where(UserRepo.user_id == user_id, GitHubRepo.gh_id.in_(repo_ids))
-            )
-            db_repos_result = await self.db.execute(db_repos_query)
-            db_repos = db_repos_result.all()
-            user_repo_map = {github_repo.gh_id: user_repo for user_repo, github_repo in db_repos}
+            github_repo_map = {}
+            user_repo_map = {}
+
+            if repo_ids:
+                github_repos_result = await self.db.execute(
+                    select(GitHubRepo).where(GitHubRepo.gh_id.in_(repo_ids))
+                )
+                github_repo_map = {
+                    github_repo.gh_id: github_repo
+                    for github_repo in github_repos_result.scalars()
+                }
+
+                db_repos_query = (
+                    select(UserRepo, GitHubRepo)
+                    .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
+                    .where(UserRepo.user_id == user_id, GitHubRepo.gh_id.in_(repo_ids))
+                )
+                db_repos_result = await self.db.execute(db_repos_query)
+                db_repos = db_repos_result.all()
+                user_repo_map = {github_repo.gh_id: user_repo for user_repo, github_repo in db_repos}
+
+            tokens_were_reset = False
+            for repo in page_repos:
+                gh_id = repo.get("gh_id")
+                db_repo = user_repo_map.get(gh_id)
+                github_repo = github_repo_map.get(gh_id)
+                if not db_repo or not github_repo or not db_repo.analyzed_at or not repo["last_commit_date"]:
+                    continue
+
+                try:
+                    commit_dt = datetime.fromisoformat(repo["last_commit_date"].replace('Z', '+00:00'))
+                except ValueError:
+                    continue
+
+                if commit_dt > db_repo.analyzed_at and github_repo.tokens is not None:
+                    github_repo.tokens = None
+                    tokens_were_reset = True
+
+            if tokens_were_reset:
+                await self.db.commit()
 
             async def check_repo_status(repo, client):
                 status = "Доступен"
@@ -309,12 +341,17 @@ class GitHubService:
                     pass
                 
                 analyzed_at_str = None
-                if repo.get("gh_id") in user_repo_map:
-                    db_repo = user_repo_map[repo["gh_id"]]
+                db_repo = user_repo_map.get(repo.get("gh_id"))
+                github_repo = github_repo_map.get(repo.get("gh_id"))
+
+                if github_repo and analyzer.is_repository_too_large(github_repo.tokens):
+                    status = "Недоступен"
+
+                if db_repo:
                     analyzed_at_str = db_repo.analyzed_at.isoformat() if db_repo.analyzed_at else None
                     
-                    if db_repo.analyzed_at is None:
-                        status = "В процессе..."
+                    if db_repo.analyzed_at is None and status != "Недоступен":
+                        status = "Подготовка" if github_repo is None or github_repo.tokens is None else "В процессе..."
                     elif status != "Недоступен" and repo["last_commit_date"]:
                         try:
                             commit_dt = datetime.fromisoformat(repo["last_commit_date"].replace('Z', '+00:00'))

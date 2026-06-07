@@ -1,21 +1,98 @@
 import json
+import re
+from dataclasses import dataclass
 from typing import List, Tuple, Dict
 
+import yaml
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from gitingest import ingest_async
 
 from ..models import Skill
 from ..utils.logger import get_logger
-from .utils import get_embedding, get_completion, analysis_config
+from .utils import CONFIG_PATH, get_embedding, get_completion, analysis_config
 
 logger = get_logger("analysis.models")
 
+
+@dataclass(slots=True)
+class RepositoryPayload:
+    payload: str
+    tokens: int | None
+
+
+class RepositoryTooLargeError(ValueError):
+    def __init__(self, actual_tokens: int | None, max_tokens: int):
+        self.actual_tokens = actual_tokens
+        self.max_tokens = max_tokens
+        super().__init__("Репозиторий слишком большой для автоматического анализа.")
+
+
 class RepoAnalyzer:
     DISTANCE_TRESHOLD = 0.3
+    TOKEN_COUNT_PATTERN = re.compile(
+        r"(?:estimated\s+tokens|tokens)\s*:\s*([\d\s,._\u00a0]+)([kKmM]?)",
+        re.IGNORECASE,
+    )
 
     def __init__(self):
         self.config = analysis_config
+
+    @property
+    def max_payload_tokens(self) -> int:
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as config_file:
+                config = yaml.safe_load(config_file) or {}
+        except OSError:
+            config = self.config
+
+        return int(config.get("limits", {}).get("max_repository_payload_tokens", 130000))
+
+    @staticmethod
+    def _parse_numeric_token_value(raw_value: str, suffix: str) -> int | None:
+        normalized = (
+            raw_value
+            .replace("\u00a0", " ")
+            .replace("_", "")
+            .replace(" ", "")
+            .strip()
+        )
+        if not normalized:
+            return None
+
+        if suffix:
+            try:
+                value = float(normalized.replace(",", "."))
+            except ValueError:
+                return None
+
+            multiplier = 1_000 if suffix.lower() == "k" else 1_000_000
+            return int(value * multiplier)
+
+        if re.fullmatch(r"\d{1,3}([,\.]\d{3})+", normalized):
+            return int(re.sub(r"[,\.]", "", normalized))
+
+        digits_only = normalized.replace(",", "").replace(".", "")
+        if digits_only.isdigit():
+            return int(digits_only)
+
+        return None
+
+    @classmethod
+    def _extract_token_count(cls, summary: str) -> int | None:
+        match = cls.TOKEN_COUNT_PATTERN.search(summary)
+        if not match:
+            return None
+
+        raw_value, suffix = match.groups()
+        return cls._parse_numeric_token_value(raw_value, suffix)
+
+    def is_repository_too_large(self, tokens: int | None) -> bool:
+        return (
+            tokens is not None
+            and self.max_payload_tokens > 0
+            and tokens > self.max_payload_tokens
+        )
 
     def _build_prompt(self, skill_names: List[str] | None = None, task_description: str | None = None) -> str:
         # сборка промпта из фрагментов, хранящихся в конфиге YAML
@@ -36,11 +113,17 @@ class RepoAnalyzer:
 
         return "\n\n".join(fragments)
 
-    async def ingest_repository(self, url: str) -> str:
+    async def ingest_repository(self, url: str) -> RepositoryPayload:
         logger.info(f"Начата обработка репозитория {url}")
         ignore_patterns = self.config.get("ignore_patterns", [])
         summary, tree, content = await ingest_async(url, exclude_patterns=ignore_patterns)
-        return f"{tree}\n\n{content}"
+        payload = f"{tree}\n\n{content}"
+        tokens = self._extract_token_count(summary)
+        if tokens is None:
+            logger.warning("Не удалось извлечь оценку токенов из summary gitingest")
+        else:
+            logger.debug(f"Оценочный размер подготовленного содержимого репозитория: {tokens} токенов")
+        return RepositoryPayload(payload=payload, tokens=tokens)
 
     async def extract_skills(
         self, 
@@ -121,8 +204,15 @@ class RepoAnalyzer:
         skill_names: List[str] | None = None,
         task_description: str | None = None
     ) -> List[Dict]:
-        payload = await self.ingest_repository(repo_url)
-        extracted = await self.extract_skills(payload, skill_names=skill_names, task_description=task_description)
+        repository_payload = await self.ingest_repository(repo_url)
+        if self.is_repository_too_large(repository_payload.tokens):
+            raise RepositoryTooLargeError(repository_payload.tokens, self.max_payload_tokens)
+
+        extracted = await self.extract_skills(
+            repository_payload.payload,
+            skill_names=skill_names,
+            task_description=task_description,
+        )
         
         if not extracted:
             return []

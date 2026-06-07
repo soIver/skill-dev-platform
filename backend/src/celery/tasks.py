@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import selectinload
 
 from .app import celery_app
-from ..analysis.analysers import analyzer
+from ..analysis.analysers import RepositoryTooLargeError, analyzer
 from ..models import UserRepo, GitHubRepo, RepoSkill, SkillLevel, TaskHistory
 from ..config import global_config
 from ..utils.logger import get_logger
@@ -60,8 +60,9 @@ async def _process_repository(
             # запись уже создана роутером analysis/router.py
             query = (
                 select(UserRepo)
+                .options(selectinload(UserRepo.repo))
                 .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
-                .where(UserRepo.user_id == user_id, GitHubRepo.name == repo_name)
+                .where(UserRepo.user_id == user_id, GitHubRepo.url == repo_url)
             )
             result = await db.execute(query)
             repo = result.scalar_one_or_none()
@@ -70,10 +71,34 @@ async def _process_repository(
                 logger.error(f"UserRepo не найден для {repo_name} (user {user_id})")
                 return
 
-            # анализ
-            extracted_skills = await analyzer.analyze(
-                repo_url, db, skill_names=skill_names, task_description=task_description
+            repository_payload = await analyzer.ingest_repository(repo_url)
+            repo.repo.tokens = repository_payload.tokens
+
+            if analyzer.is_repository_too_large(repository_payload.tokens):
+                repo.analyzed_at = datetime.now(timezone.utc)
+                await db.commit()
+                await _publish_repository_too_large_notification(
+                    user_id,
+                    repo_name,
+                    RepositoryTooLargeError(
+                        repository_payload.tokens,
+                        analyzer.max_payload_tokens,
+                    ),
+                )
+                return
+
+            await db.commit()
+            await _publish_notification(user_id, {
+                "type": "repository_analysis_processing",
+                "repo_name": repo_name,
+            })
+
+            extracted = await analyzer.extract_skills(
+                repository_payload.payload,
+                skill_names=skill_names,
+                task_description=task_description,
             )
+            extracted_skills = await analyzer.match_skills(db, extracted, analyzer.DISTANCE_TRESHOLD)
 
             for match in extracted_skills:
                 skill_id = match["skill_id"]
@@ -115,11 +140,31 @@ async def _process_repository(
         await task_engine.dispose()
 
 
+async def _publish_repository_too_large_notification(
+    user_id: int,
+    repo_name: str,
+    exc: RepositoryTooLargeError,
+):
+    logger.info(
+        "Репозиторий %s слишком большой: %s токенов при лимите %s",
+        repo_name,
+        exc.actual_tokens,
+        exc.max_tokens,
+    )
+    await _publish_notification(user_id, {
+        "type": "repository_analysis_failed",
+        "repo_name": repo_name,
+        "status": "Недоступен",
+        "message": str(exc),
+    })
+
+
 async def _cleanup_repository_state(
     user_id: int, 
     repo_name: str, 
     previous_analyzed_at: str | None,
-    engine: any = None
+    engine: any = None,
+    message: str | None = None,
 ):
     """восстановление состояния БД и уведомление пользователя при ошибке"""
     internal_engine = engine
@@ -135,30 +180,48 @@ async def _cleanup_repository_state(
         async with TaskSession() as db:
             query = (
                 select(UserRepo)
+                .options(selectinload(UserRepo.repo))
                 .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
                 .where(UserRepo.user_id == user_id, GitHubRepo.name == repo_name)
             )
             result = await db.execute(query)
             repo = result.scalar_one_or_none()
 
+            too_large_error = None
             if repo:
-                if previous_analyzed_at:
+                if repo.repo and analyzer.is_repository_too_large(repo.repo.tokens):
+                    repo.analyzed_at = datetime.now(timezone.utc)
+                    too_large_error = RepositoryTooLargeError(
+                        repo.repo.tokens,
+                        analyzer.max_payload_tokens,
+                    )
+                elif previous_analyzed_at:
                     repo.analyzed_at = datetime.fromisoformat(previous_analyzed_at)
                 else:
                     await db.delete(repo)
                 await db.commit()
+
+            if too_large_error:
+                message = str(too_large_error)
+                status = "Недоступен"
+            else:
+                status = None
     except Exception as e:
         logger.error(f"Не удалось восстановить состояние БД: {e}")
+        status = None
     finally:
         if not engine:
             await internal_engine.dispose()
 
     try:
-        await _publish_notification(user_id, {
+        payload = {
             "type": "repository_analysis_failed",
             "repo_name": repo_name,
-            "message": f"При анализе репозитория {repo_name} произошла ошибка.",
-        })
+            "message": message or f"При анализе репозитория {repo_name} произошла ошибка.",
+        }
+        if status:
+            payload["status"] = status
+        await _publish_notification(user_id, payload)
     except Exception as e:
         logger.error(f"Не удалось отправить уведомление об ошибке: {e}")
 

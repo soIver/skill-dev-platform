@@ -2,6 +2,36 @@ import { useEffect } from "react";
 import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "./useUserStore";
 import { useRepositoriesStore } from "./useRepositoriesStore";
+import type { RepoItem } from "./useRepositoriesStore";
+
+const RECENT_NOTIFICATION_TTL_MS = 2000;
+const recentNotificationKeys = new Map<string, number>();
+
+const repoStatuses: RepoItem["status"][] = [
+  "Доступен",
+  "Недоступен",
+  "Проверен",
+  "Подготовка",
+  "В процессе...",
+];
+
+function isRepoStatus(value: unknown): value is RepoItem["status"] {
+  return typeof value === "string" && repoStatuses.includes(value as RepoItem["status"]);
+}
+
+function shouldShowNotification(key: string): boolean {
+  const now = Date.now();
+  const lastShownAt = recentNotificationKeys.get(key);
+  recentNotificationKeys.set(key, now);
+
+  for (const [storedKey, storedAt] of recentNotificationKeys) {
+    if (now - storedAt > RECENT_NOTIFICATION_TTL_MS) {
+      recentNotificationKeys.delete(storedKey);
+    }
+  }
+
+  return lastShownAt === undefined || now - lastShownAt > RECENT_NOTIFICATION_TTL_MS;
+}
 
 export function useNotifications() {
   const { showToast } = useToast();
@@ -23,21 +53,26 @@ export function useNotifications() {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "repository_analyzed") {
-          showToast({
-            title: "Анализ завершён",
-            message: data.message,
-            variant: "success",
-          });
+          if (shouldShowNotification(`${data.type}:${data.repo_name}:${data.message}`)) {
+            showToast({
+              title: "Анализ завершён",
+              message: data.message,
+              variant: "success",
+            });
+          }
           // Обновляем статус репозитория в сторе без перезагрузки страницы
           updateRepoStatus(data.repo_name, "Проверен");
+        } else if (data.type === "repository_analysis_processing") {
+          updateRepoStatus(data.repo_name, "В процессе...");
         } else if (data.type === "repository_analysis_failed") {
-          showToast({
-            title: "Ошибка анализа",
-            message: data.message,
-            variant: "error",
-          });
-          // Возвращаем статус в «Доступен», чтобы можно было повторить
-          updateRepoStatus(data.repo_name, "Доступен");
+          if (shouldShowNotification(`${data.type}:${data.repo_name}:${data.message}:${data.status ?? ""}`)) {
+            showToast({
+              title: "Ошибка анализа",
+              message: data.message,
+              variant: "error",
+            });
+          }
+          updateRepoStatus(data.repo_name, isRepoStatus(data.status) ? data.status : "Доступен");
         }
       } catch (err) {
         console.error("Failed to parse notification", err);

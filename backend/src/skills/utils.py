@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import List
 import math
 from scipy.stats import norm
 from ..config import global_config
@@ -49,24 +48,47 @@ def calculate_adjusted_score(raw_score: int, last_seen_date: datetime) -> int:
     
     return int(raw_score * decay_factor)
 
-def calculate_confidence(scores: List[int], total_levels: int, next_level_order: int) -> float:
+def get_level_score_bounds(level_index: int, num_levels: int) -> tuple[float, float]:
+    """
+    Вычисляет границы баллов для уровня по той же шкале, что и get_level_index_normal
+    """
+    if num_levels <= 0:
+        return (0.0, 100.0)
+
+    if num_levels == 1:
+        return (0.0, 100.0)
+
+    clamped_index = min(max(level_index, 0), num_levels - 1)
+    mu = 50.0
+    sigma = 50.0 / 3.0
+
+    lower_probability = clamped_index / num_levels
+    upper_probability = (clamped_index + 1) / num_levels
+
+    lower_bound = 0.0 if lower_probability <= 0 else norm.ppf(lower_probability, loc=mu, scale=sigma)
+    upper_bound = 100.0 if upper_probability >= 1 else norm.ppf(upper_probability, loc=mu, scale=sigma)
+
+    return (
+        min(100.0, max(0.0, lower_bound)),
+        min(100.0, max(0.0, upper_bound)),
+    )
+
+def calculate_confidence(score: float, total_levels: int, level_index: int) -> float:
     """
     Вычисляет показатель уверенности в уровне навыка
     """
-    if not scores:
+    if total_levels <= 0:
         return 0.0
-        
-    avg_score = sum(scores) / len(scores)
-    
-    if total_levels == 0:
-        return 0.0
-        
-    threshold = (100.0 / total_levels) * next_level_order
-    
-    if threshold == 0:
+
+    lower_bound, upper_bound = get_level_score_bounds(level_index, total_levels)
+    if upper_bound <= lower_bound:
         return 1.0
-        
-    return min(1.0, avg_score / threshold)
+
+    midpoint = (lower_bound + upper_bound) / 2
+    half_width = (upper_bound - lower_bound) / 2
+    confidence = 1.0 - abs(score - midpoint) / half_width
+
+    return min(1.0, max(0.0, confidence))
 
 def get_level_index_normal(score: float, num_levels: int) -> int:
     """

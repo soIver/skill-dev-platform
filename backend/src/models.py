@@ -62,6 +62,7 @@ class GitHubRepo(Base):
     gh_id = Column(BigInteger, unique=True, nullable=True)
     name = Column(String, nullable=False)
     url = Column(String, nullable=True)
+    tokens = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

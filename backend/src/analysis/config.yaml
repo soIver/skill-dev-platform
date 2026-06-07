@@ -10,6 +10,9 @@ models:
     name: "openai/gpt-oss-20b:free"
     temperature: 0.1
 
+limits:
+  max_repository_payload_tokens: 100000
+
 ignore_patterns:
   - "*.md"
   - "*.txt"

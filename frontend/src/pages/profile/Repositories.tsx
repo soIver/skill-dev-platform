@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Hourglass } from "lucide-react";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { ActionMenu } from "../../components/ActionMenu";
 import { authJson } from "../../auth";
@@ -93,13 +93,12 @@ export default function Repositories() {
         message: `Репозиторий ${repo.name} поставлен в очередь на обработку.`,
         variant: "success",
       });
-      updateRepoStatus(repo.name, "В процессе...");
+      updateRepoStatus(repo.name, "Подготовка");
     } catch (err) {
-      showToast({
-        title: "Ошибка",
-        message: err instanceof Error && err.message ? err.message : "Не удалось запустить анализ",
-        variant: "error",
-      });
+      // ошибка уже показана authJson
+      if (err instanceof Error && err.message.includes("Репозиторий слишком большой")) {
+        updateRepoStatus(repo.name, "Недоступен");
+      }
     }
   };
 
@@ -147,9 +146,11 @@ export default function Repositories() {
           case "Доступен":
             return <div className="flex items-center justify-center gap-1 text-success text-sm"><CheckCircle2 className="w-4 h-4" /> Доступен</div>;
           case "Недоступен":
-            return <div className="flex items-center justify-center gap-1 text-danger text-sm" title="Имеет несколько участников"><XCircle className="w-4 h-4" /> Недоступен</div>;
+            return <div className="flex items-center justify-center gap-1 text-danger text-sm" title="Репозиторий недоступен для анализа"><XCircle className="w-4 h-4" /> Недоступен</div>;
           case "Проверен":
             return <div className="flex items-center justify-center gap-1 text-primary text-sm font-medium"><CheckCircle2 className="w-4 h-4" /> Проверен</div>;
+          case "Подготовка":
+            return <div className="flex items-center justify-center gap-1 text-warning text-sm"><Hourglass className="w-4 h-4" /> Подготовка</div>;
           case "В процессе...":
             return <div className="flex items-center justify-center gap-1 text-primary text-sm"><Loader2 className="w-4 h-4 animate-spin" /> В процессе</div>;
           default:

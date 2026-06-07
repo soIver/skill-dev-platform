@@ -99,7 +99,7 @@ class SkillService:
 
         items = []
         for row in rows:
-            obtained = await self.count_obtained(row.skill_id, row.order_index)
+            obtained = await self.count_obtained(row.skill_id, row.id)
             items.append(SkillLevelItem(
                 id=row.id,
                 skill_name=row.skill_name,
@@ -113,55 +113,158 @@ class SkillService:
             current_page=page,
         )
 
-    async def count_obtained(self, skill_id: int, target_order: int) -> int:
-        # количество уровней для навыка
-        num_levels = await self.db.scalar(
-            select(func.count(SkillLevel.id)).where(SkillLevel.skill_id == skill_id)
-        )
-        if not num_levels:
-            return 0
-
-        # переводим target_order из 1-based в 0-based для сравнения с get_level_index_normal
-        target_index = target_order - 1
-
-        user_ids = set()
-
-        # пользователи из repo_skills
-        repo_query = (
-            select(UserRepo.user_id, func.avg(RepoSkill.score).label("avg_score"))
-            .join(RepoSkill, RepoSkill.repo_id == UserRepo.id)
-            .where(RepoSkill.skill_id == skill_id)
-            .group_by(UserRepo.user_id)
-        )
-        repo_result = await self.db.execute(repo_query)
-        for uid, avg_score in repo_result.all():
-            level_idx = get_level_index_normal(float(avg_score), num_levels)
-            if level_idx >= target_index:
-                user_ids.add(uid)
-
-        # пользователи из test_attempts
-        sl_ids_query = (
+    async def _get_skill_level_indexes(self, skill_id: int) -> dict[int, int]:
+        levels_result = await self.db.execute(
             select(SkillLevel.id)
-            .where(
-                SkillLevel.skill_id == skill_id,
-                SkillLevel.order_index >= target_order,
-            )
+            .where(SkillLevel.skill_id == skill_id)
+            .order_by(SkillLevel.order_index, SkillLevel.id)
         )
+        return {
+            skill_level_id: index
+            for index, skill_level_id in enumerate(levels_result.scalars().all())
+        }
+
+    async def _calculate_user_repo_score(self, user_id: int, skill_id: int) -> float | None:
+        cutoff_date = datetime.now(timezone.utc) - timedelta(
+            days=global_config.SKILL_SCORE_DECAY_MAX_DAYS
+        )
+        repo_skills_result = await self.db.execute(
+            select(RepoSkill.score, UserRepo.analyzed_at)
+            .join(UserRepo, RepoSkill.repo_id == UserRepo.id)
+            .where(
+                UserRepo.user_id == user_id,
+                RepoSkill.skill_id == skill_id,
+                UserRepo.analyzed_at >= cutoff_date,
+            )
+            .order_by(UserRepo.analyzed_at.desc())
+            .limit(5)
+        )
+        adjusted_scores = [
+            calculate_adjusted_score(score, analyzed_at)
+            for score, analyzed_at in repo_skills_result.all()
+        ]
+        if not adjusted_scores:
+            return None
+
+        avg_score = sum(adjusted_scores) / len(adjusted_scores)
+
+        relations_result = await self.db.execute(
+            select(SkillRelation.source_id, SkillRelation.influence_weight)
+            .where(SkillRelation.target_id == skill_id)
+        )
+        relations = [(r.source_id, r.influence_weight) for r in relations_result.all()]
+        if not relations:
+            return avg_score
+
+        source_ids = [source_id for source_id, _ in relations]
+        source_scores_result = await self.db.execute(
+            select(RepoSkill.skill_id, func.avg(RepoSkill.score).label("avg"))
+            .join(UserRepo, RepoSkill.repo_id == UserRepo.id)
+            .where(
+                UserRepo.user_id == user_id,
+                RepoSkill.skill_id.in_(source_ids),
+                UserRepo.analyzed_at >= cutoff_date,
+            )
+            .group_by(RepoSkill.skill_id)
+        )
+        source_scores = {row.skill_id: float(row.avg) for row in source_scores_result.all()}
+        vtotal = calculate_vtotal(relations, source_scores, global_config.VTOTAL_EPSILON)
+        return min(100.0, avg_score * vtotal)
+
+    async def _calculate_repo_level_index(
+        self,
+        user_id: int,
+        skill_id: int,
+        num_levels: int,
+    ) -> int | None:
+        score = await self._calculate_user_repo_score(user_id, skill_id)
+        if score is None:
+            return None
+        return get_level_index_normal(score, num_levels)
+
+    async def _calculate_test_level_index(self, user_id: int, skill_level_indexes: dict[int, int]) -> int | None:
+        if not skill_level_indexes:
+            return None
+
         test_query = (
-            select(TestAttempt.user_id)
+            select(Test.skill_level_id)
+            .select_from(TestAttempt)
             .join(Test, TestAttempt.test_id == Test.id)
             .where(
-                Test.skill_level_id.in_(sl_ids_query),
+                TestAttempt.user_id == user_id,
+                Test.skill_level_id.in_(list(skill_level_indexes.keys())),
+                Test.threshold_score.isnot(None),
+                TestAttempt.score >= Test.threshold_score,
+            )
+        )
+        test_result = await self.db.execute(test_query)
+        passed_indexes = [
+            skill_level_indexes[skill_level_id]
+            for skill_level_id in test_result.scalars().all()
+        ]
+        if not passed_indexes:
+            return None
+
+        return max(passed_indexes)
+
+    async def _calculate_user_level_index(
+        self,
+        user_id: int,
+        skill_id: int,
+        skill_level_indexes: dict[int, int],
+    ) -> int | None:
+        repo_index = await self._calculate_repo_level_index(
+            user_id,
+            skill_id,
+            len(skill_level_indexes),
+        )
+        test_index = await self._calculate_test_level_index(user_id, skill_level_indexes)
+        indexes = [index for index in (repo_index, test_index) if index is not None]
+        if not indexes:
+            return None
+
+        return max(indexes)
+
+    async def count_obtained(self, skill_id: int, target_skill_level_id: int) -> int:
+        skill_level_indexes = await self._get_skill_level_indexes(skill_id)
+        target_index = skill_level_indexes.get(target_skill_level_id)
+        if target_index is None:
+            return 0
+
+        repo_users_query = (
+            select(UserRepo.user_id)
+            .join(RepoSkill, RepoSkill.repo_id == UserRepo.id)
+            .where(RepoSkill.skill_id == skill_id)
+            .distinct()
+        )
+        repo_users_result = await self.db.execute(repo_users_query)
+        user_ids = set(repo_users_result.scalars().all())
+
+        test_users_query = (
+            select(TestAttempt.user_id)
+            .select_from(TestAttempt)
+            .join(Test, TestAttempt.test_id == Test.id)
+            .where(
+                Test.skill_level_id.in_(list(skill_level_indexes.keys())),
                 Test.threshold_score.isnot(None),
                 TestAttempt.score >= Test.threshold_score,
             )
             .distinct()
         )
-        test_result = await self.db.execute(test_query)
-        for (uid,) in test_result.all():
-            user_ids.add(uid)
+        test_users_result = await self.db.execute(test_users_query)
+        user_ids.update(test_users_result.scalars().all())
 
-        return len(user_ids)
+        obtained_count = 0
+        for user_id in user_ids:
+            achieved_index = await self._calculate_user_level_index(
+                user_id,
+                skill_id,
+                skill_level_indexes,
+            )
+            if achieved_index is not None and achieved_index >= target_index:
+                obtained_count += 1
+
+        return obtained_count
 
     async def create_skill_level(self, req: SkillLevelCreateRequest, author_id: int) -> SkillLevelItem:
         skill_result = await self.db.execute(select(Skill).where(Skill.name.ilike(req.skill_name)))
@@ -189,7 +292,7 @@ class SkillService:
         existing_obj = existing.scalar_one_or_none()
 
         if existing_obj:
-            obtained = await self.count_obtained(skill_obj.id, existing_obj.order_index)
+            obtained = await self.count_obtained(skill_obj.id, existing_obj.id)
             return SkillLevelItem(
                 id=existing_obj.id,
                 skill_name=skill_obj.name,
@@ -518,8 +621,7 @@ class SkillService:
         level_name = current_level.name if current_level else "Неизвестно"
 
         # расчёт уверенности
-        next_level_order = current_prof.order_index + 1
-        confidence = calculate_confidence(adjusted_scores, num_levels, next_level_order)
+        confidence = calculate_confidence(avg_score, num_levels, level_idx)
 
         # штраф за малую выборку
         n_query = select(func.count(RepoSkill.id)).join(UserRepo).where(
