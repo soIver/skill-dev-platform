@@ -6,6 +6,7 @@ import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
+import { NumberInput } from "../../components/NumberInput";
 import { useToast } from "../../components/ToastProvider";
 import { ChevronDown, X, Plus } from "lucide-react";
 
@@ -21,59 +22,31 @@ interface SkillLevelSearchResponse {
   current_page: number;
 }
 
+interface TestDetailAnswer {
+  id: number;
+  answer_text: string;
+  is_correct: boolean;
+}
 
+interface TestDetailQuestion {
+  id: number;
+  question_text: string;
+  points: number;
+  answers: TestDetailAnswer[];
+}
 
-const handleNumberKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-  const allowedKeys = ["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "Home", "End"];
-  if (
-    allowedKeys.includes(e.key) ||
-    (e.ctrlKey === true && ["a", "c", "v", "x"].includes(e.key.toLowerCase())) ||
-    (e.metaKey === true && ["a", "c", "v", "x"].includes(e.key.toLowerCase()))
-  ) {
-    return;
-  }
-  if (!/^[0-9]$/.test(e.key)) {
-    e.preventDefault();
-  }
-};
-
-const handleNumberPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-  const pasteData = e.clipboardData.getData("text");
-  if (!/^\d+$/.test(pasteData)) {
-    e.preventDefault();
-  }
-};
-
-const getMinutesWord = (count: number): string => {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod100 >= 11 && mod100 <= 19) {
-    return "минут";
-  }
-  if (mod10 === 1) {
-    return "минута";
-  }
-  if (mod10 >= 2 && mod10 <= 4) {
-    return "минуты";
-  }
-  return "минут";
-};
-
-const getPointsWord = (count: number): string => {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod100 >= 11 && mod100 <= 19) {
-    return "баллов";
-  }
-  if (mod10 === 1) {
-    return "балл";
-  }
-  if (mod10 >= 2 && mod10 <= 4) {
-    return "балла";
-  }
-  return "баллов";
-};
-
+interface TestDetailResponse {
+  id: number;
+  description: string | null;
+  time_limit_minutes: number;
+  threshold_score: number;
+  is_published: boolean;
+  skill_level_id: number;
+  skill_name: string;
+  level_name: string;
+  variant_number: number;
+  questions: TestDetailQuestion[];
+}
 
 export default function ContentTests() {
   const { tests, setTestsState } = useContentStore();
@@ -214,7 +187,7 @@ export default function ContentTests() {
 
   const loadTest = async (id: number) => {
     try {
-      const response = await authJson<any>(`/tests/${id}`);
+      const response = await authJson<TestDetailResponse>(`/tests/${id}`);
       setTestsState({
         selectedId: id,
         editorData: {
@@ -226,12 +199,12 @@ export default function ContentTests() {
           skill_name: response.skill_name,
           level_name: response.level_name,
           variant_number: response.variant_number,
-          questions: response.questions.map((q: any) => ({
+          questions: response.questions.map((q) => ({
             id: q.id,
             question_text: q.question_text,
             points: q.points,
             is_expanded: true,
-            answers: q.answers.map((a: any) => ({
+            answers: q.answers.map((a) => ({
               id: a.id,
               answer_text: a.answer_text,
               is_correct: a.is_correct
@@ -279,7 +252,7 @@ export default function ContentTests() {
         }))
       };
 
-      const response = await authJson<any>(url, {
+      const response = await authJson<{ id: number }>(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -288,7 +261,7 @@ export default function ContentTests() {
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
       await loadTest(response.id);
       fetchTests(lastSearch.keyword, lastSearch.skill, currentPage);
-    } catch (error) {
+    } catch {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
   };
@@ -304,7 +277,7 @@ export default function ContentTests() {
       setTestsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Тест удален", variant: "success" });
       fetchTests(lastSearch.keyword, lastSearch.skill, currentPage);
-    } catch (error) {
+    } catch {
       showToast({ title: "Ошибка", message: "Не удалось удалить тест", variant: "error" });
     }
   };
@@ -391,7 +364,11 @@ export default function ContentTests() {
     });
   };
 
-  const handleUpdateQuestion = (qId: string | number, field: "question_text" | "points", value: any) => {
+  const handleUpdateQuestion = <K extends "question_text" | "points">(
+    qId: string | number,
+    field: K,
+    value: QuestionEditorItem[K],
+  ) => {
     updateEditorData({
       questions: editorData.questions.map((q) =>
         q.id === qId ? { ...q, [field]: value } : q
@@ -403,13 +380,6 @@ export default function ContentTests() {
     let val = pointsVal;
     if (val > 99) val = 99;
     handleUpdateQuestion(qId, "points", val);
-  };
-
-  const handleBlurQuestionPoints = (qId: string | number, currentPoints: number) => {
-    let val = currentPoints;
-    if (val < 1) val = 1;
-    if (val > 99) val = 99;
-    handleUpdateQuestionPoints(qId, val);
   };
 
   const handleAddAnswer = (qId: string | number) => {
@@ -433,7 +403,12 @@ export default function ContentTests() {
     });
   };
 
-  const handleUpdateAnswer = (qId: string | number, aId: string | number, field: "answer_text" | "is_correct", value: any) => {
+  const handleUpdateAnswer = <K extends "answer_text" | "is_correct">(
+    qId: string | number,
+    aId: string | number,
+    field: K,
+    value: AnswerEditorItem[K],
+  ) => {
     updateEditorData({
       questions: editorData.questions.map((q) => {
         if (q.id !== qId) return q;
@@ -709,77 +684,31 @@ export default function ContentTests() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Ограничение по времени
                   </label>
-                  <div className="relative flex items-center">
-                    <input
-                      type="number"
-                      min="3"
-                      max="180"
-                      value={editorData.time_limit_minutes ?? ""}
-                      onKeyDown={handleNumberKeyDown}
-                      onPaste={handleNumberPaste}
-                      onChange={(e) => {
-                        let valStr = e.target.value.replace(/[^0-9]/g, "");
-                        if (!valStr) {
-                          updateEditorData({ time_limit_minutes: null });
-                          return;
-                        }
-                        let val = parseInt(valStr, 10);
-                        if (val > 180) val = 180;
-                        updateEditorData({ time_limit_minutes: val });
-                      }}
-                      onBlur={() => {
-                        let val = editorData.time_limit_minutes;
-                        if (val === null || val < 3) {
-                          updateEditorData({ time_limit_minutes: 3 });
-                        }
-                      }}
-                      className="input-field mt-0! w-full"
-                    />
-                    {editorData.time_limit_minutes !== null && editorData.time_limit_minutes !== undefined && (
-                      <div className="pointer-events-none absolute left-0 top-0 bottom-0 flex items-center pl-2 text-base select-none whitespace-pre">
-                        <span className="text-transparent">{editorData.time_limit_minutes}</span>
-                        <span className="text-gray-400">&nbsp;{getMinutesWord(editorData.time_limit_minutes)}</span>
-                      </div>
-                    )}
-                  </div>
+                  <NumberInput
+                    mode="integer"
+                    min={3}
+                    max={180}
+                    step={1}
+                    value={editorData.time_limit_minutes ?? 0}
+                    onChange={(value) => updateEditorData({ time_limit_minutes: value })}
+                    unitForms={["минут", "минута", "минуты", "минут"]}
+                    className="input-field mt-0! w-full"
+                  />
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Порог прохождения
                   </label>
-                  <div className="relative flex items-center">
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={editorData.threshold_score ?? ""}
-                      onKeyDown={handleNumberKeyDown}
-                      onPaste={handleNumberPaste}
-                      onChange={(e) => {
-                        let valStr = e.target.value.replace(/[^0-9]/g, "");
-                        if (!valStr) {
-                          updateEditorData({ threshold_score: null });
-                          return;
-                        }
-                        let val = parseInt(valStr, 10);
-                        if (val > 100) val = 100;
-                        updateEditorData({ threshold_score: val });
-                      }}
-                      onBlur={() => {
-                        let val = editorData.threshold_score;
-                        if (val === null || val < 1) {
-                          updateEditorData({ threshold_score: 1 });
-                        }
-                      }}
-                      className="input-field mt-0! w-full"
-                    />
-                    {editorData.threshold_score !== null && editorData.threshold_score !== undefined && (
-                      <div className="pointer-events-none absolute left-0 top-0 bottom-0 flex items-center pl-2 text-base select-none whitespace-pre">
-                        <span className="text-transparent">{editorData.threshold_score}</span>
-                        <span className="text-gray-400">&nbsp;{getPointsWord(editorData.threshold_score)}</span>
-                      </div>
-                    )}
-                  </div>
+                  <NumberInput
+                    mode="integer"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={editorData.threshold_score ?? 0}
+                    onChange={(value) => updateEditorData({ threshold_score: value })}
+                    unitForms={["баллов", "балл", "балла", "баллов"]}
+                    className="input-field mt-0! w-full"
+                  />
                 </div>
               </div>
 
@@ -812,26 +741,15 @@ export default function ContentTests() {
                             <span className="font-semibold text-gray-800 text-md whitespace-nowrap">
                               Вопрос №{qIdx + 1}, баллов при верном ответе:
                             </span>
-                            <input
-                              type="number"
-                              min="1"
-                              max="99"
-                              value={q.points || ""}
-                              onKeyDown={handleNumberKeyDown}
-                              onPaste={handleNumberPaste}
-                              onChange={(e) => {
-                                let valStr = e.target.value.replace(/[^0-9]/g, "");
-                                if (!valStr) {
-                                  handleUpdateQuestion(q.id, "points", 0);
-                                  return;
-                                }
-                                let val = parseInt(valStr, 10);
-                                handleUpdateQuestionPoints(q.id, val);
-                              }}
-                              onBlur={() => {
-                                handleBlurQuestionPoints(q.id, Number(q.points));
-                              }}
+                            <NumberInput
+                              mode="integer"
+                              min={1}
+                              max={99}
+                              step={1}
+                              value={q.points ?? 0}
+                              onChange={(value) => handleUpdateQuestionPoints(q.id, value)}
                               className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center font-medium text-md focus:outline-none focus:ring-1 focus:ring-primary"
+                              containerClassName="flex"
                             />
 
                           </div>

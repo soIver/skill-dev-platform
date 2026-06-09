@@ -13,6 +13,7 @@ import { BentoSearch } from "../../components/BentoSearch";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { InfoModal } from "../../components/InfoModal";
 import { IconButton } from "../../components/IconButton";
+import { NumberInput } from "../../components/NumberInput";
 import { useToast } from "../../components/ToastProvider";
 
 interface SearchResponse {
@@ -47,6 +48,7 @@ interface SkillLevelDetailResponse {
 }
 
 const RELATIONS_PER_PAGE = 5;
+type RelationWeightField = "incoming_weight" | "outgoing_weight";
 
 export default function SkillsAdmin() {
   const { skills, setSkillsState } = useContentStore();
@@ -302,8 +304,8 @@ export default function SkillsAdmin() {
     });
   };
 
-  const handleWeightChange = (skillId: number, field: "incoming_weight" | "outgoing_weight", value: number | null) => {
-    const clamped = value !== null ? Math.max(0, Math.min(1, Math.round(value * 10) / 10)) : null;
+  const handleWeightChange = (skillId: number, field: RelationWeightField, value: number) => {
+    const clamped = Math.max(0, Math.min(1, Math.round(value * 10) / 10));
     updateEditorData({
       relations: editorData.relations.map((r) =>
         r.skill_id === skillId ? { ...r, [field]: clamped } : r
@@ -341,35 +343,37 @@ export default function SkillsAdmin() {
     },
     {
       key: "incoming_weight",
-      header: "Входящий",
+      header: "Входящий вес",
       align: "center",
       width: "w-1/6",
       render: (item) => (
-        <input
-          type="number"
-          min="0"
-          max="1"
-          step="0.1"
-          value={item.incoming_weight ?? ""}
-          onChange={(e) => handleWeightChange(item.skill_id, "incoming_weight", e.target.value ? parseFloat(e.target.value) : null)}
+        <NumberInput
+          mode="decimal"
+          min={0}
+          max={1}
+          step={0.1}
+          value={item.incoming_weight}
+          onChange={(value) => handleWeightChange(item.skill_id, "incoming_weight", value)}
           className="w-16 text-center border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+          containerClassName="flex justify-center"
         />
       ),
     },
     {
       key: "outgoing_weight",
-      header: "Исходящий",
+      header: "Исходящий вес",
       align: "center",
       width: "w-1/6",
       render: (item) => (
-        <input
-          type="number"
-          min="0"
-          max="1"
-          step="0.1"
-          value={item.outgoing_weight ?? ""}
-          onChange={(e) => handleWeightChange(item.skill_id, "outgoing_weight", e.target.value ? parseFloat(e.target.value) : null)}
+        <NumberInput
+          mode="decimal"
+          min={0}
+          max={1}
+          step={0.1}
+          value={item.outgoing_weight}
+          onChange={(value) => handleWeightChange(item.skill_id, "outgoing_weight", value)}
           className="w-16 text-center border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+          containerClassName="flex justify-center"
         />
       ),
     },
@@ -381,7 +385,7 @@ export default function SkillsAdmin() {
       render: (item) => (
         <button
           onClick={() => handleRemoveRelation(item.skill_id)}
-          className="text-sm font-medium text-danger hover:text-danger-hover px-2 py-1"
+          className="text-sm font-medium cursor-pointer text-danger hover:text-danger-hover px-2 py-1"
         >
           Отвязать
         </button>
