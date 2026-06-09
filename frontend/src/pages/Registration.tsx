@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-
-import { register } from "../auth";
-import { useToast } from "../components/ToastProvider";
-import FieldRequirements from "../components/FieldRequirements";
 import { Eye, EyeOff } from "lucide-react";
+
+import { register, requestEmailConfirmation } from "../auth";
+import FieldRequirements from "../components/FieldRequirements";
+import { useToast } from "../components/ToastProvider";
+import GitHubIcon from "../assets/icons/github.svg?react";
 
 const USERNAME_RE = /^[a-zA-Zа-яА-ЯёЁ_-]*$/;
 
-// проверки имени пользователя
 function checkUsername(v: string) {
   return {
     length: v.length >= 4 && v.length <= 32,
@@ -16,7 +16,6 @@ function checkUsername(v: string) {
   };
 }
 
-// проверки пароля
 function checkPassword(v: string) {
   return {
     length: v.length >= 12 && v.length <= 32,
@@ -26,18 +25,15 @@ function checkPassword(v: string) {
   };
 }
 
-// проверки email
 function checkEmail(v: string) {
   return {
     valid: /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(v),
   };
 }
 
-// вспомогательная функция — добавляет класс анимации и убирает после её окончания
 function flashField(el: HTMLInputElement | null) {
   if (!el) return;
   el.classList.remove("input-field-error");
-  // читаем offsetWidth для принудительного reflow (сброс анимации)
   void el.offsetWidth;
   el.classList.add("input-field-error");
   el.addEventListener("animationend", () => el.classList.remove("input-field-error"), { once: true });
@@ -49,35 +45,81 @@ export default function Registration() {
   const ghLogin = searchParams.get("gh_login") || "";
   const ghTokenEnc = searchParams.get("gh_token_enc") || "";
   const ghId = searchParams.get("gh_id") || "";
+  const isGitHubRegistration = Boolean(ghEmail && ghTokenEnc && ghId);
 
-  const [username, setUsername] = useState(ghLogin);
   const [email, setEmail] = useState(ghEmail);
+  const [confirmedEmail, setConfirmedEmail] = useState("");
+  const [username, setUsername] = useState(ghLogin);
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
-
-  // какое поле сейчас активно
   const [activeField, setActiveField] = useState<"username" | "email" | "password" | "repeatPassword" | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // refs для доступа к DOM-элементам инпутов
-  const usernameRef = React.useRef<HTMLInputElement>(null);
   const emailRef = React.useRef<HTMLInputElement>(null);
+  const usernameRef = React.useRef<HTMLInputElement>(null);
   const passwordRef = React.useRef<HTMLInputElement>(null);
   const repeatPasswordRef = React.useRef<HTMLInputElement>(null);
 
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const usernameChecks = checkUsername(username);
   const emailChecks = checkEmail(email);
+  const usernameChecks = checkUsername(username);
   const passwordChecks = checkPassword(password);
-
-  const isUsernameValid = Object.values(usernameChecks).every(Boolean);
   const isEmailValid = emailChecks.valid;
+  const isUsernameValid = Object.values(usernameChecks).every(Boolean);
   const isPasswordValid = Object.values(passwordChecks).every(Boolean);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleGitHubLogin = async () => {
+    try {
+      const response = await fetch("/api/github/login-url");
+      if (!response.ok) throw new Error("Failed to fetch login URL");
+      const data = await response.json();
+      window.location.assign(data.authorization_url);
+    } catch {
+      showToast({
+        title: "Ошибка GitHub",
+        message: "Не удалось начать авторизацию GitHub.",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!isEmailValid) {
+      flashField(emailRef.current);
+      showToast({
+        title: "Ошибка регистрации",
+        message: "Пожалуйста, укажите корректный адрес электронной почты.",
+        variant: "error",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await requestEmailConfirmation(email);
+      setConfirmedEmail(email);
+    } catch (error) {
+      showToast({
+        title: "Ошибка регистрации",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Не удалось отправить письмо для подтверждения.",
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGitHubSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isUsernameValid || !isEmailValid || !isPasswordValid) {
@@ -102,13 +144,15 @@ export default function Registration() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
       await register({
         username,
         email,
         password,
-        ...(ghTokenEnc ? { github_token: ghTokenEnc } : {}),
-        ...(ghId ? { github_id: parseInt(ghId, 10) } : {}),
+        github_token: ghTokenEnc,
+        github_id: parseInt(ghId, 10),
       });
       showToast({
         title: "Регистрация завершена",
@@ -116,8 +160,7 @@ export default function Registration() {
         variant: "success",
       });
       navigate("/profile");
-    } catch (error: unknown) {
-      console.error(error);
+    } catch (error) {
       showToast({
         title: "Ошибка регистрации",
         message:
@@ -126,42 +169,176 @@ export default function Registration() {
             : "При регистрации произошла ошибка на сервере.",
         variant: "error",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  if (confirmedEmail) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-panel">
+          <h1 className="auth-panel-header">Подтверждение адреса электронной почты</h1>
+          <div className="space-y-6">
+            <p className="text-sm text-gray-600">
+              На электронную почту {confirmedEmail} было отправлено письмо с инструкцией для подтверждения
+            </p>
+            <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
+              Вход
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isGitHubRegistration) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-panel">
+          <h1 className="auth-panel-header">Регистрация</h1>
+
+          <form onSubmit={handleGitHubSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Имя пользователя
+              </label>
+              <input
+                ref={usernameRef}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onFocus={() => setActiveField("username")}
+                onBlur={() => setActiveField(null)}
+                className="input-field"
+                placeholder="Как к Вам обращаться?"
+                maxLength={64}
+                required
+              />
+              <FieldRequirements
+                visible={activeField === "username"}
+                requirements={[
+                  { text: "От 4 до 32 символов", met: usernameChecks.length },
+                  { text: "Только латиница, кириллица, символы \"-\" и \"_\"", met: usernameChecks.validChars },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Электронная почта
+              </label>
+              <input
+                ref={emailRef}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onFocus={() => setActiveField("email")}
+                onBlur={() => setActiveField(null)}
+                className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+                placeholder="you@example.com"
+                maxLength={64}
+                required
+                disabled
+              />
+              <FieldRequirements
+                visible={activeField === "email"}
+                requirements={[
+                  { text: "Корректный адрес электронной почты", met: emailChecks.valid },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Пароль
+              </label>
+              <div className="password-field-wrapper">
+                <input
+                  ref={passwordRef}
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setActiveField("password")}
+                  onBlur={() => setActiveField(null)}
+                  className="input-field pr-10"
+                  placeholder="Ваш надёжный пароль"
+                  maxLength={64}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="password-toggle-btn"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <FieldRequirements
+                visible={activeField === "password"}
+                requirements={[
+                  { text: "От 12 до 32 символов", met: passwordChecks.length },
+                  { text: "Минимум одна цифра", met: passwordChecks.hasDigit },
+                  { text: "Минимум один спецсимвол", met: passwordChecks.hasSpecial },
+                  { text: "Минимум две буквы в разных регистрах", met: passwordChecks.hasMixedCaseLetters },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Повторите пароль
+              </label>
+              <div className="password-field-wrapper">
+                <input
+                  ref={repeatPasswordRef}
+                  type={showRepeatPassword ? "text" : "password"}
+                  value={repeatPassword}
+                  onChange={(e) => setRepeatPassword(e.target.value)}
+                  onFocus={() => setActiveField("repeatPassword")}
+                  onBlur={() => setActiveField(null)}
+                  className="input-field pr-10"
+                  placeholder="Ваш надёжный пароль ещё раз"
+                  maxLength={64}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowRepeatPassword(!showRepeatPassword)}
+                  className="password-toggle-btn"
+                  tabIndex={-1}
+                >
+                  {showRepeatPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <FieldRequirements
+                visible={activeField === "repeatPassword"}
+                requirements={[
+                  { text: "Пароли совпадают", met: password === repeatPassword && repeatPassword.length > 0 },
+                ]}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="primary-button mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Зарегистрироваться
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-screen">
       <div className="auth-panel">
         <h1 className="auth-panel-header">Регистрация</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* имя пользователя */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Имя пользователя
-            </label>
-            <input
-              ref={usernameRef}
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onFocus={() => setActiveField("username")}
-              onBlur={() => setActiveField(null)}
-              className="input-field"
-              placeholder="Как к Вам обращаться?"
-              maxLength={64}
-              required
-            />
-            <FieldRequirements
-              visible={activeField === "username"}
-              requirements={[
-                { text: "От 4 до 32 символов", met: usernameChecks.length },
-                { text: "Только латиница, кириллица, символы \"-\" и \"_\"", met: usernameChecks.validChars },
-              ]}
-            />
-          </div>
-
-          {/* электронная почта */}
+        <form onSubmit={handleEmailSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Электронная почта
@@ -173,11 +350,10 @@ export default function Registration() {
               onChange={(e) => setEmail(e.target.value)}
               onFocus={() => setActiveField("email")}
               onBlur={() => setActiveField(null)}
-              className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+              className="input-field"
               placeholder="you@example.com"
               maxLength={64}
               required
-              disabled={!!ghEmail}
             />
             <FieldRequirements
               visible={activeField === "email"}
@@ -187,83 +363,32 @@ export default function Registration() {
             />
           </div>
 
-          {/* пароль */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Пароль
-            </label>
-            <div className="password-field-wrapper">
-              <input
-                ref={passwordRef}
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setActiveField("password")}
-                onBlur={() => setActiveField(null)}
-                className="input-field pr-10"
-                placeholder="Ваш надёжный пароль"
-                maxLength={64}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="password-toggle-btn"
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-            <FieldRequirements
-              visible={activeField === "password"}
-              requirements={[
-                { text: "От 12 до 32 символов", met: passwordChecks.length },
-                { text: "Минимум одна цифра", met: passwordChecks.hasDigit },
-                { text: "Минимум один спецсимвол", met: passwordChecks.hasSpecial },
-                { text: "Минимум две буквы в разных регистрах", met: passwordChecks.hasMixedCaseLetters },
-              ]}
-            />
-          </div>
-
-          {/* повторите пароль */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Повторите пароль
-            </label>
-            <div className="password-field-wrapper">
-              <input
-                ref={repeatPasswordRef}
-                type={showRepeatPassword ? "text" : "password"}
-                value={repeatPassword}
-                onChange={(e) => setRepeatPassword(e.target.value)}
-                onFocus={() => setActiveField("repeatPassword")}
-                onBlur={() => setActiveField(null)}
-                className="input-field pr-10"
-                placeholder="Ваш надёжный пароль ещё раз"
-                maxLength={64}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowRepeatPassword(!showRepeatPassword)}
-                className="password-toggle-btn"
-                tabIndex={-1}
-              >
-                {showRepeatPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-            <FieldRequirements
-              visible={activeField === "repeatPassword"}
-              requirements={[
-                { text: "Пароли совпадают", met: password === repeatPassword && repeatPassword.length > 0 },
-              ]}
-            />
-          </div>
-
-          <button type="submit" className="primary-button mt-4">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="primary-button mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+          >
             Зарегистрироваться
           </button>
         </form>
+
+        <div className="relative my-2">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-400"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-600">или</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleGitHubLogin}
+          type="button"
+          className="github-connect-button justify-center"
+        >
+          <GitHubIcon className="w-7 h-7" />
+          <span className="font-medium">Войти через GitHub</span>
+        </button>
 
         <div className="mt-4 text-center text-sm text-gray-600">
           Уже есть аккаунт?{" "}
@@ -275,3 +400,4 @@ export default function Registration() {
     </div>
   );
 }
+

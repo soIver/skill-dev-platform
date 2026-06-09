@@ -94,7 +94,7 @@ class Config:
     MAIL_LOGO_CONTENT_ID = "mail-logo"
     MAIL_LOGO_PATH = os.getenv(
         "MAIL_LOGO_PATH",
-        str(Path(__file__).resolve().parent / "assets" / "mail-logo.svg"),
+        str(Path(__file__).resolve().parent / "assets" / "mail-logo.png"),
     )
     MAIL_CODE_TTL_SECONDS = int(os.getenv("MAIL_CODE_TTL_SECONDS", "3600"))
     MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS = int(

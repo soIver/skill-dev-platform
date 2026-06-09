@@ -48,7 +48,7 @@ def build_action_email_html(title: str, text: str, button_text: str, action_url:
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;margin:0;padding:0;">
       <tr>
         <td align="center" style="padding:32px 16px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;margin:0 auto;">
             <tr>
               <td align="left" style="padding:0 0 10px 0;">
                 <a href="{escaped_site_url}" target="_blank" style="display:inline-block;text-decoration:none;">

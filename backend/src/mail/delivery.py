@@ -1,3 +1,4 @@
+import mimetypes
 import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
@@ -75,16 +76,32 @@ class MailDeliveryService:
         logger.info("Письмо отправлено на %s", recipient)
 
     def _attach_logo(self, message: EmailMessage):
-        logo_path = Path(global_config.MAIL_LOGO_PATH)
+        logo_path = self._resolve_logo_path()
         if not logo_path.exists():
             raise RuntimeError("MAIL_LOGO_PATH указывает на несуществующий файл")
 
+        content_type = mimetypes.guess_type(logo_path.name)[0] or "image/png"
+        maintype, subtype = content_type.split("/", 1)
         html_part = message.get_payload()[-1]
         html_part.add_related(
             logo_path.read_bytes(),
-            maintype="image",
-            subtype="svg+xml",
+            maintype=maintype,
+            subtype=subtype,
             cid=f"<{global_config.MAIL_LOGO_CONTENT_ID}>",
             filename=logo_path.name,
             disposition="inline",
         )
+
+    @staticmethod
+    def _resolve_logo_path() -> Path:
+        logo_path = Path(global_config.MAIL_LOGO_PATH)
+        if logo_path.exists():
+            return logo_path
+
+        assets_dir = Path(__file__).resolve().parents[1] / "assets"
+        for file_name in ("mail-logo.png", "mail-logo.jpg", "mail-logo.jpeg", "mail-logo.svg"):
+            fallback_path = assets_dir / file_name
+            if fallback_path.exists():
+                return fallback_path
+
+        return logo_path

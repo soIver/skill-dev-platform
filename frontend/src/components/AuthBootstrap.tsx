@@ -4,7 +4,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { syncSession } from "../auth";
 import { useUserStore } from "../hooks/useUserStore";
 
-const PUBLIC_PATHS = new Set(["/", "/auth/login", "/auth/registration", "/auth/change-password"]);
+const PUBLIC_PATHS = new Set([
+  "/",
+  "/auth/login",
+  "/auth/registration",
+  "/auth/change-password",
+  "/auth/confirm-email",
+]);
 
 export default function AuthBootstrap() {
   const location = useLocation();

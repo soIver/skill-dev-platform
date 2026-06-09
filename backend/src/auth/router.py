@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, Header, Query, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,10 @@ from .schemas import (
     AuthResponse,
     ContentOwnerItem,
     ContentOwnerSearchResponse,
+    EmailConfirmationRequest,
+    EmailConfirmationResponse,
+    EmailConfirmationVerifyResponse,
+    EmailRegistrationCompleteRequest,
     LoginCredentials,
     MessageResponse,
     RegistrationCredentials,
@@ -57,6 +61,12 @@ async def register(
     db: AsyncSession = Depends(get_db),
     device_id: str | None = Header(default=None, alias="X-Device-Id"),
 ):
+    if not credentials.github_token or credentials.github_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Для регистрации необходимо подтвердить адрес электронной почты",
+        )
+
     auth = AuthService(db)
     user = await auth.register(
         credentials.username,
@@ -94,6 +104,35 @@ async def get_session(claims: TokenClaims = Depends(get_current_user)):
         email=claims.email,
         role=claims.role,
     )
+
+
+@router.post("/email-confirmation/request", response_model=EmailConfirmationResponse)
+async def request_email_confirmation(payload: EmailConfirmationRequest, db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    await mail_service.request_email_confirmation(payload.email)
+    return EmailConfirmationResponse(message="Письмо с инструкцией для подтверждения отправлено")
+
+
+@router.get("/email-confirmation/verify", response_model=EmailConfirmationVerifyResponse)
+async def verify_email_confirmation(code: str = Query(...), db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    email = await mail_service.verify_email_confirmation_code(code)
+    return EmailConfirmationVerifyResponse(email=email)
+
+
+@router.post("/email-confirmation/complete", response_model=EmailConfirmationResponse)
+async def complete_email_registration(payload: EmailRegistrationCompleteRequest, db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    confirmed_email = await mail_service.verify_email_confirmation_code(payload.code)
+    if confirmed_email != payload.email:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Код подтверждения не найден",
+        )
+    auth = AuthService(db)
+    await auth.register(payload.username, payload.email, payload.password)
+    await mail_service.consume_email_confirmation_code(payload.code, payload.email)
+    return EmailConfirmationResponse(message="Адрес почты успешно подтверждён!")
 
 
 @router.post("/password-change/request", response_model=PasswordChangeRequestResponse)

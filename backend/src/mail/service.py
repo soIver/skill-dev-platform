@@ -72,6 +72,55 @@ class MailService:
         )
         return global_config.MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS
 
+    async def request_email_confirmation(self, email: str):
+        await self._ensure_email_available(email)
+
+        code = generate_urlsafe_token(32)
+        action_url = self._build_email_confirmation_url(code)
+        await self._replace_email_confirmation_code(email, code)
+
+        try:
+            await self.delivery.send_html_email(
+                recipient=email,
+                subject="Подтверждение адреса электронной почты",
+                text_body=(
+                    "Для подтверждения адреса электронной почты перейдите по ссылке: "
+                    f"{action_url}"
+                ),
+                html_body=build_action_email_html(
+                    "Подтверждение адреса электронной почты",
+                    (
+                        "Ваш адрес электронной почты был указан при регистрации "
+                        f'на платформе <a href="{global_config.PUBLIC_SITE_URL}">IT Skill Dev</a>.</br></br>'
+                        "Для завершения регистрации нажмите на кнопку ниже — "
+                        "она будет действительна в течение одного часа с момента получения этого письма.</br></br>"
+                        "Если Вы не пытались зарегистрироваться на платформе, игнорируйте это письмо."
+                    ),
+                    "Подтвердить",
+                    action_url,
+                ),
+            )
+        except Exception:
+            await self._delete_email_confirmation_code(email, code)
+            logger.exception("Не удалось отправить письмо для подтверждения почты")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Не удалось отправить письмо. Повторите попытку позже",
+            )
+
+    async def verify_email_confirmation_code(self, code: str) -> str:
+        code_data = await self._get_email_confirmation_code_data(code)
+        return code_data["email"]
+
+    async def consume_email_confirmation_code(self, code: str, email: str):
+        code_data = await self._get_email_confirmation_code_data(code)
+        if code_data["email"] != email:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Код подтверждения не найден",
+            )
+        await self._delete_email_confirmation_code(email, code)
+
     async def verify_password_change_code(self, code: str):
         await self._get_password_change_code_data(code)
 
@@ -120,14 +169,53 @@ class MailService:
             )
             await pipeline.execute()
 
+    async def _replace_email_confirmation_code(self, email: str, code: str):
+        previous_code = await self.redis.get(self._email_confirmation_active_key(email))
+        if previous_code:
+            await self._delete_email_confirmation_code(email, previous_code)
+
+        async with self.redis.pipeline(transaction=True) as pipeline:
+            pipeline.hset(
+                self._email_confirmation_code_key(code),
+                mapping={
+                    "email": email,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            pipeline.expire(
+                self._email_confirmation_code_key(code),
+                global_config.MAIL_CODE_TTL_SECONDS,
+            )
+            pipeline.set(
+                self._email_confirmation_active_key(email),
+                code,
+                ex=global_config.MAIL_CODE_TTL_SECONDS,
+            )
+            await pipeline.execute()
+
     async def _delete_password_change_code(self, user_id: int, code: str):
         async with self.redis.pipeline(transaction=True) as pipeline:
             pipeline.delete(self._password_change_code_key(code))
             pipeline.delete(self._password_change_active_key(user_id))
             await pipeline.execute()
 
+    async def _delete_email_confirmation_code(self, email: str, code: str):
+        async with self.redis.pipeline(transaction=True) as pipeline:
+            pipeline.delete(self._email_confirmation_code_key(code))
+            pipeline.delete(self._email_confirmation_active_key(email))
+            await pipeline.execute()
+
     async def _get_password_change_code_data(self, code: str) -> dict[str, str]:
         code_data = await self.redis.hgetall(self._password_change_code_key(code))
+        if not code_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Код подтверждения не найден",
+            )
+        return code_data
+
+    async def _get_email_confirmation_code_data(self, code: str) -> dict[str, str]:
+        code_data = await self.redis.hgetall(self._email_confirmation_code_key(code))
         if not code_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -149,11 +237,26 @@ class MailService:
             )
         return user
 
+    async def _ensure_email_available(self, email: str):
+        result = await self.db.execute(select(User).where(User.email == email))
+        if result.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Пользователь с таким email уже существует",
+            )
+
     @staticmethod
     def _build_password_change_url(code: str) -> str:
         return (
             f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
             f"/auth/change-password?code={quote(code)}"
+        )
+
+    @staticmethod
+    def _build_email_confirmation_url(code: str) -> str:
+        return (
+            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
+            f"/auth/confirm-email?code={quote(code)}"
         )
 
     @staticmethod
@@ -167,3 +270,11 @@ class MailService:
     @staticmethod
     def _password_change_rate_key(user_id: int) -> str:
         return f"mail:password_change:rate:{user_id}"
+
+    @staticmethod
+    def _email_confirmation_code_key(code: str) -> str:
+        return f"mail:email_confirmation:code:{code}"
+
+    @staticmethod
+    def _email_confirmation_active_key(email: str) -> str:
+        return f"mail:email_confirmation:active:{email}"

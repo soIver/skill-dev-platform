@@ -20,6 +20,14 @@ interface RegistrationCredentials {
   github_id?: number;
 }
 
+interface EmailRegistrationCredentials {
+  code: string;
+  username: string;
+  email: string;
+  password: string;
+  repeat_password: string;
+}
+
 const DEVICE_ID_HEADER = "X-Device-Id";
 
 function getDefaultHeaders(): HeadersInit {
@@ -76,6 +84,34 @@ export async function login(credentials: Credentials): Promise<void> {
 export async function register(credentials: RegistrationCredentials): Promise<void> {
   const data = await fetchAuth("/auth/register", credentials);
   applyAuthSession(data);
+}
+
+export async function requestEmailConfirmation(email: string): Promise<void> {
+  const response = await fetch(`${config.apiBaseUrl}/auth/email-confirmation/request`, {
+    method: "POST",
+    headers: getDefaultHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+}
+
+export async function completeEmailRegistration(
+  credentials: EmailRegistrationCredentials,
+): Promise<void> {
+  const response = await fetch(`${config.apiBaseUrl}/auth/email-confirmation/complete`, {
+    method: "POST",
+    headers: getDefaultHeaders(),
+    credentials: "include",
+    body: JSON.stringify(credentials),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
 }
 
 export async function restoreSession(): Promise<boolean> {

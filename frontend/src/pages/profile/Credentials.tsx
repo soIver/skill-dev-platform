@@ -246,7 +246,7 @@ export default function Credentials() {
       setPasswordChangeCooldown(Math.max(1, data.retry_after_seconds ?? 60));
       showToast({
         title: "Письмо отправлено",
-        message: "На вашу почту отправлена ссылка для смены пароля.",
+        message: "На Вашу почту была отправлена ссылка для смены пароля.",
         variant: "success",
       });
     } catch (err) {
