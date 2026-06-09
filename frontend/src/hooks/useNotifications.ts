@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "./useUserStore";
 import { useRepositoriesStore } from "./useRepositoriesStore";
@@ -35,7 +36,10 @@ function shouldShowNotification(key: string): boolean {
 
 export function useNotifications() {
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const user = useUserStore((state) => state.user);
+  const clearSession = useUserStore((state) => state.clearSession);
   const updateRepoStatus = useRepositoriesStore((state) => state.updateRepoStatus);
 
   useEffect(() => {
@@ -73,6 +77,16 @@ export function useNotifications() {
             });
           }
           updateRepoStatus(data.repo_name, isRepoStatus(data.status) ? data.status : "Доступен");
+        } else if (data.type === "session_invalidated") {
+          clearSession();
+          if (!location.pathname.startsWith("/auth")) {
+            showToast({
+              title: "Сессия завершена",
+              message: data.message || "Войдите в аккаунт заново.",
+              variant: "error",
+            });
+            navigate("/auth/login", { replace: true });
+          }
         }
       } catch (err) {
         console.error("Failed to parse notification", err);
@@ -87,5 +101,5 @@ export function useNotifications() {
     return () => {
       eventSource.close();
     };
-  }, [showToast, user, updateRepoStatus]);
+  }, [clearSession, location.pathname, navigate, showToast, user, updateRepoStatus]);
 }

@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -190,6 +191,19 @@ class TokenService:
             str(self._now().timestamp()),
             ex=ttl_seconds,
         )
+        await self.publish_session_invalidated(user_id)
+
+    async def publish_session_invalidated(self, user_id: int) -> None:
+        redis = get_redis()
+        payload = {
+            "type": "session_invalidated",
+            "message": "Сессия завершена из-за изменения учётных данных.",
+        }
+
+        try:
+            await redis.publish(f"notifications:{user_id}", json.dumps(payload))
+        except RedisError as exc:
+            logger.warning("Не удалось отправить SSE-событие инвалидации сессии: %s", exc)
 
     @classmethod
     async def get_access_valid_after(cls, user_id: int) -> float | None:

@@ -11,13 +11,23 @@ const PUBLIC_PATHS = new Set([
   "/auth/change-password",
   "/auth/confirm-email",
 ]);
+const AUTH_ENTRY_PATHS = new Set(["/auth/login", "/auth/registration"]);
 
 export default function AuthBootstrap() {
   const location = useLocation();
   const navigate = useNavigate();
   const isHydrated = useUserStore((state) => state.isHydrated);
   const isAuthChecked = useUserStore((state) => state.isAuthChecked);
+  const user = useUserStore((state) => state.user);
   const isSyncingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isHydrated || !isAuthChecked || !user || !AUTH_ENTRY_PATHS.has(location.pathname)) {
+      return;
+    }
+
+    navigate("/profile", { replace: true });
+  }, [isAuthChecked, isHydrated, location.pathname, navigate, user]);
 
   useEffect(() => {
     if (!isHydrated || isAuthChecked || isSyncingRef.current) {
@@ -28,6 +38,11 @@ export default function AuthBootstrap() {
 
     syncSession()
       .then((isAuthenticated) => {
+        if (isAuthenticated && AUTH_ENTRY_PATHS.has(location.pathname)) {
+          navigate("/profile", { replace: true });
+          return;
+        }
+
         if (!isAuthenticated && !PUBLIC_PATHS.has(location.pathname)) {
           navigate("/auth/login", { replace: true });
         }

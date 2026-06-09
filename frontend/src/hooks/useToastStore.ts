@@ -19,10 +19,31 @@ interface ToastStore {
 }
 
 const TOAST_DURATION_MS = 4200;
+const RECENT_TOAST_TTL_MS = 2000;
+const recentToastKeys = new Map<string, number>();
+
+function shouldShowToast(payload: ToastPayload): boolean {
+  const now = Date.now();
+  const key = `${payload.variant}:${payload.title}:${payload.message ?? ""}`;
+  const lastShownAt = recentToastKeys.get(key);
+  recentToastKeys.set(key, now);
+
+  for (const [storedKey, storedAt] of recentToastKeys) {
+    if (now - storedAt > RECENT_TOAST_TTL_MS) {
+      recentToastKeys.delete(storedKey);
+    }
+  }
+
+  return lastShownAt === undefined || now - lastShownAt > RECENT_TOAST_TTL_MS;
+}
 
 export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   showToast: (payload) => {
+    if (!shouldShowToast(payload)) {
+      return;
+    }
+
     const id = globalThis.crypto?.randomUUID?.() ?? `toast-${Date.now()}`;
     
     set((state) => ({
