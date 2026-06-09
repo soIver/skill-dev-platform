@@ -39,10 +39,12 @@ export interface TestEditorData {
 interface TestsState {
   keywordInput: string;
   skillInput: string;
+  ownerId: number | null;
+  ownerUsername: string;
   results: TestItem[];
   currentPage: number;
   totalPages: number;
-  lastSearch: { keyword: string; skill: string; page: number };
+  lastSearch: { keyword: string; skill: string; ownerId: number | null; page: number };
   
   selectedId: number | "new" | null;
   editorData: TestEditorData;
@@ -82,10 +84,12 @@ export interface TaskEditorData {
 interface TasksState {
   keywordInput: string;
   skillInput: string;
+  ownerId: number | null;
+  ownerUsername: string;
   results: TaskItem[];
   currentPage: number;
   totalPages: number;
-  lastSearch: { keyword: string; skill: string; page: number };
+  lastSearch: { keyword: string; skill: string; ownerId: number | null; page: number };
   
   // состояние редактора
   selectedId: number | "new" | null;
@@ -127,10 +131,12 @@ const emptyEditorData: SkillEditorData = {
 interface SkillsState {
   skillInput: string;
   levelInput: string;
+  ownerId: number | null;
+  ownerUsername: string;
   results: SkillLevelItem[];
   currentPage: number;
   totalPages: number;
-  lastSearch: { skill: string; level: string; page: number };
+  lastSearch: { skill: string; level: string; ownerId: number | null; page: number };
 
   // состояние редактора
   selectedId: number | null;
@@ -142,10 +148,12 @@ interface SkillsState {
 const initialSkillsState: SkillsState = {
   skillInput: "",
   levelInput: "",
+  ownerId: null,
+  ownerUsername: "",
   results: [],
   currentPage: 1,
   totalPages: 1,
-  lastSearch: { skill: "", level: "", page: 1 },
+  lastSearch: { skill: "", level: "", ownerId: null, page: 1 },
   selectedId: null,
   editorData: { ...emptyEditorData },
   hasUnsavedChanges: false,
@@ -155,10 +163,12 @@ const initialSkillsState: SkillsState = {
 const initialTasksState: TasksState = {
   keywordInput: "",
   skillInput: "",
+  ownerId: null,
+  ownerUsername: "",
   results: [],
   currentPage: 1,
   totalPages: 1,
-  lastSearch: { keyword: "", skill: "", page: 1 },
+  lastSearch: { keyword: "", skill: "", ownerId: null, page: 1 },
   selectedId: null,
   editorData: { title: "", description: "", is_published: false, skills: [] },
   hasUnsavedChanges: false,
@@ -168,10 +178,12 @@ const initialTasksState: TasksState = {
 const initialTestsState: TestsState = {
   keywordInput: "",
   skillInput: "",
+  ownerId: null,
+  ownerUsername: "",
   results: [],
   currentPage: 1,
   totalPages: 1,
-  lastSearch: { keyword: "", skill: "", page: 1 },
+  lastSearch: { keyword: "", skill: "", ownerId: null, page: 1 },
   selectedId: null,
   editorData: { description: "", time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null, questions: [] },
   hasUnsavedChanges: false,

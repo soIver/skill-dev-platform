@@ -4,6 +4,7 @@ import { SEARCH_DEBOUNCE_MS, TEST } from "../../config";
 import { useContentStore, type TestItem, type SkillLevelItem, type QuestionEditorItem, type AnswerEditorItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
+import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { NumberInput } from "../../components/NumberInput";
@@ -53,6 +54,8 @@ export default function ContentTests() {
   const {
     keywordInput,
     skillInput,
+    ownerId,
+    ownerUsername,
     results,
     currentPage,
     totalPages,
@@ -72,19 +75,20 @@ export default function ContentTests() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newSkillLevelRef = useRef<SkillLevelItem | null>(null);
 
-  const fetchTests = async (keyword: string, skill: string, page: number) => {
+  const fetchTests = async (keyword: string, skill: string, ownerIdValue: number | null, page: number) => {
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ page: page.toString() });
       if (keyword) params.append("keyword", keyword);
       if (skill) params.append("skill_query", skill);
+      if (ownerIdValue !== null) params.append("author_id", ownerIdValue.toString());
 
       const response = await authJson<SearchResponse>(`/tests?${params.toString()}`);
       setTestsState({
         results: response.items,
         totalPages: response.total_pages,
         currentPage: response.current_page,
-        lastSearch: { keyword, skill, page }
+        lastSearch: { keyword, skill, ownerId: ownerIdValue, page }
       });
     } catch (error) {
       console.error("Failed to fetch tests", error);
@@ -103,18 +107,19 @@ export default function ContentTests() {
       if (
         keywordInput === lastSearch.keyword &&
         skillInput === lastSearch.skill &&
+        ownerId === lastSearch.ownerId &&
         results.length > 0
       ) {
         setIsDebouncing(false);
         return;
       }
-      fetchTests(keywordInput, skillInput, 1);
+      fetchTests(keywordInput, skillInput, ownerId, 1);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [keywordInput, skillInput]);
+  }, [keywordInput, skillInput, ownerId]);
 
   const fetchSkillLevels = async (query: string) => {
     let skill = query;
@@ -260,7 +265,7 @@ export default function ContentTests() {
 
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
       await loadTest(response.id);
-      fetchTests(lastSearch.keyword, lastSearch.skill, currentPage);
+      fetchTests(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
@@ -276,7 +281,7 @@ export default function ContentTests() {
       await authJson(`/tests/${selectedId}`, { method: "DELETE" });
       setTestsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Тест удален", variant: "success" });
-      fetchTests(lastSearch.keyword, lastSearch.skill, currentPage);
+      fetchTests(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось удалить тест", variant: "error" });
     }
@@ -528,7 +533,7 @@ export default function ContentTests() {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchTests(lastSearch.keyword, lastSearch.skill, newPage);
+      fetchTests(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, newPage);
     }
   };
 
@@ -566,7 +571,16 @@ export default function ContentTests() {
 
       {/* левая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full min-w-0">
-        <h2 className="workspace-panel-header mb-4">Список тестов</h2>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="workspace-panel-header mb-0 flex-1 min-w-0">Список тестов</h2>
+          <ContentOwnerFilter
+            entityLabel="тестов"
+            ownerId={ownerId}
+            ownerUsername={ownerUsername}
+            onOwnerIdChange={(nextOwnerId) => setTestsState({ ownerId: nextOwnerId })}
+            onOwnerUsernameChange={(username) => setTestsState({ ownerUsername: username })}
+          />
+        </div>
 
         <div className="flex gap-4 mb-6 items-center">
           <div className="flex-1 flex gap-4">

@@ -10,6 +10,7 @@ import {
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
+import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { InfoModal } from "../../components/InfoModal";
 import { IconButton } from "../../components/IconButton";
@@ -53,7 +54,7 @@ type RelationWeightField = "incoming_weight" | "outgoing_weight";
 export default function SkillsAdmin() {
   const { skills, setSkillsState } = useContentStore();
   const {
-    skillInput, levelInput, results, currentPage, totalPages, lastSearch,
+    skillInput, levelInput, ownerId, ownerUsername, results, currentPage, totalPages, lastSearch,
     selectedId, editorData, hasUnsavedChanges, pendingSelectId,
   } = skills;
   const { showToast } = useToast();
@@ -69,19 +70,20 @@ export default function SkillsAdmin() {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchSkillLevels = async (skill: string, level: string, page: number) => {
+  const fetchSkillLevels = async (skill: string, level: string, ownerIdValue: number | null, page: number) => {
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ page: page.toString() });
       if (skill) params.append("skill", skill);
       if (level) params.append("level", level);
+      if (ownerIdValue !== null) params.append("author_id", ownerIdValue.toString());
 
       const response = await authJson<SearchResponse>(`/skills/skill_levels?${params.toString()}`);
       setSkillsState({
         results: response.items,
         totalPages: response.total_pages,
         currentPage: response.current_page,
-        lastSearch: { skill, level, page },
+        lastSearch: { skill, level, ownerId: ownerIdValue, page },
       });
     } catch (error) {
       console.error("Failed to fetch skill levels", error);
@@ -100,22 +102,23 @@ export default function SkillsAdmin() {
       if (
         skillInput === lastSearch.skill &&
         levelInput === lastSearch.level &&
+        ownerId === lastSearch.ownerId &&
         results.length > 0
       ) {
         setIsDebouncing(false);
         return;
       }
-      fetchSkillLevels(skillInput, levelInput, 1);
+      fetchSkillLevels(skillInput, levelInput, ownerId, 1);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [skillInput, levelInput]);
+  }, [skillInput, levelInput, ownerId]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchSkillLevels(lastSearch.skill, lastSearch.level, newPage);
+      fetchSkillLevels(lastSearch.skill, lastSearch.level, lastSearch.ownerId, newPage);
     }
   };
 
@@ -132,7 +135,7 @@ export default function SkillsAdmin() {
           level_name: levelInput,
         }),
       });
-      fetchSkillLevels("", "", 1);
+      fetchSkillLevels("", "", ownerId, 1);
       setSkillsState({ skillInput: "", levelInput: "" });
       showToast({ title: "Успех", message: "Навык успешно создан", variant: "success" });
 
@@ -217,7 +220,7 @@ export default function SkillsAdmin() {
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
       // перезагружаем актуальное состояние
       await loadSkillLevel(selectedId);
-      fetchSkillLevels(lastSearch.skill, lastSearch.level, currentPage);
+      fetchSkillLevels(lastSearch.skill, lastSearch.level, lastSearch.ownerId, currentPage);
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
@@ -231,7 +234,7 @@ export default function SkillsAdmin() {
       await authJson(`/skills/skill_levels/${selectedId}`, { method: "DELETE" });
       setSkillsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Навык удалён", variant: "success" });
-      fetchSkillLevels(lastSearch.skill, lastSearch.level, currentPage);
+      fetchSkillLevels(lastSearch.skill, lastSearch.level, lastSearch.ownerId, currentPage);
     } catch (err: unknown) {
       const error = err as { status?: number; response?: { status?: number; detail?: string }; detail?: string };
       // 409 — привязаны тесты
@@ -463,7 +466,16 @@ export default function SkillsAdmin() {
 
       {/* левая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full min-w-0">
-        <h2 className="workspace-panel-header mb-4">Список навыков</h2>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="workspace-panel-header mb-0 flex-1 min-w-0">Список навыков</h2>
+          <ContentOwnerFilter
+            entityLabel="навыков"
+            ownerId={ownerId}
+            ownerUsername={ownerUsername}
+            onOwnerIdChange={(nextOwnerId) => setSkillsState({ ownerId: nextOwnerId })}
+            onOwnerUsernameChange={(username) => setSkillsState({ ownerUsername: username })}
+          />
+        </div>
 
         <div className="flex gap-4 mb-6">
           <div className="flex-1">

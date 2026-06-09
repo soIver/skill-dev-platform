@@ -62,6 +62,20 @@ def require_role(*allowed_roles: str):
     return _check_role
 
 
+def resolve_author_filter(claims: TokenClaims, author_id: int | None) -> int | None:
+    if author_id is None:
+        return None
+    if claims.role == "admin":
+        return author_id
+    if claims.role == "curator" and author_id == claims.user_id:
+        return author_id
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Недостаточно прав",
+    )
+
+
 def _unauthorized() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

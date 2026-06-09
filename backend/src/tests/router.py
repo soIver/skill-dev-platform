@@ -8,7 +8,7 @@ from .schemas import (
     QuestionDetail, AnswerDetail, TestPublicSearchResponse, TestPublicItem,
     TestPublicLevelItem
 )
-from ..auth.utils import require_role
+from ..auth.utils import require_role, resolve_author_filter
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
 from ..models import Test, SkillLevel, Skill, Level, TestAttempt, TestQuestion, QuestionAnswer
@@ -20,11 +20,14 @@ async def search_tests(
     search: str = Query(None),
     keyword: str = Query(None),
     skill_query: str = Query(None),
+    author_id: int | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
+    resolved_author_id = resolve_author_filter(claims, author_id)
+
     if search and not keyword and not skill_query:
         if " - " in search:
             skill_query = search
@@ -50,6 +53,9 @@ async def search_tests(
      .outerjoin(Level, SkillLevel.level_id == Level.id) \
      .outerjoin(TestAttempt, TestAttempt.test_id == Test.id)
 
+    if resolved_author_id is not None:
+        query = query.where(Test.author_id == resolved_author_id)
+
     if keyword:
         query = query.where(or_(Skill.name.ilike(f"%{keyword}%"), Test.description.ilike(f"%{keyword}%")))
 
@@ -66,8 +72,11 @@ async def search_tests(
     query = query.order_by(Test.id.desc())
 
     offset = (page - 1) * limit
-    
+
     count_query = select(func.count()).select_from(Test)
+    if resolved_author_id is not None:
+        count_query = count_query.where(Test.author_id == resolved_author_id)
+
     if keyword or skill_query:
         count_query = count_query.outerjoin(SkillLevel, Test.skill_level_id == SkillLevel.id) \
                                  .outerjoin(Skill, SkillLevel.skill_id == Skill.id) \

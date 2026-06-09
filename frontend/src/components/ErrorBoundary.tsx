@@ -47,7 +47,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Ой! Что-то пошло не так</h1>
               <p className="text-gray-600 mb-8 leading-relaxed">
-                Произошла непредвиденная ошибка в интерфейсе. Мы уже работаем над её исправлением.
+                Произошла непредвиденная ошибка. Мы уже работаем над её исправлением.
               </p>
               <div className="w-full bg-gray-50 rounded-xl p-4 text-left mb-8 overflow-auto max-h-32 border border-gray-100">
                 <code className="text-xs text-danger font-mono break-all">

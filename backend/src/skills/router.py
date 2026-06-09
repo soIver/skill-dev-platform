@@ -17,13 +17,13 @@ router = APIRouter(prefix="/skills", tags=["Skills"])
 
 
 @router.get("/search", response_model=SkillSearchResponse)
-async def search_skills(name: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
+async def search_skills(name: str = Query(default=""), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     """поиск навыков (без уровней) по названию"""
     return await SkillService(db).search_skills(name)
 
 
 @router.get("/levels/search", response_model=LevelSearchResponse)
-async def search_levels(name: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
+async def search_levels(name: str = Query(default=""), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
     """поиск уровней по названию"""
     return await SkillService(db).search_levels(name)
 
@@ -32,13 +32,14 @@ async def search_levels(name: str = Query(..., min_length=1), db: AsyncSession =
 async def search_skill_levels(
     skill: str = Query(None),
     level: str = Query(None),
+    author_id: int | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
     """поиск компетенций (навык + уровень) с подсчётом obtained_count"""
-    return await SkillService(db).search_skill_levels(skill, level, page, limit)
+    return await SkillService(db).search_skill_levels(skill, level, author_id, page, limit, claims)
 
 
 @router.post("/skill_levels", response_model=SkillLevelItem)

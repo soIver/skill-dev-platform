@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Cookie, Depends, Header, Response
+from fastapi import APIRouter, Cookie, Depends, Header, Query, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..utils.database import get_db
 from ..config import global_config
 from .schemas import (
     AuthResponse,
+    ContentOwnerItem,
+    ContentOwnerSearchResponse,
     LoginCredentials,
     MessageResponse,
     RegistrationCredentials,
@@ -14,9 +17,11 @@ from .service import AuthService
 from .utils import (
     TokenClaims,
     get_current_user,
+    require_role,
     set_auth_cookies,
     clear_auth_cookies,
 )
+from ..models import Role, User
 
 router = APIRouter(prefix="/auth")
 
@@ -81,6 +86,31 @@ async def get_session(claims: TokenClaims = Depends(get_current_user)):
         username=claims.username,
         email=claims.email,
         role=claims.role,
+    )
+
+
+@router.get("/owners", response_model=ContentOwnerSearchResponse)
+async def search_content_owners(
+    q: str = Query(default=""),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("admin")),
+):
+    query = (
+        select(User.id, User.username)
+        .join(Role, User.role_id == Role.id)
+        .where(Role.name.in_(("curator", "admin")))
+        .order_by(User.username)
+        .limit(limit)
+    )
+
+    trimmed_query = q.strip()
+    if trimmed_query:
+        query = query.where(User.username.ilike(f"%{trimmed_query}%"))
+
+    result = await db.execute(query)
+    return ContentOwnerSearchResponse(
+        items=[ContentOwnerItem(id=row.id, username=row.username) for row in result.all()]
     )
 
 

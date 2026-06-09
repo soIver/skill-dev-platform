@@ -60,6 +60,15 @@ class UserResponse(BaseModel):
     role: str
 
 
+class ContentOwnerItem(BaseModel):
+    id: int
+    username: str
+
+
+class ContentOwnerSearchResponse(BaseModel):
+    items: list[ContentOwnerItem]
+
+
 class AuthResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse

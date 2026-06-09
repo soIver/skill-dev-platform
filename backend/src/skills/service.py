@@ -20,6 +20,8 @@ from ..models import (
     TestAttempt, SkillRelation,
 )
 from ..analysis.utils import get_embedding
+from ..auth.service import TokenClaims
+from ..auth.utils import resolve_author_filter
 from ..config import global_config
 
 
@@ -31,10 +33,14 @@ class SkillService:
     async def search_skills(self, name: str) -> SkillSearchResponse:
         query = (
             select(Skill.id, Skill.name)
-            .where(Skill.name.ilike(f"%{name}%"))
             .order_by(Skill.name)
             .limit(20)
         )
+
+        trimmed_name = name.strip()
+        if trimmed_name:
+            query = query.where(Skill.name.ilike(f"%{trimmed_name}%"))
+
         result = await self.db.execute(query)
         rows = result.all()
 
@@ -45,10 +51,14 @@ class SkillService:
     async def search_levels(self, name: str) -> LevelSearchResponse:
         query = (
             select(Level.id, Level.name)
-            .where(Level.name.ilike(f"%{name}%"))
             .order_by(Level.name)
             .limit(20)
         )
+
+        trimmed_name = name.strip()
+        if trimmed_name:
+            query = query.where(Level.name.ilike(f"%{trimmed_name}%"))
+
         result = await self.db.execute(query)
         rows = result.all()
 
@@ -60,9 +70,12 @@ class SkillService:
         self,
         skill: str | None,
         level: str | None,
+        author_id: int | None,
         page: int,
         limit: int,
+        claims: TokenClaims,
     ) -> SkillLevelSearchResponse:
+        resolved_author_id = resolve_author_filter(claims, author_id)
         query = select(
             SkillLevel.id,
             SkillLevel.skill_id,
@@ -76,6 +89,8 @@ class SkillService:
             query = query.where(Skill.name.ilike(f"%{skill}%"))
         if level:
             query = query.where(Level.name.ilike(f"%{level}%"))
+        if resolved_author_id is not None:
+            query = query.where(SkillLevel.author_id == resolved_author_id)
 
         query = query.order_by(Skill.name, SkillLevel.order_index)
 
@@ -87,6 +102,8 @@ class SkillService:
             count_subq = count_subq.where(Skill.name.ilike(f"%{skill}%"))
         if level:
             count_subq = count_subq.where(Level.name.ilike(f"%{level}%"))
+        if resolved_author_id is not None:
+            count_subq = count_subq.where(SkillLevel.author_id == resolved_author_id)
 
         count_query = select(func.count()).select_from(count_subq.subquery())
         total_count = await self.db.scalar(count_query)

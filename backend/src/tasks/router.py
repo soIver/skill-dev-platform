@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, or_
 from sqlalchemy.orm import selectinload
 
-from ..auth.utils import require_role
+from ..auth.utils import require_role, resolve_author_filter
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
 from ..models import (
@@ -53,6 +53,7 @@ async def search_tasks(
     keyword: str = Query(None),
     skill_query: str = Query(None),
     skill_level_ids: list[int] = Query(default=[]),
+    author_id: int | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     only_published: bool = Query(False),
@@ -61,6 +62,7 @@ async def search_tasks(
 ):
     """поиск заданий — расширенный ответ для куратора/администратора, публичный для пользователя"""
     is_privileged = claims.role in ("curator", "admin")
+    resolved_author_id = resolve_author_filter(claims, author_id) if is_privileged else None
     skill_level_sq = None
 
     # базовые условия
@@ -72,6 +74,8 @@ async def search_tasks(
 
     if keyword:
         base_query = base_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
+    if resolved_author_id is not None:
+        base_query = base_query.where(Task.author_id == resolved_author_id)
 
     # фильтрация по строке навыка (для куратора/администратора)
     skill_sq = None
@@ -117,6 +121,8 @@ async def search_tasks(
         )
         if keyword:
             full_query = full_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
+        if resolved_author_id is not None:
+            full_query = full_query.where(Task.author_id == resolved_author_id)
         if skill_sq is not None:
             full_query = full_query.where(Task.id.in_(skill_sq))
         if skill_level_sq is not None:

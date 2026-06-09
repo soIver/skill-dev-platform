@@ -7,6 +7,7 @@ import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
+import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { useToast } from "../../components/ToastProvider";
 interface SearchResponse {
   items: TaskItem[];
@@ -29,7 +30,7 @@ interface SkillLevelSearchResponse {
 
 export default function ContentTasks() {
   const { tasks, setTasksState } = useContentStore();
-  const { keywordInput, skillInput, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
+  const { keywordInput, skillInput, ownerId, ownerUsername, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
   const { showToast } = useToast();
 
   const [isSearching, setIsSearching] = useState(false);
@@ -42,11 +43,12 @@ export default function ContentTasks() {
   const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newTitleRef = useRef<string>("");
 
-  const fetchTasks = async (keyword: string, skill: string, page: number) => {
+  const fetchTasks = async (keyword: string, skill: string, ownerIdValue: number | null, page: number) => {
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ page: page.toString() });
       if (keyword) params.append("keyword", keyword);
+      if (ownerIdValue !== null) params.append("author_id", ownerIdValue.toString());
 
       // резолвим строку навыка в конкретные id уровней для AND-фильтрации
       if (skill) {
@@ -70,7 +72,7 @@ export default function ContentTasks() {
         results: response.items,
         totalPages: response.total_pages,
         currentPage: response.current_page,
-        lastSearch: { keyword, skill, page }
+        lastSearch: { keyword, skill, ownerId: ownerIdValue, page }
       });
     } catch (error) {
       console.error("Failed to fetch tasks", error);
@@ -89,18 +91,19 @@ export default function ContentTasks() {
       if (
         keywordInput === lastSearch.keyword &&
         skillInput === lastSearch.skill &&
+        ownerId === lastSearch.ownerId &&
         results.length > 0
       ) {
         setIsDebouncing(false);
         return;
       }
-      fetchTasks(keywordInput, skillInput, 1);
+      fetchTasks(keywordInput, skillInput, ownerId, 1);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [keywordInput, skillInput]);
+  }, [keywordInput, skillInput, ownerId]);
 
   useEffect(() => {
     setIsTitleTaken(false);
@@ -231,7 +234,7 @@ export default function ContentTasks() {
       });
 
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
-      fetchTasks(lastSearch.keyword, lastSearch.skill, currentPage); // обновление таблицы после сохранения
+      fetchTasks(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
       return response.id;
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
@@ -249,7 +252,7 @@ export default function ContentTasks() {
       await authJson(`/tasks/${selectedId}`, { method: "DELETE" });
       setTasksState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Задание удалено", variant: "success" });
-      fetchTasks(lastSearch.keyword, lastSearch.skill, currentPage);
+      fetchTasks(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось удалить задание", variant: "error" });
     }
@@ -348,7 +351,7 @@ export default function ContentTasks() {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      fetchTasks(lastSearch.keyword, lastSearch.skill, newPage);
+      fetchTasks(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, newPage);
     }
   };
 
@@ -382,7 +385,16 @@ export default function ContentTasks() {
 
       {/* левая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full">
-        <h2 className="workspace-panel-header mb-4">Список заданий</h2>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="workspace-panel-header mb-0 flex-1 min-w-0">Список заданий</h2>
+          <ContentOwnerFilter
+            entityLabel="заданий"
+            ownerId={ownerId}
+            ownerUsername={ownerUsername}
+            onOwnerIdChange={(nextOwnerId) => setTasksState({ ownerId: nextOwnerId })}
+            onOwnerUsernameChange={(username) => setTasksState({ ownerUsername: username })}
+          />
+        </div>
 
         <div className="flex gap-4 mb-6 items-center">
           <div className="flex-1 flex gap-4">
