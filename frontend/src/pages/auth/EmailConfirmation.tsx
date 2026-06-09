@@ -6,32 +6,8 @@ import { completeEmailRegistration } from "../../auth";
 import { config } from "../../config";
 import FieldRequirements from "../../components/FieldRequirements";
 import { useToast } from "../../components/ToastProvider";
-
-const USERNAME_RE = /^[a-zA-Zа-яА-ЯёЁ_-]*$/;
-
-function checkUsername(v: string) {
-  return {
-    length: v.length >= 4 && v.length <= 32,
-    validChars: v.length === 0 || USERNAME_RE.test(v),
-  };
-}
-
-function checkPassword(v: string) {
-  return {
-    length: v.length >= 12 && v.length <= 32,
-    hasDigit: /\d/.test(v),
-    hasSpecial: /[^\p{L}\d]/u.test(v),
-    hasMixedCaseLetters: /\p{Ll}/u.test(v) && /\p{Lu}/u.test(v),
-  };
-}
-
-function flashField(el: HTMLInputElement | null) {
-  if (!el) return;
-  el.classList.remove("input-field-error");
-  void el.offsetWidth;
-  el.classList.add("input-field-error");
-  el.addEventListener("animationend", () => el.classList.remove("input-field-error"), { once: true });
-}
+import { checkPassword, checkUsername } from "../../validation";
+import { flashField } from "../../utils";
 
 async function readApiError(response: Response): Promise<string> {
   try {
@@ -174,15 +150,15 @@ export default function EmailConfirmation() {
           </div>
         ) : (
           <>
-            <h1 className="auth-panel-header">Подтверждение адреса электронной почты</h1>
+            <h1 className="auth-panel-header">Регистрация</h1>
 
             {status === "loading" ? (
-              <p className="text-sm text-gray-500">Проверка кода...</p>
+              <p className="text-base text-gray-900">Проверка кода...</p>
             ) : null}
 
             {status === "invalid" ? (
               <div className="space-y-4">
-                <p className="text-sm text-gray-600">Ссылка недействительна или срок её действия истёк.</p>
+                <p className="text-base text-gray-900">Ссылка недействительна или срок её действия истёк.</p>
                 <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
                   Войти
                 </button>
@@ -316,4 +292,3 @@ export default function EmailConfirmation() {
     </div>
   );
 }
-

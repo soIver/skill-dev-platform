@@ -47,6 +47,7 @@ class EmailConfirmationRequest(BaseModel):
 
 class EmailConfirmationResponse(BaseModel):
     message: str
+    retry_after_seconds: int = 0
 
 
 class EmailConfirmationVerifyResponse(BaseModel):
@@ -80,6 +81,20 @@ class EmailRegistrationCompleteRequest(BaseModel):
         if self.password != self.repeat_password:
             raise ValueError('Пароли не совпадают')
         return self
+
+
+class EmailChangeNewAddressRequest(BaseModel):
+    code: str
+    email: str = Field(max_length=64)
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        return validate_email_value(v)
+
+
+class EmailChangeConfirmRequest(BaseModel):
+    code: str
 
 
 class UserResponse(BaseModel):

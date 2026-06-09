@@ -8,7 +8,7 @@ from ..mail.schemas import (
     PasswordChangeConfirmRequest,
     PasswordChangeRequestResponse,
 )
-from ..mail.service import MailService, PasswordChangeRateLimitError
+from ..mail.service import EmailChangeRateLimitError, MailService, PasswordChangeRateLimitError
 from ..utils.database import get_db
 from ..config import global_config
 from .schemas import (
@@ -18,6 +18,8 @@ from .schemas import (
     EmailConfirmationRequest,
     EmailConfirmationResponse,
     EmailConfirmationVerifyResponse,
+    EmailChangeConfirmRequest,
+    EmailChangeNewAddressRequest,
     EmailRegistrationCompleteRequest,
     LoginCredentials,
     MessageResponse,
@@ -154,6 +156,49 @@ async def request_password_change(db: AsyncSession = Depends(get_db), claims: To
         message="Письмо с кодом для смены пароля отправлено",
         retry_after_seconds=retry_after,
     )
+
+
+@router.post("/email-change/request", response_model=EmailConfirmationResponse)
+async def request_email_change(db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(get_current_user)):
+    mail_service = MailService(db)
+
+    try:
+        retry_after = await mail_service.request_email_change(claims.user_id)
+    except EmailChangeRateLimitError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "detail": exc.detail,
+                "retry_after_seconds": exc.retry_after_seconds,
+            },
+        )
+
+    return EmailConfirmationResponse(
+        message="Письмо с кодом для смены почты отправлено",
+        retry_after_seconds=retry_after,
+    )
+
+
+@router.get("/email-change/verify", response_model=EmailConfirmationResponse)
+async def verify_email_change_code(code: str = Query(...), db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    await mail_service.verify_email_change_code(code)
+    return EmailConfirmationResponse(message="Код подтверждения корректен")
+
+
+@router.post("/email-change/request-confirmation", response_model=EmailConfirmationResponse)
+async def request_email_change_confirmation(payload: EmailChangeNewAddressRequest, db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    await mail_service.request_email_change_confirmation(payload.code, payload.email)
+    return EmailConfirmationResponse(message="Письмо для подтверждения нового адреса отправлено")
+
+
+@router.post("/email-change/confirm", response_model=EmailConfirmationResponse)
+async def confirm_email_change(payload: EmailChangeConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    await mail_service.confirm_email_change(payload.code)
+    clear_auth_cookies(response)
+    return EmailConfirmationResponse(message="Адрес электронной почты успешно изменён!")
 
 
 @router.get("/password-change/verify", response_model=PasswordChangeCodeResponse)

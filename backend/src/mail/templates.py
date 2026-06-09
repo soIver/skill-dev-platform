@@ -1,31 +1,88 @@
 from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 
 from ..config import global_config
 
 
+class EmailContentParser(HTMLParser):
+    inline_tags = {"b", "strong", "i", "em", "u"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.open_tags: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
+        normalized_tag = tag.lower()
+        if normalized_tag in self.inline_tags:
+            self.parts.append(f"<{normalized_tag}>")
+            self.open_tags.append(normalized_tag)
+            return
+
+        if normalized_tag == "br":
+            self.parts.append("<br>")
+            return
+
+        if normalized_tag == "a":
+            href = self._get_safe_href(attrs)
+            if href is None:
+                return
+            escaped_href = escape(href, quote=True)
+            self.parts.append(
+                f'<a href="{escaped_href}" target="_blank" '
+                'style="color:#0077c8;text-decoration:underline;">'
+            )
+            self.open_tags.append(normalized_tag)
+
+    def handle_endtag(self, tag: str):
+        normalized_tag = tag.lower()
+        if normalized_tag not in self.open_tags:
+            return
+
+        self.open_tags.remove(normalized_tag)
+        if normalized_tag in self.inline_tags:
+            self.parts.append(f"</{normalized_tag}>")
+        elif normalized_tag == "a":
+            self.parts.append("</a>")
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]):
+        if tag.lower() == "br":
+            self.parts.append("<br>")
+        else:
+            self.handle_starttag(tag, attrs)
+            self.handle_endtag(tag)
+
+    def handle_data(self, data: str):
+        self.parts.append(escape(data))
+
+    def handle_entityref(self, name: str):
+        self.parts.append(escape(f"&{name};"))
+
+    def handle_charref(self, name: str):
+        self.parts.append(escape(f"&#{name};"))
+
+    def get_html(self) -> str:
+        return "".join(self.parts)
+
+    @staticmethod
+    def _get_safe_href(attrs: list[tuple[str, str | None]]) -> str | None:
+        href = next((value for key, value in attrs if key.lower() == "href"), None)
+        if not href:
+            return None
+
+        parsed_href = urlparse(href)
+        if parsed_href.scheme not in {"http", "https"}:
+            return None
+
+        return href
+
+
 def render_email_content(text: str) -> str:
-    content = escape(text)
-    allowed_tags = {
-        "&lt;b&gt;": "<b>",
-        "&lt;/b&gt;": "</b>",
-        "&lt;strong&gt;": "<strong>",
-        "&lt;/strong&gt;": "</strong>",
-        "&lt;i&gt;": "<i>",
-        "&lt;/i&gt;": "</i>",
-        "&lt;em&gt;": "<em>",
-        "&lt;/em&gt;": "</em>",
-        "&lt;u&gt;": "<u>",
-        "&lt;/u&gt;": "</u>",
-        "&lt;br&gt;": "<br>",
-        "&lt;br/&gt;": "<br>",
-        "&lt;br /&gt;": "<br>",
-        "&lt;/br&gt;": "<br>",
-    }
-
-    for escaped_tag, html_tag in allowed_tags.items():
-        content = content.replace(escaped_tag, html_tag)
-
-    return content
+    parser = EmailContentParser()
+    parser.feed(text.replace("</br>", "<br>"))
+    parser.close()
+    return parser.get_html()
 
 
 def build_action_email_html(title: str, text: str, button_text: str, action_url: str) -> str:

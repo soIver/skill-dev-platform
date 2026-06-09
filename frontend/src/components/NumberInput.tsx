@@ -1,7 +1,7 @@
 import { type ClipboardEvent, type KeyboardEvent } from "react";
+import { getUnitWord, type UnitForms } from "../utils";
 
 type NumberInputMode = "integer" | "decimal";
-type UnitForms = [string, string, string, string];
 
 interface NumberInputProps {
   value: number | null | undefined;
@@ -18,19 +18,6 @@ interface NumberInputProps {
 const integerAllowedCharPattern = /^[0-9]$/;
 const decimalAllowedCharPattern = /^[0-9.,]$/;
 const controlKeys = new Set(["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "Home", "End"]);
-
-function getUnitWord(value: number, forms: UnitForms): string {
-  const [zero, one, few, many] = forms;
-  const integerValue = Math.abs(Math.trunc(value));
-  if (integerValue === 0) return zero;
-
-  const mod10 = integerValue % 10;
-  const mod100 = integerValue % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-}
 
 function clamp(value: number, min?: number, max?: number): number {
   const withMin = min === undefined ? value : Math.max(value, min);

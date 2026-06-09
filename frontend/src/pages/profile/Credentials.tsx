@@ -5,30 +5,53 @@ import { authFetch, authJson, logout } from "../../auth";
 import { useToast } from "../../components/ToastProvider";
 import { config } from "../../config";
 import { useUserStore, type GitHubProfile } from "../../hooks/useUserStore";
+import { formatDurationSeconds } from "../../utils";
 import GitHubIcon from "../../assets/icons/github.svg?react";
 
-interface PasswordChangeRequestResponse {
+interface CredentialChangeRequestResponse {
   message?: string;
   detail?: string;
   retry_after_seconds?: number;
 }
 
-function formatCooldown(seconds: number): string {
-  if (seconds <= 0) {
-    return "менее секунды";
-  }
-  if (seconds === 1) {
-    return "1 секунду";
-  }
-  if (seconds > 1 && seconds < 5) {
-    return `${seconds} секунды`;
-  }
-  return `${seconds} секунд`;
+type CredentialChangeAction = "email" | "password";
+
+interface CredentialChangeConfig {
+  path: string;
+  waitTitle: string;
+  waitMessage: (seconds: number) => string;
+  successTitle: string;
+  successMessage: string;
+  errorTitle: string;
+  fallbackError: string;
 }
 
-async function readPasswordChangeResponse(response: Response): Promise<PasswordChangeRequestResponse> {
+const credentialChangeConfig: Record<CredentialChangeAction, CredentialChangeConfig> = {
+  email: {
+    path: "/auth/email-change/request",
+    waitTitle: "Пожалуйста, подождите",
+    waitMessage: (seconds) =>
+      `Обязательно проверьте папку "спам" в почтовом ящике. Повторная отправка письма будет доступна через ${formatDurationSeconds(seconds)}.`,
+    successTitle: "Письмо отправлено",
+    successMessage: "На Вашу почту была отправлена ссылка для смены адреса электронной почты.",
+    errorTitle: "Ошибка смены почты",
+    fallbackError: "Не удалось отправить письмо для смены почты.",
+  },
+  password: {
+    path: "/auth/password-change/request",
+    waitTitle: "Пожалуйста, подождите",
+    waitMessage: (seconds) =>
+      `Обязательно проверьте папку "спам" в почтовом ящике. Повторная отправка письма будет доступна через ${formatDurationSeconds(seconds)}.`,
+    successTitle: "Письмо отправлено",
+    successMessage: "На Вашу почту была отправлена ссылка для смены пароля.",
+    errorTitle: "Ошибка смены пароля",
+    fallbackError: "Не удалось отправить письмо для смены пароля.",
+  },
+};
+
+async function readCredentialChangeResponse(response: Response): Promise<CredentialChangeRequestResponse> {
   try {
-    return (await response.json()) as PasswordChangeRequestResponse;
+    return (await response.json()) as CredentialChangeRequestResponse;
   } catch {
     return {};
   }
@@ -46,8 +69,14 @@ export default function Credentials() {
   const setGitHubProfile = useUserStore((state) => state.setGitHubProfile);
   const [isGitHubLoading, setIsGitHubLoading] = useState(!githubConnection);
   const [isGitHubSubmitting, setIsGitHubSubmitting] = useState(false);
-  const [passwordChangeCooldown, setPasswordChangeCooldown] = useState(0);
-  const [isPasswordChangeSubmitting, setIsPasswordChangeSubmitting] = useState(false);
+  const [credentialCooldowns, setCredentialCooldowns] = useState<Record<CredentialChangeAction, number>>({
+    email: 0,
+    password: 0,
+  });
+  const [credentialSubmitting, setCredentialSubmitting] = useState<Record<CredentialChangeAction, boolean>>({
+    email: false,
+    password: false,
+  });
   const { showToast } = useToast();
 
   const handleLogout = async () => {
@@ -153,16 +182,19 @@ export default function Credentials() {
   }, [githubMessage, githubStatus, location.key, searchParams, setSearchParams, showToast]);
 
   useEffect(() => {
-    if (passwordChangeCooldown <= 0) {
+    if (credentialCooldowns.email <= 0 && credentialCooldowns.password <= 0) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
-      setPasswordChangeCooldown((current) => Math.max(0, current - 1));
+      setCredentialCooldowns((current) => ({
+        email: Math.max(0, current.email - 1),
+        password: Math.max(0, current.password - 1),
+      }));
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [passwordChangeCooldown]);
+  }, [credentialCooldowns.email, credentialCooldowns.password]);
 
   const handleConnectGitHub = async () => {
     setIsGitHubSubmitting(true);
@@ -216,24 +248,25 @@ export default function Credentials() {
     }
   };
 
-  const handleRequestPasswordChange = async () => {
-    setIsPasswordChangeSubmitting(true);
+  const handleRequestCredentialChange = async (action: CredentialChangeAction) => {
+    const actionConfig = credentialChangeConfig[action];
+    setCredentialSubmitting((current) => ({ ...current, [action]: true }));
 
     try {
       const response = await authFetch(
-        `${config.apiBaseUrl}/auth/password-change/request`,
+        `${config.apiBaseUrl}${actionConfig.path}`,
         {
           method: "POST",
         },
       );
-      const data = await readPasswordChangeResponse(response);
+      const data = await readCredentialChangeResponse(response);
 
       if (response.status === 429) {
         const retryAfter = Math.max(1, data.retry_after_seconds ?? 60);
-        setPasswordChangeCooldown(retryAfter);
+        setCredentialCooldowns((current) => ({ ...current, [action]: retryAfter }));
         showToast({
-          title: "Пожалуйста, подождите",
-          message: `Обязательно проверьте папку "спам" в почтовом ящике. Повторная отправка письма будет доступна через ${formatCooldown(retryAfter)}.`,
+          title: actionConfig.waitTitle,
+          message: actionConfig.waitMessage(retryAfter),
           variant: "error",
         });
         return;
@@ -243,29 +276,39 @@ export default function Credentials() {
         throw new Error(data.detail || data.message || "Не удалось отправить письмо.");
       }
 
-      setPasswordChangeCooldown(Math.max(1, data.retry_after_seconds ?? 60));
+      setCredentialCooldowns((current) => ({
+        ...current,
+        [action]: Math.max(1, data.retry_after_seconds ?? 60),
+      }));
       showToast({
-        title: "Письмо отправлено",
-        message: "На Вашу почту была отправлена ссылка для смены пароля.",
+        title: actionConfig.successTitle,
+        message: actionConfig.successMessage,
         variant: "success",
       });
     } catch (err) {
       showToast({
-        title: "Ошибка смены пароля",
+        title: actionConfig.errorTitle,
         message:
           err instanceof Error && err.message
             ? err.message
-            : "Не удалось отправить письмо для смены пароля.",
+            : actionConfig.fallbackError,
         variant: "error",
       });
     } finally {
-      setIsPasswordChangeSubmitting(false);
+      setCredentialSubmitting((current) => ({ ...current, [action]: false }));
     }
   };
 
   const githubDisplayName =
     githubConnection?.name || githubConnection?.login || "GitHub профиль";
-  const isPasswordChangeDisabled = isPasswordChangeSubmitting || passwordChangeCooldown > 0;
+  const isEmailChangeDisabled = credentialSubmitting.email || credentialCooldowns.email > 0;
+  const isPasswordChangeDisabled = credentialSubmitting.password || credentialCooldowns.password > 0;
+  const emailChangeDisabledTitle =
+    credentialSubmitting.email
+      ? "Отправка письма для смены почты..."
+      : credentialCooldowns.email >= 86400
+      ? `Смена адреса электронной почты будет доступна через ${formatDurationSeconds(credentialCooldowns.email)}`
+      : "Отправка кода для смены почты возможна не чаще одного раза в минуту";
 
 
   return (
@@ -291,7 +334,23 @@ export default function Credentials() {
             </div>
 
             <div className="flex gap-4">
-              <button className="primary-button flex-3">Сменить почту</button>
+              <span
+                className="flex-3"
+                title={
+                  isEmailChangeDisabled
+                    ? emailChangeDisabledTitle
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => handleRequestCredentialChange("email")}
+                  disabled={isEmailChangeDisabled}
+                  className="primary-button disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Сменить почту
+                </button>
+              </span>
               <span
                 className="flex-3"
                 title={
@@ -302,7 +361,7 @@ export default function Credentials() {
               >
                 <button
                   type="button"
-                  onClick={handleRequestPasswordChange}
+                  onClick={() => handleRequestCredentialChange("password")}
                   disabled={isPasswordChangeDisabled}
                   className="primary-button disabled:cursor-not-allowed disabled:opacity-50"
                 >

@@ -6,38 +6,8 @@ import { register, requestEmailConfirmation } from "../auth";
 import FieldRequirements from "../components/FieldRequirements";
 import { useToast } from "../components/ToastProvider";
 import GitHubIcon from "../assets/icons/github.svg?react";
-
-const USERNAME_RE = /^[a-zA-Zа-яА-ЯёЁ_-]*$/;
-
-function checkUsername(v: string) {
-  return {
-    length: v.length >= 4 && v.length <= 32,
-    validChars: v.length === 0 || USERNAME_RE.test(v),
-  };
-}
-
-function checkPassword(v: string) {
-  return {
-    length: v.length >= 12 && v.length <= 32,
-    hasDigit: /\d/.test(v),
-    hasSpecial: /[^\p{L}\d]/u.test(v),
-    hasMixedCaseLetters: /\p{Ll}/u.test(v) && /\p{Lu}/u.test(v),
-  };
-}
-
-function checkEmail(v: string) {
-  return {
-    valid: /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(v),
-  };
-}
-
-function flashField(el: HTMLInputElement | null) {
-  if (!el) return;
-  el.classList.remove("input-field-error");
-  void el.offsetWidth;
-  el.classList.add("input-field-error");
-  el.addEventListener("animationend", () => el.classList.remove("input-field-error"), { once: true });
-}
+import { checkEmail, checkPassword, checkUsername } from "../validation";
+import { flashField } from "../utils";
 
 export default function Registration() {
   const [searchParams] = useSearchParams();
@@ -180,7 +150,7 @@ export default function Registration() {
         <div className="auth-panel">
           <h1 className="auth-panel-header">Подтверждение адреса электронной почты</h1>
           <div className="space-y-6">
-            <p className="text-sm text-gray-600">
+            <p className="text-base text-gray-900">
               На электронную почту {confirmedEmail} было отправлено письмо с инструкцией для подтверждения
             </p>
             <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
@@ -400,4 +370,3 @@ export default function Registration() {
     </div>
   );
 }
-

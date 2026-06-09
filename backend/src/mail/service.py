@@ -24,6 +24,12 @@ class PasswordChangeRateLimitError(Exception):
         self.retry_after_seconds = retry_after_seconds
 
 
+class EmailChangeRateLimitError(Exception):
+    def __init__(self, retry_after_seconds: int, detail: str):
+        self.retry_after_seconds = retry_after_seconds
+        self.detail = detail
+
+
 class MailService:
 
     def __init__(self, db: AsyncSession, redis: Redis | None = None):
@@ -32,7 +38,7 @@ class MailService:
         self.delivery = MailDeliveryService()
 
     async def request_password_change(self, user_id: int) -> int:
-        retry_after = await self._get_retry_after(user_id)
+        retry_after = await self._get_retry_after(self._password_change_rate_key(user_id))
         if retry_after > 0:
             raise PasswordChangeRateLimitError(retry_after)
 
@@ -67,6 +73,65 @@ class MailService:
 
         await self.redis.set(
             self._password_change_rate_key(user.id),
+            "1",
+            ex=global_config.MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS,
+        )
+        return global_config.MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS
+
+    async def request_email_change(self, user_id: int) -> int:
+        retry_after = await self._get_retry_after(self._email_change_block_key(user_id))
+        if retry_after > 0:
+            raise EmailChangeRateLimitError(
+                retry_after,
+                (
+                    "Смена адреса электронной почты доступна не чаще, чем "
+                    f"раз в {global_config.DAYS_FOR_EMAIL_CHANGE} дней"
+                ),
+            )
+
+        retry_after = await self._get_retry_after(self._email_change_rate_key(user_id))
+        if retry_after > 0:
+            raise EmailChangeRateLimitError(
+                retry_after,
+                "Отправка кода для смены почты возможна не чаще одного раза в минуту",
+            )
+
+        user = await self._get_user(user_id)
+        code = generate_urlsafe_token(32)
+        action_url = self._build_email_change_url(code)
+
+        await self._replace_email_change_code(user, code)
+
+        try:
+            await self.delivery.send_html_email(
+                recipient=user.email,
+                subject="Смена адреса электронной почты",
+                text_body=(
+                    "Для смены адреса электронной почты перейдите по ссылке: "
+                    f"{action_url}"
+                ),
+                html_body=build_action_email_html(
+                    "Смена адреса электронной почты",
+                    (
+                        f"Для учётной записи <b>{user.username}</b> была запрошена смена "
+                        "адреса электронной почты.</br></br>"
+                        "Для перехода на страницу смены адреса нажмите на кнопку ниже — "
+                        "она будет действительна в течение одного часа с момента получения этого письма."
+                    ),
+                    "Сменить адрес электронной почты",
+                    action_url,
+                ),
+            )
+        except Exception:
+            await self._delete_email_change_code(user.id, code)
+            logger.exception("Не удалось отправить письмо для смены почты")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Не удалось отправить письмо. Повторите попытку позже",
+            )
+
+        await self.redis.set(
+            self._email_change_rate_key(user.id),
             "1",
             ex=global_config.MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS,
         )
@@ -120,6 +185,77 @@ class MailService:
                 detail="Код подтверждения не найден",
             )
         await self._delete_email_confirmation_code(email, code)
+
+    async def verify_email_change_code(self, code: str):
+        await self._get_email_change_code_data(code)
+
+    async def request_email_change_confirmation(self, code: str, email: str):
+        code_data = await self._get_email_change_code_data(code)
+        user = await self._get_user(int(code_data["user_id"]))
+
+        if user.email == email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Новый адрес электронной почты совпадает с текущим",
+            )
+
+        await self._ensure_email_available(email)
+
+        confirmation_code = generate_urlsafe_token(32)
+        action_url = self._build_email_change_confirmation_url(confirmation_code)
+        await self._replace_email_change_confirmation_code(user.id, email, confirmation_code)
+
+        try:
+            await self.delivery.send_html_email(
+                recipient=email,
+                subject="Подтверждение смены адреса электронной почты",
+                text_body=(
+                    "Для подтверждения нового адреса электронной почты перейдите по ссылке: "
+                    f"{action_url}"
+                ),
+                html_body=build_action_email_html(
+                    "Смена адреса электронной почты",
+                    (
+                        "Ваш адрес электронной почты был указан как новый "
+                        f'для учётной записи <b>{user.username}</b> на платформе <a href="{global_config.PUBLIC_SITE_URL}">IT Skill Dev</a>.</br></br>'
+                        "Для подтверждения смены адреса нажмите на кнопку ниже — "
+                        "она будет действительна в течение одного часа с момента получения этого письма.</br></br>"
+                        "Если Вы не указывали свою почту для смены авторизационных данных на платформе, игнорируйте это письмо."
+                    ),
+                    "Подтвердить",
+                    action_url,
+                ),
+            )
+        except Exception:
+            await self._delete_email_change_confirmation_code(user.id, confirmation_code)
+            logger.exception("Не удалось отправить письмо для подтверждения новой почты")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Не удалось отправить письмо. Повторите попытку позже",
+            )
+
+    async def confirm_email_change(self, code: str) -> User:
+        code_data = await self._get_email_change_confirmation_code_data(code)
+        user = await self._get_user(int(code_data["user_id"]))
+        new_email = code_data["email"]
+
+        await self._ensure_email_available(new_email, allowed_user_id=user.id)
+
+        user.email = new_email
+        await self.db.commit()
+
+        await self._delete_email_change_confirmation_code(user.id, code)
+        await self._delete_active_email_change_code(user.id)
+        await self.redis.set(
+            self._email_change_block_key(user.id),
+            "1",
+            ex=self._email_change_block_seconds(),
+        )
+
+        token_service = TokenService(self.db)
+        await token_service.revoke_all_user_sessions(user.id)
+        await token_service.invalidate_user_access_tokens(user.id)
+        return user
 
     async def verify_password_change_code(self, code: str):
         await self._get_password_change_code_data(code)
@@ -193,6 +329,61 @@ class MailService:
             )
             await pipeline.execute()
 
+    async def _replace_email_change_code(self, user: User, code: str):
+        previous_code = await self.redis.get(self._email_change_active_key(user.id))
+        if previous_code:
+            await self._delete_email_change_code(user.id, previous_code)
+
+        async with self.redis.pipeline(transaction=True) as pipeline:
+            pipeline.hset(
+                self._email_change_code_key(code),
+                mapping={
+                    "user_id": str(user.id),
+                    "email": user.email,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            pipeline.expire(
+                self._email_change_code_key(code),
+                global_config.MAIL_CODE_TTL_SECONDS,
+            )
+            pipeline.set(
+                self._email_change_active_key(user.id),
+                code,
+                ex=global_config.MAIL_CODE_TTL_SECONDS,
+            )
+            await pipeline.execute()
+
+    async def _replace_email_change_confirmation_code(
+        self,
+        user_id: int,
+        email: str,
+        code: str,
+    ):
+        previous_code = await self.redis.get(self._email_change_confirmation_active_key(user_id))
+        if previous_code:
+            await self._delete_email_change_confirmation_code(user_id, previous_code)
+
+        async with self.redis.pipeline(transaction=True) as pipeline:
+            pipeline.hset(
+                self._email_change_confirmation_code_key(code),
+                mapping={
+                    "user_id": str(user_id),
+                    "email": email,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            pipeline.expire(
+                self._email_change_confirmation_code_key(code),
+                global_config.MAIL_CODE_TTL_SECONDS,
+            )
+            pipeline.set(
+                self._email_change_confirmation_active_key(user_id),
+                code,
+                ex=global_config.MAIL_CODE_TTL_SECONDS,
+            )
+            await pipeline.execute()
+
     async def _delete_password_change_code(self, user_id: int, code: str):
         async with self.redis.pipeline(transaction=True) as pipeline:
             pipeline.delete(self._password_change_code_key(code))
@@ -204,6 +395,24 @@ class MailService:
             pipeline.delete(self._email_confirmation_code_key(code))
             pipeline.delete(self._email_confirmation_active_key(email))
             await pipeline.execute()
+
+    async def _delete_email_change_code(self, user_id: int, code: str):
+        async with self.redis.pipeline(transaction=True) as pipeline:
+            pipeline.delete(self._email_change_code_key(code))
+            pipeline.delete(self._email_change_active_key(user_id))
+            await pipeline.execute()
+
+    async def _delete_email_change_confirmation_code(self, user_id: int, code: str):
+        async with self.redis.pipeline(transaction=True) as pipeline:
+            pipeline.delete(self._email_change_confirmation_code_key(code))
+            pipeline.delete(self._email_change_confirmation_active_key(user_id))
+            await pipeline.execute()
+
+    async def _delete_active_email_change_code(self, user_id: int):
+        active_code = await self.redis.get(self._email_change_active_key(user_id))
+        if not active_code:
+            return
+        await self._delete_email_change_code(user_id, active_code)
 
     async def _get_password_change_code_data(self, code: str) -> dict[str, str]:
         code_data = await self.redis.hgetall(self._password_change_code_key(code))
@@ -223,8 +432,26 @@ class MailService:
             )
         return code_data
 
-    async def _get_retry_after(self, user_id: int) -> int:
-        ttl = await self.redis.ttl(self._password_change_rate_key(user_id))
+    async def _get_email_change_code_data(self, code: str) -> dict[str, str]:
+        code_data = await self.redis.hgetall(self._email_change_code_key(code))
+        if not code_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Код подтверждения не найден",
+            )
+        return code_data
+
+    async def _get_email_change_confirmation_code_data(self, code: str) -> dict[str, str]:
+        code_data = await self.redis.hgetall(self._email_change_confirmation_code_key(code))
+        if not code_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Код подтверждения не найден",
+            )
+        return code_data
+
+    async def _get_retry_after(self, key: str) -> int:
+        ttl = await self.redis.ttl(key)
         return ttl if ttl > 0 else 0
 
     async def _get_user(self, user_id: int) -> User:
@@ -237,9 +464,10 @@ class MailService:
             )
         return user
 
-    async def _ensure_email_available(self, email: str):
+    async def _ensure_email_available(self, email: str, allowed_user_id: int | None = None):
         result = await self.db.execute(select(User).where(User.email == email))
-        if result.scalar_one_or_none() is not None:
+        existing_user = result.scalar_one_or_none()
+        if existing_user is not None and existing_user.id != allowed_user_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Пользователь с таким email уже существует",
@@ -257,6 +485,20 @@ class MailService:
         return (
             f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
             f"/auth/confirm-email?code={quote(code)}"
+        )
+
+    @staticmethod
+    def _build_email_change_url(code: str) -> str:
+        return (
+            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
+            f"/auth/change-email?code={quote(code)}"
+        )
+
+    @staticmethod
+    def _build_email_change_confirmation_url(code: str) -> str:
+        return (
+            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
+            f"/auth/confirm-email-change?code={quote(code)}"
         )
 
     @staticmethod
@@ -278,3 +520,31 @@ class MailService:
     @staticmethod
     def _email_confirmation_active_key(email: str) -> str:
         return f"mail:email_confirmation:active:{email}"
+
+    @staticmethod
+    def _email_change_code_key(code: str) -> str:
+        return f"mail:email_change:code:{code}"
+
+    @staticmethod
+    def _email_change_active_key(user_id: int) -> str:
+        return f"mail:email_change:active:{user_id}"
+
+    @staticmethod
+    def _email_change_rate_key(user_id: int) -> str:
+        return f"mail:email_change:rate:{user_id}"
+
+    @staticmethod
+    def _email_change_block_key(user_id: int) -> str:
+        return f"mail:email_change:block:{user_id}"
+
+    @staticmethod
+    def _email_change_block_seconds() -> int:
+        return global_config.DAYS_FOR_EMAIL_CHANGE * 24 * 60 * 60
+
+    @staticmethod
+    def _email_change_confirmation_code_key(code: str) -> str:
+        return f"mail:email_change_confirmation:code:{code}"
+
+    @staticmethod
+    def _email_change_confirmation_active_key(user_id: int) -> str:
+        return f"mail:email_change_confirmation:active:{user_id}"

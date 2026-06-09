@@ -6,23 +6,8 @@ import { config } from "../../config";
 import FieldRequirements from "../../components/FieldRequirements";
 import { useToast } from "../../components/ToastProvider";
 import { useUserStore } from "../../hooks/useUserStore";
-
-function checkPassword(v: string) {
-  return {
-    length: v.length >= 12 && v.length <= 32,
-    hasDigit: /\d/.test(v),
-    hasSpecial: /[^\p{L}\d]/u.test(v),
-    hasMixedCaseLetters: /\p{Ll}/u.test(v) && /\p{Lu}/u.test(v),
-  };
-}
-
-function flashField(el: HTMLInputElement | null) {
-  if (!el) return;
-  el.classList.remove("input-field-error");
-  void el.offsetWidth;
-  el.classList.add("input-field-error");
-  el.addEventListener("animationend", () => el.classList.remove("input-field-error"), { once: true });
-}
+import { checkPassword } from "../../validation";
+import { flashField } from "../../utils";
 
 async function readApiError(response: Response): Promise<string> {
   try {
@@ -199,15 +184,15 @@ export default function PasswordChange() {
   return (
     <div className="auth-screen">
       <div className="auth-panel">
-        <h1 className="auth-panel-header">Восстановление пароля</h1>
+        <h1 className="auth-panel-header">Смена пароля</h1>
 
         {status === "loading" ? (
-          <p className="text-sm text-gray-500">Проверка кода...</p>
+          <p className="text-base text-gray-900">Проверка кода...</p>
         ) : null}
 
         {status === "invalid" ? (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">Ссылка недействительна или срок её действия истёк.</p>
+            <p className="text-base text-gray-900">Ссылка недействительна или срок её действия истёк.</p>
             <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
               Войти
             </button>
@@ -217,7 +202,7 @@ export default function PasswordChange() {
         {status === "success" ? (
           <div className="space-y-6 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-500" strokeWidth={1.8} />
-            <p className="text-sm font-medium text-gray-700">{successMessage}</p>
+            <p className="text-base font-medium text-gray-900">{successMessage}</p>
             <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
               Войти
             </button>
