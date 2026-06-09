@@ -98,8 +98,3 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 
 limiter._route_exceeded_handler = rate_limit_exceeded_handler
 app.add_middleware(SlowAPIMiddleware)
-
-
-@app.get("/api")
-async def root():
-    return {"message": "API is running"}

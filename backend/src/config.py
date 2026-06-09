@@ -1,6 +1,7 @@
 import os
 import base64
 import hashlib
+from pathlib import Path
 from datetime import timedelta, timezone
 
 from dotenv import load_dotenv
@@ -31,6 +32,10 @@ class Config:
     AUTH_ACCESS_COOKIE_PATH = "/api"
     AUTH_REFRESH_COOKIE_PATH = "/api/auth"
     AUTH_COOKIE_HTTPONLY = True
+
+    # приложение
+    PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://it-skill-dev.ru")
+    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
     # GitHub OAuth
     GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
@@ -77,6 +82,25 @@ class Config:
     HH_CLIENT_ID = os.getenv("HH_CLIENT_ID")
     HH_CLIENT_SECRET = os.getenv("HH_CLIENT_SECRET")
 
+    # почта
+    MAIL_SMTP_HOST = os.getenv("MAIL_SMTP_HOST", "smtp.beget.com")
+    MAIL_SMTP_PORT = int(os.getenv("MAIL_SMTP_PORT", "465"))
+    MAIL_SMTP_USERNAME = os.getenv("MAIL_SMTP_USERNAME", "support@it-skill-dev.ru")
+    MAIL_SMTP_PASSWORD = os.getenv("MAIL_SMTP_PASSWORD")
+    MAIL_FROM_EMAIL = os.getenv("MAIL_FROM_EMAIL", MAIL_SMTP_USERNAME)
+    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "IT Skill Dev")
+    MAIL_SMTP_USE_SSL = os.getenv("MAIL_SMTP_USE_SSL", "true").lower() == "true"
+    MAIL_SMTP_STARTTLS = os.getenv("MAIL_SMTP_STARTTLS", "false").lower() == "true"
+    MAIL_LOGO_CONTENT_ID = "mail-logo"
+    MAIL_LOGO_PATH = os.getenv(
+        "MAIL_LOGO_PATH",
+        str(Path(__file__).resolve().parent / "assets" / "mail-logo.svg"),
+    )
+    MAIL_CODE_TTL_SECONDS = int(os.getenv("MAIL_CODE_TTL_SECONDS", "3600"))
+    MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS = int(
+        os.getenv("MAIL_PASSWORD_CHANGE_RATE_LIMIT_SECONDS", "60")
+    )
+
     @classmethod
     def string_encryption_key(cls) -> bytes:
         digest = hashlib.sha256(cls.STRING_ENCRYPTION_SECRET.encode("utf-8")).digest()
@@ -96,7 +120,9 @@ class Config:
                     cls.JWT_SECRET_KEY, cls.STRING_ENCRYPTION_SECRET,
                     cls.GITHUB_CLIENT_ID, cls.GITHUB_CLIENT_SECRET, cls.OPENROUTER_API_KEY,
                     cls.HH_CLIENT_ID, cls.HH_CLIENT_SECRET,
-                    cls.ADMIN_EMAIL, cls.ADMIN_PASSWORD)):
+                    cls.ADMIN_EMAIL, cls.ADMIN_PASSWORD,
+                    cls.MAIL_SMTP_USERNAME, cls.MAIL_SMTP_PASSWORD,
+                    cls.MAIL_FROM_EMAIL)):
             print("Переменные среды требуют проверки")
             return False
         return True

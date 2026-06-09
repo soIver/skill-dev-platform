@@ -51,6 +51,7 @@ class TokenService:
                 "role": role_name,
                 "type": "access",
                 "jti": uuid4().hex,
+                "iat": now.timestamp(),
             },
             timedelta(minutes=global_config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
         )
@@ -164,6 +165,43 @@ class TokenService:
         except RedisError as exc:
             logger.warning("Не удалось записать access token в Redis blacklist: %s", exc)
 
+    async def revoke_all_user_sessions(self, user_id: int) -> None:
+        redis = get_redis()
+        keys: list[str] = []
+
+        async for key in redis.scan_iter(match=f"auth:refresh:{user_id}:*"):
+            keys.append(key)
+
+        async for key in redis.scan_iter(match=f"auth:refresh:device:{user_id}:*"):
+            keys.append(key)
+
+        if not keys:
+            return
+
+        async with redis.pipeline(transaction=True) as pipeline:
+            pipeline.delete(*keys)
+            await pipeline.execute()
+
+    async def invalidate_user_access_tokens(self, user_id: int) -> None:
+        redis = get_redis()
+        ttl_seconds = global_config.JWT_REFRESH_TOKEN_EXPIRE_MINUTES * 60
+        await redis.set(
+            self._access_valid_after_key(user_id),
+            str(self._now().timestamp()),
+            ex=ttl_seconds,
+        )
+
+    @classmethod
+    async def get_access_valid_after(cls, user_id: int) -> float | None:
+        redis = cls._get_redis()
+        valid_after = await redis.get(cls._access_valid_after_key(user_id))
+        if valid_after is None:
+            return None
+        try:
+            return float(valid_after)
+        except ValueError:
+            return None
+
     async def _revoke_active_device_tokens(self, user_id: int, device_id: str) -> None:
         redis = get_redis()
         active_jti = await redis.get(self._device_key(user_id, device_id))
@@ -233,6 +271,10 @@ class TokenService:
     @staticmethod
     def _device_key(user_id: int, device_id: str) -> str:
         return f"auth:refresh:device:{user_id}:{device_id}"
+
+    @staticmethod
+    def _access_valid_after_key(user_id: int) -> str:
+        return f"auth:access:valid_after:{user_id}"
 
     @staticmethod
     def _normalize_device_id(device_id: str | None) -> str:

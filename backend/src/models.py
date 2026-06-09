@@ -31,13 +31,6 @@ class User(Base):
     role = relationship("Role", lazy="select")
 
 
-class CodeType(Base):
-    __tablename__ = "code_types"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-
-
 class ProfStandard(Base):
     __tablename__ = "prof_standards"
 

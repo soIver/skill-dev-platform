@@ -1,7 +1,14 @@
-from fastapi import APIRouter, Cookie, Depends, Header, Query, Response
+from fastapi import APIRouter, Cookie, Depends, Header, Query, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..mail.schemas import (
+    PasswordChangeCodeResponse,
+    PasswordChangeConfirmRequest,
+    PasswordChangeRequestResponse,
+)
+from ..mail.service import MailService, PasswordChangeRateLimitError
 from ..utils.database import get_db
 from ..config import global_config
 from .schemas import (
@@ -86,6 +93,45 @@ async def get_session(claims: TokenClaims = Depends(get_current_user)):
         username=claims.username,
         email=claims.email,
         role=claims.role,
+    )
+
+
+@router.post("/password-change/request", response_model=PasswordChangeRequestResponse)
+async def request_password_change(db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(get_current_user)):
+    mail_service = MailService(db)
+
+    try:
+        retry_after = await mail_service.request_password_change(claims.user_id)
+    except PasswordChangeRateLimitError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "detail": "Отправка кода для смены пароля возможна не чаще одного раза в минуту",
+                "retry_after_seconds": exc.retry_after_seconds,
+            },
+        )
+
+    return PasswordChangeRequestResponse(
+        message="Письмо с кодом для смены пароля отправлено",
+        retry_after_seconds=retry_after,
+    )
+
+
+@router.get("/password-change/verify", response_model=PasswordChangeCodeResponse)
+async def verify_password_change_code(code: str = Query(...), db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    await mail_service.verify_password_change_code(code)
+    return PasswordChangeCodeResponse(message="Код подтверждения корректен")
+
+
+@router.post("/password-change/confirm", response_model=PasswordChangeCodeResponse)
+async def confirm_password_change(payload: PasswordChangeConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    mail_service = MailService(db)
+    user = await mail_service.confirm_password_change(payload)
+    clear_auth_cookies(response)
+    return PasswordChangeCodeResponse(
+        message=f"Пароль для пользователя {user.username} успешно изменён!",
+        username=user.username,
     )
 
 

@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import Registration from "./pages/Registration";
 import Login from "./pages/Login";
+import PasswordChange from "./pages/auth/PasswordChange";
 import Profile from "./pages/profile/Profile";
 import Credentials from "./pages/profile/Credentials";
 import Skills from "./pages/profile/Skills";
@@ -30,6 +31,7 @@ export default function AppRoutes() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/auth/registration" element={<Registration />} />
       <Route path="/auth/login" element={<Login />} />
+      <Route path="/auth/change-password" element={<PasswordChange />} />
       <Route
         path="/profile"
         element={

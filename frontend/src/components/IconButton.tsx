@@ -31,14 +31,20 @@ export function IconButton({
       title={title || altText}
       onClick={onClick}
       disabled={disabled}
-      className={`bg-transparent rounded-lg transition-colors flex items-center justify-center shrink-0 group ${disabled ? "opacity-50 cursor-not-allowed" : colorHoverClass
-        } ${className}`}
+      className={`bg-transparent rounded-lg transition-colors flex items-center justify-center shrink-0 group ${
+        disabled 
+          ? "opacity-50 cursor-not-allowed" 
+          : `${colorHoverClass} cursor-pointer`
+      } ${className}`}
     >
       <img
         src={iconSrc}
         alt={altText}
-        className={`w-10 h-10 transition-all ${disabled ? "" : "opacity-70 group-hover:opacity-100 group-hover:brightness-0 group-hover:invert"
-          }`}
+        className={`w-10 h-10 transition-all ${
+          disabled 
+            ? "" 
+            : "opacity-70 group-hover:opacity-100 group-hover:brightness-0 group-hover:invert"
+        }`}
       />
     </button>
   );

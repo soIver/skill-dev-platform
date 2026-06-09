@@ -53,7 +53,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    <div className="auth-screen">
       <div className="auth-panel">
         <h1 className="auth-panel-header">Вход</h1>
 
@@ -68,6 +68,7 @@ export default function Login() {
               onChange={(e) => setIdentifier(e.target.value)}
               className="input-field"
               placeholder="you@example.com"
+              maxLength={64}
               required
             />
           </div>
@@ -83,6 +84,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="input-field pr-10"
                 placeholder="Ваш пароль"
+                maxLength={64}
                 required
               />
               <button

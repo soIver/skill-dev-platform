@@ -35,6 +35,14 @@ async def get_current_user(
             try:
                 if await redis.get(f"blacklist:access:{token_jti}"):
                     raise _unauthorized()
+                valid_after = await TokenService.get_access_valid_after(int(payload["sub"]))
+                issued_at = payload.get("iat")
+                if valid_after is not None and (
+                    issued_at is None or float(issued_at) < valid_after
+                ):
+                    raise _unauthorized()
+            except HTTPException:
+                raise
             except Exception:
                 pass  # если Redis недоступен, не блокируем
 

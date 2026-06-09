@@ -6,15 +6,13 @@ import { useToast } from "../components/ToastProvider";
 import FieldRequirements from "../components/FieldRequirements";
 import { Eye, EyeOff } from "lucide-react";
 
-// regexp для обнаружения букв не из латиницы/кириллицы
-const OTHER_ALPHA_RE = /(?:(?![a-zA-Zа-яА-ЯёЁ])\p{L})/u;
+const USERNAME_RE = /^[a-zA-Zа-яА-ЯёЁ_-]*$/;
 
 // проверки имени пользователя
 function checkUsername(v: string) {
   return {
     length: v.length >= 4 && v.length <= 32,
-    noSpaces: !v.includes(" "),
-    validLetters: v.length === 0 || !OTHER_ALPHA_RE.test(v),
+    validChars: v.length === 0 || USERNAME_RE.test(v),
   };
 }
 
@@ -23,8 +21,8 @@ function checkPassword(v: string) {
   return {
     length: v.length >= 12 && v.length <= 32,
     hasDigit: /\d/.test(v),
-    hasSpecial: /[^a-zA-Zа-яА-ЯёЁ0-9]/.test(v),
-    validLetters: v.length === 0 || !OTHER_ALPHA_RE.test(v),
+    hasSpecial: /[^\p{L}\d]/u.test(v),
+    hasMixedCaseLetters: /\p{Ll}/u.test(v) && /\p{Lu}/u.test(v),
   };
 }
 
@@ -132,7 +130,7 @@ export default function Registration() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    <div className="auth-screen">
       <div className="auth-panel">
         <h1 className="auth-panel-header">Регистрация</h1>
 
@@ -150,15 +148,15 @@ export default function Registration() {
               onFocus={() => setActiveField("username")}
               onBlur={() => setActiveField(null)}
               className="input-field"
-              placeholder="username"
+              placeholder="Как к Вам обращаться?"
+              maxLength={64}
               required
             />
             <FieldRequirements
               visible={activeField === "username"}
               requirements={[
                 { text: "От 4 до 32 символов", met: usernameChecks.length },
-                { text: "Без пробелов", met: usernameChecks.noSpaces },
-                { text: "Только латиница и кириллица", met: usernameChecks.validLetters },
+                { text: "Только латиница, кириллица, символы \"-\" и \"_\"", met: usernameChecks.validChars },
               ]}
             />
           </div>
@@ -177,6 +175,7 @@ export default function Registration() {
               onBlur={() => setActiveField(null)}
               className="input-field disabled:bg-gray-100 disabled:text-gray-500"
               placeholder="you@example.com"
+              maxLength={64}
               required
               disabled={!!ghEmail}
             />
@@ -202,7 +201,8 @@ export default function Registration() {
                 onFocus={() => setActiveField("password")}
                 onBlur={() => setActiveField(null)}
                 className="input-field pr-10"
-                placeholder="Ваш пароль"
+                placeholder="Ваш надёжный пароль"
+                maxLength={64}
                 required
               />
               <button
@@ -220,7 +220,7 @@ export default function Registration() {
                 { text: "От 12 до 32 символов", met: passwordChecks.length },
                 { text: "Минимум одна цифра", met: passwordChecks.hasDigit },
                 { text: "Минимум один спецсимвол", met: passwordChecks.hasSpecial },
-                { text: "Только латиница и кириллица", met: passwordChecks.validLetters },
+                { text: "Минимум две буквы в разных регистрах", met: passwordChecks.hasMixedCaseLetters },
               ]}
             />
           </div>
@@ -239,7 +239,8 @@ export default function Registration() {
                 onFocus={() => setActiveField("repeatPassword")}
                 onBlur={() => setActiveField(null)}
                 className="input-field pr-10"
-                placeholder="Ваш пароль ещё раз"
+                placeholder="Ваш надёжный пароль ещё раз"
+                maxLength={64}
                 required
               />
               <button

@@ -17,6 +17,9 @@
 }
 
 @layer components {
+    .auth-screen {
+        @apply flex items-center justify-center min-h-screen bg-gray-100;
+    }
     .auth-panel {
         @apply max-w-md w-full p-6 rounded-xl border bg-white border-gray-400 shadow-md;
     }

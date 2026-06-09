@@ -1,10 +1,38 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { authJson, logout } from "../../auth";
+import { authFetch, authJson, logout } from "../../auth";
 import { useToast } from "../../components/ToastProvider";
+import { config } from "../../config";
 import { useUserStore, type GitHubProfile } from "../../hooks/useUserStore";
 import GitHubIcon from "../../assets/icons/github.svg?react";
+
+interface PasswordChangeRequestResponse {
+  message?: string;
+  detail?: string;
+  retry_after_seconds?: number;
+}
+
+function formatCooldown(seconds: number): string {
+  if (seconds <= 0) {
+    return "менее секунды";
+  }
+  if (seconds === 1) {
+    return "1 секунду";
+  }
+  if (seconds > 1 && seconds < 5) {
+    return `${seconds} секунды`;
+  }
+  return `${seconds} секунд`;
+}
+
+async function readPasswordChangeResponse(response: Response): Promise<PasswordChangeRequestResponse> {
+  try {
+    return (await response.json()) as PasswordChangeRequestResponse;
+  } catch {
+    return {};
+  }
+}
 
 
 export default function Credentials() {
@@ -18,6 +46,8 @@ export default function Credentials() {
   const setGitHubProfile = useUserStore((state) => state.setGitHubProfile);
   const [isGitHubLoading, setIsGitHubLoading] = useState(!githubConnection);
   const [isGitHubSubmitting, setIsGitHubSubmitting] = useState(false);
+  const [passwordChangeCooldown, setPasswordChangeCooldown] = useState(0);
+  const [isPasswordChangeSubmitting, setIsPasswordChangeSubmitting] = useState(false);
   const { showToast } = useToast();
 
   const handleLogout = async () => {
@@ -122,6 +152,18 @@ export default function Credentials() {
     setSearchParams(nextParams, { replace: true });
   }, [githubMessage, githubStatus, location.key, searchParams, setSearchParams, showToast]);
 
+  useEffect(() => {
+    if (passwordChangeCooldown <= 0) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setPasswordChangeCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [passwordChangeCooldown]);
+
   const handleConnectGitHub = async () => {
     setIsGitHubSubmitting(true);
 
@@ -174,8 +216,56 @@ export default function Credentials() {
     }
   };
 
+  const handleRequestPasswordChange = async () => {
+    setIsPasswordChangeSubmitting(true);
+
+    try {
+      const response = await authFetch(
+        `${config.apiBaseUrl}/auth/password-change/request`,
+        {
+          method: "POST",
+        },
+      );
+      const data = await readPasswordChangeResponse(response);
+
+      if (response.status === 429) {
+        const retryAfter = Math.max(1, data.retry_after_seconds ?? 60);
+        setPasswordChangeCooldown(retryAfter);
+        showToast({
+          title: "Пожалуйста, подождите",
+          message: `Обязательно проверьте папку "спам" в почтовом ящике. Повторная отправка письма будет доступна через ${formatCooldown(retryAfter)}.`,
+          variant: "error",
+        });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || "Не удалось отправить письмо.");
+      }
+
+      setPasswordChangeCooldown(Math.max(1, data.retry_after_seconds ?? 60));
+      showToast({
+        title: "Письмо отправлено",
+        message: "На вашу почту отправлена ссылка для смены пароля.",
+        variant: "success",
+      });
+    } catch (err) {
+      showToast({
+        title: "Ошибка смены пароля",
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : "Не удалось отправить письмо для смены пароля.",
+        variant: "error",
+      });
+    } finally {
+      setIsPasswordChangeSubmitting(false);
+    }
+  };
+
   const githubDisplayName =
     githubConnection?.name || githubConnection?.login || "GitHub профиль";
+  const isPasswordChangeDisabled = isPasswordChangeSubmitting || passwordChangeCooldown > 0;
 
 
   return (
@@ -202,7 +292,23 @@ export default function Credentials() {
 
             <div className="flex gap-4">
               <button className="primary-button flex-3">Сменить почту</button>
-              <button className="primary-button flex-3">Сменить пароль</button>
+              <span
+                className="flex-3"
+                title={
+                  isPasswordChangeDisabled
+                    ? "Отправка кода для смены пароля возможна не чаще одного раза в минуту"
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  onClick={handleRequestPasswordChange}
+                  disabled={isPasswordChangeDisabled}
+                  className="primary-button disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Сменить пароль
+                </button>
+              </span>
               <button onClick={handleLogout} className="danger-button flex-2">
                 Выйти
               </button>
