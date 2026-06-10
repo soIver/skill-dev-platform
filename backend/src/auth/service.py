@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 from redis.exceptions import RedisError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -397,6 +398,44 @@ class AuthService:
             await self.token_service.revoke_refresh_token(refresh_token, device_id)
         if access_token:
             await self.token_service.blacklist_access_token(access_token)
+
+    async def is_username_available(self, username: str, exclude_user_id: int | None = None) -> bool:
+        query = select(User.id).where(User.username == username)
+        if exclude_user_id is not None:
+            query = query.where(User.id != exclude_user_id)
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is None
+
+    async def update_username(self, user_id: int, username: str) -> User:
+        result = await self.db.execute(
+            select(User).options(joinedload(User.role)).where(User.id == user_id)
+        )
+        user = result.unique().scalar_one_or_none()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Пользователь не найден",
+            )
+
+        if user.username == username:
+            return user
+
+        if not await self.is_username_available(username, user_id):
+            raise UserAlreadyExistsError("Пользователь с таким именем уже существует")
+
+        user.username = username
+
+        try:
+            await self.db.commit()
+        except IntegrityError as exc:
+            await self.db.rollback()
+            raise UserAlreadyExistsError("Пользователь с таким именем уже существует") from exc
+
+        result = await self.db.execute(
+            select(User).options(joinedload(User.role)).where(User.id == user_id)
+        )
+        return result.unique().scalar_one()
 
 
 class InvalidCredentialsError(HTTPException):

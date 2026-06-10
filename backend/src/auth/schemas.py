@@ -3,6 +3,7 @@ import re
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 _USERNAME_RE = re.compile(r'^[a-zA-Zа-яА-ЯёЁ_-]+$')
+USERNAME_MAX_LENGTH = 16
 
 # простая проверка формата email
 _EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
@@ -104,6 +105,19 @@ class UserResponse(BaseModel):
     role: str
 
 
+class UsernameAvailabilityResponse(BaseModel):
+    available: bool
+
+
+class UsernameUpdateRequest(BaseModel):
+    username: str
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        return validate_username_value(v)
+
+
 class ContentOwnerItem(BaseModel):
     id: int
     username: str
@@ -123,8 +137,8 @@ class MessageResponse(BaseModel):
 
 
 def validate_username_value(value: str) -> str:
-    if len(value) < 4 or len(value) > 32:
-        raise ValueError('Имя пользователя должно содержать от 4 до 32 символов')
+    if len(value) < 4 or len(value) > USERNAME_MAX_LENGTH:
+        raise ValueError('Имя пользователя должно содержать от 4 до 16 символов')
     if not _USERNAME_RE.match(value):
         raise ValueError('Имя пользователя может содержать только латиницу, кириллицу, символы "-" и "_"')
     return value

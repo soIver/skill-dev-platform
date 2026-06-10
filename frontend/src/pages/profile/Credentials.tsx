@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Check, Loader2, PencilLine, X } from "lucide-react";
 
-import { authFetch, authJson, logout } from "../../auth";
+import {
+  authFetch,
+  authJson,
+  checkUsernameAvailability,
+  logout,
+  updateUsername,
+} from "../../auth";
 import { useToast } from "../../components/ToastProvider";
-import { config } from "../../config";
+import { config, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useUserStore, type GitHubProfile } from "../../hooks/useUserStore";
+import { USERNAME_MAX_LENGTH, checkUsername } from "../../validation";
 import { formatDurationSeconds } from "../../utils";
 import GitHubIcon from "../../assets/icons/github.svg?react";
 
@@ -15,6 +23,7 @@ interface CredentialChangeRequestResponse {
 }
 
 type CredentialChangeAction = "email" | "password";
+type UsernameAvailabilityStatus = "idle" | "unchanged" | "checking" | "available" | "taken" | "invalid" | "error";
 
 interface CredentialChangeConfig {
   path: string;
@@ -67,8 +76,14 @@ export default function Credentials() {
   const user = useUserStore((state) => state.user);
   const githubConnection = useUserStore((state) => state.githubProfile);
   const setGitHubProfile = useUserStore((state) => state.setGitHubProfile);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
   const [isGitHubLoading, setIsGitHubLoading] = useState(!githubConnection);
   const [isGitHubSubmitting, setIsGitHubSubmitting] = useState(false);
+  const [isUsernameEditing, setIsUsernameEditing] = useState(false);
+  const [isUsernameSubmitting, setIsUsernameSubmitting] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(user?.username ?? "");
+  const [usernameAvailability, setUsernameAvailability] =
+    useState<UsernameAvailabilityStatus>("idle");
   const [credentialCooldowns, setCredentialCooldowns] = useState<Record<CredentialChangeAction, number>>({
     email: 0,
     password: 0,
@@ -101,6 +116,61 @@ export default function Credentials() {
 
     navigate("/auth/login");
   };
+
+  useEffect(() => {
+    if (!isUsernameEditing) {
+      setUsernameDraft(user?.username ?? "");
+      setUsernameAvailability("idle");
+    }
+  }, [isUsernameEditing, user?.username]);
+
+  useEffect(() => {
+    if (!isUsernameEditing) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      usernameInputRef.current?.focus();
+    });
+  }, [isUsernameEditing]);
+
+  useEffect(() => {
+    if (!isUsernameEditing) {
+      return;
+    }
+
+    if (usernameDraft === user?.username) {
+      setUsernameAvailability("unchanged");
+      return;
+    }
+
+    const checks = checkUsername(usernameDraft);
+    if (!Object.values(checks).every(Boolean)) {
+      setUsernameAvailability("invalid");
+      return;
+    }
+
+    let cancelled = false;
+    setUsernameAvailability("checking");
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const available = await checkUsernameAvailability(usernameDraft);
+        if (!cancelled) {
+          setUsernameAvailability(available ? "available" : "taken");
+        }
+      } catch {
+        if (!cancelled) {
+          setUsernameAvailability("error");
+        }
+      }
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [isUsernameEditing, usernameDraft, user?.username]);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +318,48 @@ export default function Credentials() {
     }
   };
 
+  const handleStartUsernameEdit = () => {
+    setUsernameDraft(user?.username ?? "");
+    setUsernameAvailability("idle");
+    setIsUsernameEditing(true);
+  };
+
+  const handleCancelUsernameEdit = () => {
+    setUsernameDraft(user?.username ?? "");
+    setUsernameAvailability("idle");
+    setIsUsernameEditing(false);
+  };
+
+  const handleConfirmUsernameEdit = async () => {
+    if (!canConfirmUsername) {
+      return;
+    }
+
+    setIsUsernameSubmitting(true);
+
+    try {
+      await updateUsername(usernameDraft);
+      setIsUsernameEditing(false);
+      setUsernameAvailability("idle");
+      showToast({
+        title: "Имя пользователя изменено",
+        message: "Новое имя пользователя сохранено.",
+        variant: "success",
+      });
+    } catch (err) {
+      showToast({
+        title: "Ошибка сохранения",
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : "Не удалось изменить имя пользователя.",
+        variant: "error",
+      });
+    } finally {
+      setIsUsernameSubmitting(false);
+    }
+  };
+
   const handleRequestCredentialChange = async (action: CredentialChangeAction) => {
     const actionConfig = credentialChangeConfig[action];
     setCredentialSubmitting((current) => ({ ...current, [action]: true }));
@@ -309,6 +421,35 @@ export default function Credentials() {
       : credentialCooldowns.email >= 86400
       ? `Смена адреса электронной почты будет доступна через ${formatDurationSeconds(credentialCooldowns.email)}`
       : "Отправка кода для смены почты возможна не чаще одного раза в минуту";
+  const usernameChecks = checkUsername(usernameDraft);
+  const isUsernameFormatValid = Object.values(usernameChecks).every(Boolean);
+  const isUsernameChanged = usernameDraft !== user?.username;
+  const canConfirmUsername =
+    isUsernameEditing &&
+    !isUsernameSubmitting &&
+    isUsernameChanged &&
+    isUsernameFormatValid &&
+    usernameAvailability === "available";
+  const usernameStatusClass =
+    usernameAvailability === "available"
+      ? "text-success"
+      : usernameAvailability === "taken" || usernameAvailability === "invalid" || usernameAvailability === "error"
+      ? "text-danger"
+      : "text-gray-500";
+  const usernameStatusText =
+    usernameAvailability === "checking"
+      ? "Проверяем доступность имени пользователя..."
+      : usernameAvailability === "available"
+      ? "Это имя пользователя свободно"
+      : usernameAvailability === "taken"
+      ? "Это имя пользователя занято"
+      : usernameAvailability === "invalid"
+      ? 'От 4 до 16 символов: латиница, кириллица, "-" и "_"'
+      : usernameAvailability === "error"
+      ? "Не удалось проверить имя пользователя"
+      : usernameAvailability === "unchanged"
+      ? "Введите новое имя пользователя"
+      : "Введите новое имя пользователя";
 
 
   return (
@@ -319,10 +460,74 @@ export default function Credentials() {
           <h2 className="workspace-panel-header">Основные</h2>
 
           <div className="space-y-6">
-            <div className="flex items-center">
-              <div>
-                <p className="text-sm text-gray-500">Имя пользователя</p>
-                <p className="text-lg font-medium">{user?.username}</p>
+            <div>
+              <p className="text-sm text-gray-500">Имя пользователя</p>
+              <div className="flex min-h-9 items-center justify-between gap-4">
+                <div className="flex min-w-0 flex-1 items-center">
+                  <span className="relative inline-block w-fit max-w-full min-w-0 flex-none">
+                    <span className="invisible block whitespace-pre text-lg font-medium">
+                      {usernameDraft || "    "}
+                    </span>
+                    <input
+                      ref={usernameInputRef}
+                      type="text"
+                      value={usernameDraft}
+                      onChange={(event) => setUsernameDraft(event.target.value)}
+                      readOnly={!isUsernameEditing}
+                      maxLength={USERNAME_MAX_LENGTH}
+                      className="absolute inset-0 h-full w-full min-w-0 border border-transparent bg-transparent p-0 text-lg font-medium text-gray-900 outline-none transition-none focus:border-transparent focus:outline-none focus:ring-0 read-only:pointer-events-none"
+                      aria-label="Имя пользователя"
+                    />
+                  </span>
+                  {!isUsernameEditing ? (
+                    <button
+                      type="button"
+                      onClick={handleStartUsernameEdit}
+                      className="ml-1 rounded-full p-1 text-gray-500 cursor-pointer transition-colors hover:bg-gray-50 hover:text-primary"
+                      title="Изменить имя пользователя"
+                      aria-label="Изменить имя пользователя"
+                    >
+                      <PencilLine className="h-5 w-5" />
+                    </button>
+                  ) : null}
+                </div>
+
+                {isUsernameEditing ? (
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleConfirmUsernameEdit}
+                      disabled={!canConfirmUsername}
+                      className="flex items-center gap-1 rounded-lg cursor-pointer bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isUsernameSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      Подтвердить
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelUsernameEdit}
+                      disabled={isUsernameSubmitting}
+                      className="flex items-center gap-1 rounded-lg cursor-pointer border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" />
+                      Отмена
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <div
+                className={` flex h-5 min-w-0 items-center gap-1 text-sm ${usernameStatusClass} ${
+                  isUsernameEditing ? "" : "invisible"
+                }`}
+              >
+                {usernameAvailability === "checking" ? (
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                ) : null}
+                <span className="truncate">{usernameStatusText}</span>
               </div>
             </div>
 

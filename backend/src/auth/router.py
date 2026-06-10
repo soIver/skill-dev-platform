@@ -24,7 +24,10 @@ from .schemas import (
     LoginCredentials,
     MessageResponse,
     RegistrationCredentials,
+    UsernameAvailabilityResponse,
+    UsernameUpdateRequest,
     UserResponse,
+    validate_username_value,
 )
 from .service import AuthService
 from .utils import (
@@ -106,6 +109,37 @@ async def get_session(claims: TokenClaims = Depends(get_current_user)):
         email=claims.email,
         role=claims.role,
     )
+
+
+@router.get("/username-availability", response_model=UsernameAvailabilityResponse)
+async def check_username_availability(username: str = Query(...), db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(get_current_user)):
+    try:
+        valid_username = validate_username_value(username)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    auth = AuthService(db)
+    return UsernameAvailabilityResponse(
+        available=await auth.is_username_available(valid_username, claims.user_id)
+    )
+
+
+@router.patch("/username", response_model=AuthResponse)
+async def update_username(
+    payload: UsernameUpdateRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(get_current_user),
+    device_id: str | None = Header(default=None, alias="X-Device-Id"),
+):
+    auth = AuthService(db)
+    user = await auth.update_username(claims.user_id, payload.username)
+    token_pair = await auth.token_service.issue_token_pair(user, device_id)
+    set_auth_cookies(response, token_pair)
+    return _build_auth_response(user)
 
 
 @router.post("/email-confirmation/request", response_model=EmailConfirmationResponse)

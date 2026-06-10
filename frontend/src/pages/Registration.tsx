@@ -6,7 +6,7 @@ import { register, requestEmailConfirmation } from "../auth";
 import FieldRequirements from "../components/FieldRequirements";
 import { useToast } from "../components/ToastProvider";
 import GitHubIcon from "../assets/icons/github.svg?react";
-import { checkEmail, checkPassword, checkUsername } from "../validation";
+import { USERNAME_MAX_LENGTH, checkEmail, checkPassword, checkUsername } from "../validation";
 import { flashField } from "../utils";
 
 export default function Registration() {
@@ -182,13 +182,13 @@ export default function Registration() {
                 onBlur={() => setActiveField(null)}
                 className="input-field"
                 placeholder="Как к Вам обращаться?"
-                maxLength={64}
+                maxLength={USERNAME_MAX_LENGTH}
                 required
               />
               <FieldRequirements
                 visible={activeField === "username"}
                 requirements={[
-                  { text: "От 4 до 32 символов", met: usernameChecks.length },
+                  { text: "От 4 до 16 символов", met: usernameChecks.length },
                   { text: "Только латиница, кириллица, символы \"-\" и \"_\"", met: usernameChecks.validChars },
                 ]}
               />

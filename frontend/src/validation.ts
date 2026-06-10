@@ -1,9 +1,10 @@
 export const USERNAME_RE = /^[a-zA-Zа-яА-ЯёЁ_-]*$/;
 export const EMAIL_RE = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+export const USERNAME_MAX_LENGTH = 16;
 
 export function checkUsername(value: string) {
   return {
-    length: value.length >= 4 && value.length <= 32,
+    length: value.length >= 4 && value.length <= USERNAME_MAX_LENGTH,
     validChars: value.length === 0 || USERNAME_RE.test(value),
   };
 }
@@ -22,4 +23,3 @@ export function checkEmail(value: string) {
     valid: EMAIL_RE.test(value),
   };
 }
-

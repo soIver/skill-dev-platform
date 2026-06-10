@@ -28,6 +28,10 @@ interface EmailRegistrationCredentials {
   repeat_password: string;
 }
 
+interface UsernameAvailabilityResponse {
+  available: boolean;
+}
+
 const DEVICE_ID_HEADER = "X-Device-Id";
 
 function getDefaultHeaders(): HeadersInit {
@@ -83,6 +87,36 @@ export async function login(credentials: Credentials): Promise<void> {
 
 export async function register(credentials: RegistrationCredentials): Promise<void> {
   const data = await fetchAuth("/auth/register", credentials);
+  applyAuthSession(data);
+}
+
+export async function checkUsernameAvailability(username: string): Promise<boolean> {
+  const response = await authFetch(
+    `${config.apiBaseUrl}/auth/username-availability?username=${encodeURIComponent(username)}`,
+    {
+      method: "GET",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+
+  const data = (await response.json()) as UsernameAvailabilityResponse;
+  return data.available;
+}
+
+export async function updateUsername(username: string): Promise<void> {
+  const response = await authFetch(`${config.apiBaseUrl}/auth/username`, {
+    method: "PATCH",
+    body: JSON.stringify({ username }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+
+  const data = (await response.json()) as AuthResponse;
   applyAuthSession(data);
 }
 
