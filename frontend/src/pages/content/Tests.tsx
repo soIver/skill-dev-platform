@@ -574,7 +574,7 @@ export default function ContentTests() {
         <div className="flex items-start justify-between gap-4 mb-4">
           <h2 className="workspace-panel-header mb-0 flex-1 min-w-0">Список тестов</h2>
           <ContentOwnerFilter
-            entityLabel="тестов"
+            entityLabel="тесты"
             ownerId={ownerId}
             ownerUsername={ownerUsername}
             onOwnerIdChange={(nextOwnerId) => setTestsState({ ownerId: nextOwnerId })}

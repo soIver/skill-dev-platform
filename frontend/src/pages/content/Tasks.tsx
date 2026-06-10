@@ -388,7 +388,7 @@ export default function ContentTasks() {
         <div className="flex items-start justify-between gap-4 mb-4">
           <h2 className="workspace-panel-header mb-0 flex-1 min-w-0">Список заданий</h2>
           <ContentOwnerFilter
-            entityLabel="заданий"
+            entityLabel="задания"
             ownerId={ownerId}
             ownerUsername={ownerUsername}
             onOwnerIdChange={(nextOwnerId) => setTasksState({ ownerId: nextOwnerId })}

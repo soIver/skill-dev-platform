@@ -30,7 +30,7 @@ export function ContentOwnerFilter({
 
   if (user.role === "curator") {
     return (
-      <label className="flex items-center gap-3 text-sm text-gray-700 shrink-0">
+      <label className="flex my-auto items-center gap-3 cursor-pointer text-md text-gray-700 shrink-0">
         <input
           type="checkbox"
           checked={ownerId === user.id}
@@ -39,8 +39,9 @@ export function ContentOwnerFilter({
             onOwnerUsernameChange("");
           }}
           className="checkbox-field"
+          style={{ transform: 'scale(1.2)'}}
         />
-        <span>{`Искать среди моих ${entityLabel}`}</span>
+        <span>{`Только мои ${entityLabel}`}</span>
       </label>
     );
   }
