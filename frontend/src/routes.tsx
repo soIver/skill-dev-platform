@@ -4,6 +4,7 @@ import Registration from "./pages/Registration";
 import Login from "./pages/Login";
 import PasswordChange from "./pages/auth/PasswordChange";
 import EmailConfirmation from "./pages/auth/EmailConfirmation";
+import CuratorInvitationConfirmation from "./pages/auth/CuratorInvitationConfirmation";
 import EmailChange from "./pages/auth/EmailChange";
 import EmailChangeConfirmation from "./pages/auth/EmailChangeConfirmation";
 import Profile from "./pages/profile/Profile";
@@ -36,6 +37,7 @@ export default function AppRoutes() {
       <Route path="/auth/login" element={<Login />} />
       <Route path="/auth/change-password" element={<PasswordChange />} />
       <Route path="/auth/confirm-email" element={<EmailConfirmation />} />
+      <Route path="/auth/confirm-curator" element={<CuratorInvitationConfirmation />} />
       <Route path="/auth/change-email" element={<EmailChange />} />
       <Route path="/auth/confirm-email-change" element={<EmailChangeConfirmation />} />
       <Route

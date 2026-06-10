@@ -11,6 +11,7 @@ from slowapi.util import get_remote_address
 
 from .auth.router import router as auth_router
 from .config import global_config
+from .management.router import router as management_router
 from .utils.database import init_database, db_engine
 from .repositories.router import router as github_router
 from .skills.router import router as skills_router
@@ -64,6 +65,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(management_router, prefix="/api")
 app.include_router(github_router, prefix="/api")
 app.include_router(skills_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")

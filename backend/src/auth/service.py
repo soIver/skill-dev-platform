@@ -330,7 +330,15 @@ class AuthService:
             return None
         return user
 
-    async def register(self, username: str, email: str, password: str, github_token: str | None = None, github_id: int | None = None) -> User:
+    async def register(
+        self,
+        username: str,
+        email: str,
+        password: str,
+        github_token: str | None = None,
+        github_id: int | None = None,
+        role_name: str = "user",
+    ) -> User:
         existing_user = await self.db.execute(
             select(User).where(or_(User.email == email, User.username == username))
         )
@@ -347,10 +355,10 @@ class AuthService:
             if existing_github_profile.scalar_one_or_none() is not None:
                 raise UserAlreadyExistsError("Профиль GitHub уже привязан к другому аккаунту")
 
-        role_result = await self.db.execute(select(Role).where(Role.name == "user"))
+        role_result = await self.db.execute(select(Role).where(Role.name == role_name))
         user_role = role_result.scalar_one_or_none()
         if user_role is None:
-            raise RuntimeError("Роль user не найдена")
+            raise RuntimeError(f"Роль {role_name} не найдена")
 
         new_user = User(
             username=username,

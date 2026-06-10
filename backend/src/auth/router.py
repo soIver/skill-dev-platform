@@ -9,6 +9,11 @@ from ..mail.schemas import (
     PasswordChangeRequestResponse,
 )
 from ..mail.service import EmailChangeRateLimitError, MailService, PasswordChangeRateLimitError
+from ..management.schemas import (
+    CuratorInvitationConfirmRequest,
+    CuratorInvitationConfirmResponse,
+)
+from ..management.service import ManagementService
 from ..utils.database import get_db
 from ..config import global_config
 from .schemas import (
@@ -152,12 +157,30 @@ async def request_email_confirmation(payload: EmailConfirmationRequest, db: Asyn
 @router.get("/email-confirmation/verify", response_model=EmailConfirmationVerifyResponse)
 async def verify_email_confirmation(code: str = Query(...), db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
-    email = await mail_service.verify_email_confirmation_code(code)
-    return EmailConfirmationVerifyResponse(email=email)
+    try:
+        email = await mail_service.verify_email_confirmation_code(code)
+        return EmailConfirmationVerifyResponse(email=email)
+    except HTTPException as exc:
+        if exc.status_code != status.HTTP_404_NOT_FOUND:
+            raise
+
+    email = await ManagementService(db).verify_registration_invitation_code(code)
+    return EmailConfirmationVerifyResponse(email=email, invitation_role="curator")
 
 
 @router.post("/email-confirmation/complete", response_model=EmailConfirmationResponse)
 async def complete_email_registration(payload: EmailRegistrationCompleteRequest, db: AsyncSession = Depends(get_db)):
+    management_service = ManagementService(db)
+    invitation_data = await management_service.get_registration_invitation_data(payload.code)
+    if invitation_data is not None:
+        await management_service.register_invited_curator(
+            payload.code,
+            payload.username,
+            payload.email,
+            payload.password,
+        )
+        return EmailConfirmationResponse(message="Адрес почты успешно подтверждён!")
+
     mail_service = MailService(db)
     confirmed_email = await mail_service.verify_email_confirmation_code(payload.code)
     if confirmed_email != payload.email:
@@ -169,6 +192,19 @@ async def complete_email_registration(payload: EmailRegistrationCompleteRequest,
     await auth.register(payload.username, payload.email, payload.password)
     await mail_service.consume_email_confirmation_code(payload.code, payload.email)
     return EmailConfirmationResponse(message="Адрес почты успешно подтверждён!")
+
+
+@router.post("/curator-invitation/confirm", response_model=CuratorInvitationConfirmResponse)
+async def confirm_curator_invitation(
+    payload: CuratorInvitationConfirmRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    await ManagementService(db).confirm_role_invitation(payload.code)
+    clear_auth_cookies(response)
+    return CuratorInvitationConfirmResponse(
+        message="Ваша роль успешно изменена на «Куратор контента»!"
+    )
 
 
 @router.post("/password-change/request", response_model=PasswordChangeRequestResponse)

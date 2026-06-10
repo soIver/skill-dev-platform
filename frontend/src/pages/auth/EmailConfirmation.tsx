@@ -29,6 +29,7 @@ export default function EmailConfirmation() {
   const code = searchParams.get("code") || "";
   const [status, setStatus] = useState<"loading" | "ready" | "invalid" | "success">("loading");
   const [email, setEmail] = useState("");
+  const [invitationRole, setInvitationRole] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
@@ -69,9 +70,10 @@ export default function EmailConfirmation() {
           throw new Error(await readApiError(response));
         }
 
-        const data = (await response.json()) as { email: string };
+        const data = (await response.json()) as { email: string; invitation_role?: string | null };
         if (!cancelled) {
           setEmail(data.email);
+          setInvitationRole(data.invitation_role || null);
           setStatus("ready");
         }
       } catch {
@@ -142,7 +144,9 @@ export default function EmailConfirmation() {
       <div className="auth-panel">
         {status === "success" ? (
           <div className="space-y-6 text-center">
-            <h1 className="auth-panel-header text-center">Адрес почты успешно подтверждён!</h1>
+            <h1 className="auth-panel-header text-center">
+              {invitationRole === "curator" ? "Регистрация куратора завершена!" : "Адрес почты успешно подтверждён!"}
+            </h1>
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-500" strokeWidth={1.8} />
             <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
               Войти

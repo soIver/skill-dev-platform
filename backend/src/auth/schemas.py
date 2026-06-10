@@ -53,6 +53,7 @@ class EmailConfirmationResponse(BaseModel):
 
 class EmailConfirmationVerifyResponse(BaseModel):
     email: str
+    invitation_role: str | None = None
 
 
 class EmailRegistrationCompleteRequest(BaseModel):
