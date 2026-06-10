@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowUpRight } from "lucide-react";
 
 import { authJson } from "../../auth";
 import { ITEMS_PER_TABLE_PAGE, SEARCH_DEBOUNCE_MS } from "../../config";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { useToast } from "../../components/ToastProvider";
+import { useContentStore } from "../../hooks/useContentStore";
 import { useManagementStore, type CuratorManagementItem } from "../../hooks/useManagementStore";
 import { checkEmail } from "../../validation";
 
@@ -25,11 +28,13 @@ type PendingAction =
 
 export default function ManagementAdmin() {
   const { query, results, currentPage, totalPages, hasLoaded, lastSearch, setManagementState } = useManagementStore();
+  const { setSkillsState, setTasksState, setTestsState } = useContentStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availability, setAvailability] = useState<CuratorInvitationAvailabilityResponse | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   const trimmedQuery = query.trim();
@@ -164,6 +169,78 @@ export default function ManagementAdmin() {
     }
   };
 
+  const openContentForOwner = useCallback((
+    item: CuratorManagementItem,
+    section: "skills" | "tests" | "tasks",
+  ) => {
+    if (item.kind !== "user" || typeof item.id !== "number") return;
+
+    const ownerUsername = item.username || item.email;
+
+    if (section === "skills") {
+      setSkillsState({
+        skillInput: "",
+        levelInput: "",
+        ownerId: item.id,
+        ownerUsername,
+        results: [],
+        currentPage: 1,
+        totalPages: 1,
+      });
+    } else if (section === "tests") {
+      setTestsState({
+        keywordInput: "",
+        skillInput: "",
+        ownerId: item.id,
+        ownerUsername,
+        results: [],
+        currentPage: 1,
+        totalPages: 1,
+      });
+    } else {
+      setTasksState({
+        keywordInput: "",
+        skillInput: "",
+        ownerId: item.id,
+        ownerUsername,
+        results: [],
+        currentPage: 1,
+        totalPages: 1,
+      });
+    }
+
+    navigate(`/content/${section}`);
+  }, [navigate, setSkillsState, setTasksState, setTestsState]);
+
+  const renderContentCount = useCallback((
+    item: CuratorManagementItem,
+    count: number | null | undefined,
+    section: "skills" | "tests" | "tasks",
+    label: string,
+  ) => {
+    if (item.kind === "invitation") {
+      return "—";
+    }
+
+    const normalizedCount = count ?? 0;
+
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <span className="min-w-4 text-center">{normalizedCount}</span>
+        <button
+          type="button"
+          onClick={() => openContentForOwner(item, section)}
+          disabled={normalizedCount === 0}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg cursor-pointer border border-gray-300 bg-white text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300 disabled:hover:border-gray-200 disabled:hover:text-gray-300"
+          title={`Открыть ${label} пользователя`}
+          aria-label={`Открыть ${label} пользователя`}
+        >
+          <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+        </button>
+      </div>
+    );
+  }, [openContentForOwner]);
+
   const columns = useMemo<Column<CuratorManagementItem>[]>(() => [
     {
       key: "username",
@@ -179,19 +256,19 @@ export default function ManagementAdmin() {
       key: "tests_count",
       header: "Тестов",
       align: "center",
-      render: (item) => item.kind === "invitation" ? "—" : item.tests_count ?? 0,
+      render: (item) => renderContentCount(item, item.tests_count, "tests", "тесты"),
     },
     {
       key: "skills_count",
       header: "Навыков",
       align: "center",
-      render: (item) => item.kind === "invitation" ? "—" : item.skills_count ?? 0,
+      render: (item) => renderContentCount(item, item.skills_count, "skills", "навыки"),
     },
     {
       key: "tasks_count",
       header: "Заданий",
       align: "center",
-      render: (item) => item.kind === "invitation" ? "—" : item.tasks_count ?? 0,
+      render: (item) => renderContentCount(item, item.tasks_count, "tasks", "задания"),
     },
     {
       key: "action",
@@ -219,7 +296,7 @@ export default function ManagementAdmin() {
           <button
             type="button"
             onClick={() => setPendingAction({ type: "revoke", item })}
-            className="px-3 py-1.5 rounded-lg border border-danger text-danger hover:bg-red-50 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-white cursor-pointer border border-danger text-danger hover:bg-red-50 transition-colors disabled:opacity-50"
             disabled={isSubmitting}
           >
             Отозвать роль
@@ -227,10 +304,10 @@ export default function ManagementAdmin() {
         );
       },
     },
-  ], [isSubmitting]);
+  ], [isSubmitting, renderContentCount]);
 
   return (
-    <div className="workspace-container my-4">
+    <div className="workspace-container m-7">
       <div className="workspace-panel">
         <h2 className="workspace-panel-header">Управление</h2>
 

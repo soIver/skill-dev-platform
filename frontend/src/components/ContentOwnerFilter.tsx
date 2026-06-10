@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { authJson } from "../auth";
 import { useUserStore } from "../hooks/useUserStore";
 import { AutocompleteSearch } from "./AutocompleteSearch";
@@ -23,6 +25,7 @@ export function ContentOwnerFilter({
   onOwnerUsernameChange,
 }: ContentOwnerFilterProps) {
   const user = useUserStore((state) => state.user);
+  const selectedOwnerRef = useRef<ContentOwnerItem | null>(null);
 
   if (!user) {
     return null;
@@ -58,22 +61,37 @@ export function ContentOwnerFilter({
   };
 
   return (
-    <div className="w-full max-w-sm shrink-0">
+    <div className="w-full max-w-3xs shrink-0">
       <AutocompleteSearch<ContentOwnerItem>
         onSearch={searchOwners}
         onSelect={() => undefined}
         onInputChange={(value) => {
           onOwnerUsernameChange(value);
           if (!value) {
+            selectedOwnerRef.current = null;
+            onOwnerIdChange(null);
+            return;
+          }
+
+          if (selectedOwnerRef.current?.username === value) {
+            return;
+          }
+
+          if (value !== ownerUsername) {
+            selectedOwnerRef.current = null;
             onOwnerIdChange(null);
           }
         }}
         onSelectedItemChange={(item) => {
-          onOwnerIdChange(item?.id ?? null);
+          if (!item) {
+            return;
+          }
+          selectedOwnerRef.current = item;
+          onOwnerIdChange(item.id);
         }}
         itemToString={(item) => item.username}
         renderItem={(item) => <span>{item.username}</span>}
-        placeholder="Поиск по владельцу"
+        placeholder="Поиск по создателю"
         hideButton={true}
         value={ownerUsername}
         showClearButton={true}
