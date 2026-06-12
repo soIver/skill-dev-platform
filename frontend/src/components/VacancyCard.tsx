@@ -32,7 +32,7 @@ export function VacancyCard({ vacancy, onAnalyze }: VacancyCardProps) {
         <button
           onClick={() => window.open(vacancy.original_url, "_blank", "noopener,noreferrer")}
           disabled={!vacancy.original_url}
-          className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium cursor-pointer text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
         >
           Открыть оригинал
         </button>
@@ -41,7 +41,7 @@ export function VacancyCard({ vacancy, onAnalyze }: VacancyCardProps) {
           disabled={!onAnalyze}
           className={`rounded-xl px-4 py-2 text-sm font-medium ${
             onAnalyze
-              ? "bg-primary hover:bg-primary-hover text-white cursor-pointer transition-colors"
+              ? "bg-primary hover:bg-primary-hover text-white transition-colors"
               : "bg-gray-200 text-gray-500 cursor-not-allowed"
           }`}
         >

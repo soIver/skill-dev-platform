@@ -115,7 +115,7 @@ export default function VerNavBar() {
       <div className="relative h-12 mx-3 mb-3">
         <button
           onClick={() => setIsExpanded((prev) => !prev)}
-          className="absolute top-0 h-12 w-12 flex items-center justify-center cursor-pointer rounded-full hover:bg-gray-100 transition-all duration-300"
+          className="absolute top-0 h-12 w-12 flex items-center justify-center rounded-full hover:bg-gray-100 transition-all duration-300"
           style={{
             left: isExpanded ? "calc(100% - 3rem)" : "calc(50% - 1.5rem)",
           }}

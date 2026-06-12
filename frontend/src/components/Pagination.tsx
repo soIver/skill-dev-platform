@@ -19,7 +19,7 @@ function PaginationArrow({ direction, onClick, disabled, onMouseEnter }: Paginat
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       disabled={disabled}
-      className="px-2 py-1 text-lg rounded-full cursor-pointer hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700"
+      className="px-2 py-1 text-lg rounded-full hover:bg-gray-100 transition-colors text-gray-700"
     >
       {direction === "left" ? "←" : "→"}
     </button>

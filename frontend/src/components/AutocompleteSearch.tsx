@@ -327,7 +327,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
             type="button"
             aria-label="Очистить поле"
             onClick={clearInput}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 cursor-pointer text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
           >
             <X className="h-4 w-4" />
           </button>
@@ -351,7 +351,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
                     onKeyDown={(event) => handleOptionKeyDown(event, index, item)}
                     className={`w-full px-4 py-2 text-left text-sm transition-colors ${disabled
                       ? "cursor-not-allowed"
-                      : "cursor-pointer text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                      : "text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
                       }`}
                   >
                     {renderItem ? renderItem(item) : itemToString(item)}

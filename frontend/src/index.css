@@ -13,6 +13,11 @@
 @layer base {
     button {
         white-space: nowrap;
+        cursor: pointer;
+    }
+    button:disabled {
+        opacity: 0.5;
+        pointer-events: none;
     }
 }
 
@@ -75,7 +80,7 @@
     }
 
     .password-toggle-btn {
-        @apply absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary cursor-pointer p-1 transition-colors;
+        @apply absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary p-1 transition-colors;
 
         svg {
             @apply w-5 h-5;
@@ -83,15 +88,15 @@
     }
 
     .danger-button {
-        @apply w-full px-4 py-2 text-white rounded-xl font-medium cursor-pointer transition-colors bg-danger hover:bg-danger-hover;
+        @apply w-full px-4 py-2 text-white rounded-xl font-medium transition-colors bg-danger hover:bg-danger-hover;
     }
 
     .primary-button {
-        @apply w-full px-4 py-2 text-white rounded-xl font-medium cursor-pointer transition-colors bg-primary hover:bg-primary-hover;
+        @apply w-full px-4 py-2 text-white rounded-xl font-medium transition-colors bg-primary hover:bg-primary-hover;
     }
 
     .github-connect-button {
-        @apply flex items-center gap-3 px-6 py-2 cursor-pointer border border-gray-300 rounded-2xl w-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:border-gray-300 hover:shadow-md;
+        @apply flex items-center gap-3 px-6 py-2 border border-gray-300 rounded-2xl w-full transition-all duration-200 hover:border-gray-300 hover:shadow-md;
     }
 
     .hyperlink {
@@ -157,7 +162,7 @@
     }
 
     .toast-close {
-        @apply cursor-pointer text-xl leading-none opacity-70 transition-opacity hover:opacity-100;
+        @apply text-xl leading-none opacity-70 transition-opacity hover:opacity-100;
     }
 
     .test-secure-area {

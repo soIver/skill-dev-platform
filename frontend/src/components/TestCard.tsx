@@ -48,8 +48,12 @@ export function TestCard({ test, onClick }: TestCardProps) {
   const renderLevel = (level: TestPublicLevelItem) => (
     <span className="flex min-w-0 items-center gap-1.5">
       <span className="truncate">{level.level_name}</span>
-      {level.latest_attempt_passed === true && <CheckCircle2 className="h-4 w-4 shrink-0" />}
-      {level.latest_attempt_passed === false && <XCircle className="h-4 w-4 shrink-0" />}
+      {level.latest_attempt_passed === true && (
+        <CheckCircle2 className={`h-4 w-4 shrink-0 ${level.id === activeLevel.id ? "text-white" : "text-success"}`} />
+      )}
+      {level.latest_attempt_passed === false && (
+        <XCircle className={`h-4 w-4 shrink-0 ${level.id === activeLevel.id ? "text-white" : "text-danger"}`} />
+      )}
     </span>
   );
 

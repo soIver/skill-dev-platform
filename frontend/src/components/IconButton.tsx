@@ -34,7 +34,7 @@ export function IconButton({
       className={`bg-transparent rounded-lg transition-colors flex items-center justify-center shrink-0 group ${
         disabled 
           ? "opacity-50 cursor-not-allowed" 
-          : `${colorHoverClass} cursor-pointer`
+          : colorHoverClass
       } ${className}`}
     >
       <img

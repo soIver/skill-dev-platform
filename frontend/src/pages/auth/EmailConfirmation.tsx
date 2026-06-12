@@ -284,7 +284,7 @@ export default function EmailConfirmation() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="primary-button mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="primary-button mt-4"
                 >
                   Завершить регистрацию
                 </button>

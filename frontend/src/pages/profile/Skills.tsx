@@ -61,7 +61,7 @@ export default function Skills() {
               e.stopPropagation();
               setShowInfo(true);
             }}
-            className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 text-gray-500 hover:bg-indigo-100 hover:bg-primary- hover transition-colors text-xs font-bold cursor-pointer"
+            className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 text-gray-500 hover:bg-indigo-100 hover:bg-primary- hover transition-colors text-xs font-bold"
             title="Что это?"
           >
             ?

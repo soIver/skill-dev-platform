@@ -180,7 +180,7 @@ export default function EmailChange() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="primary-button mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+              className="primary-button mt-4"
             >
               Подтвердить
             </button>

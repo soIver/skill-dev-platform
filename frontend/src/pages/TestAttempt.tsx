@@ -368,7 +368,7 @@ export default function TestAttempt() {
         </div>
         <button
           onClick={() => finishAttempt(false, "manual").then(returnToTestsAfterFinish)}
-          className="my-2 rounded-xl border border-gray-300 px-5 py-2 font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          className="my-2 rounded-xl border border-gray-300 px-5 py-2 font-semibold text-gray-700 transition-colors hover:border-danger hover:text-danger hover:bg-red-50"
         >
           Завершить попытку
         </button>
@@ -408,7 +408,7 @@ export default function TestAttempt() {
           <button
             onClick={submitAnswer}
             disabled={selectedAnswerIds.length === 0 || isSubmitting}
-            className="primary-button w-auto min-w-40 disabled:cursor-not-allowed disabled:opacity-40"
+            className="primary-button w-auto min-w-40"
           >
             {attemptState.question_number === attemptState.question_count ? "Завершить" : "Дальше"}
           </button>

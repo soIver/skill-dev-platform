@@ -24,7 +24,7 @@ export function InfoModal({
         <div className="flex justify-center">
           <button
             onClick={onClose}
-            className="px-8 py-3 cursor-pointer bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
+            className="px-8 py-3 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
           >
             {buttonText}
           </button>

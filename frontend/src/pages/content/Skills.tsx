@@ -388,7 +388,7 @@ export default function SkillsAdmin() {
       render: (item) => (
         <button
           onClick={() => handleRemoveRelation(item.skill_id)}
-          className="text-sm font-medium cursor-pointer text-danger hover:text-danger-hover px-2 py-1"
+          className="text-sm font-medium text-danger hover:text-danger-hover px-2 py-1"
         >
           Отвязать
         </button>
@@ -502,7 +502,7 @@ export default function SkillsAdmin() {
             <button
               onClick={handleCreate}
               disabled={!canCreate}
-              className={`primary-button ${!canCreate ? "bg-gray-300 cursor-not-allowed" : ""}`}
+              className={"primary-button"}
             >
               Создать
             </button>

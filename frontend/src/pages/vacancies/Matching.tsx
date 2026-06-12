@@ -178,7 +178,7 @@ export default function VacancyMatching() {
                   ref={searchButtonRef}
                   onClick={() => void handleSearch(1)}
                   disabled={isSearching}
-                  className="primary-button w-auto px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="primary-button w-auto px-5"
                 >
                   {isSearching ? "Поиск..." : "Поиск"}
                 </button>

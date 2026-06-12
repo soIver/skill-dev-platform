@@ -263,7 +263,7 @@ export default function Tasks() {
           <button
             onClick={handleSearch}
             disabled={!isSearchChanged || isLoading}
-            className="primary-button flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="primary-button flex-1"
           >
             {isLoading ? "Поиск..." : "Найти"}
           </button>
@@ -367,7 +367,7 @@ export default function Tasks() {
                     <div className="flex gap-4">
                       <button
                         onClick={() => setIsModalOpen(false)}
-                        className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl cursor-pointer hover:bg-gray-50 transition-all"
+                        className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                       >
                         Вернуться
                       </button>
@@ -378,7 +378,7 @@ export default function Tasks() {
                       ) : (
                         <button
                           onClick={() => setModalView("attach")}
-                          className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl cursor-pointer hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
+                          className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
                         >
                           Прикрепить репозиторий
                         </button>
@@ -418,7 +418,7 @@ export default function Tasks() {
                     <button
                       onClick={() => setModalView("details")}
                       disabled={isSubmitting}
-                      className="w-1/4 py-3 px-6 border border-gray-200 text-gray-700 font-semibold rounded-full cursor-pointer hover:bg-gray-50 transition-all disabled:opacity-50"
+                      className="w-1/4 py-3 px-6 border border-gray-200 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition-all"
                     >
                       Назад
                     </button>
@@ -453,7 +453,7 @@ export default function Tasks() {
                     <button
                       onClick={() => setModalView("details")}
                       disabled={isSubmitting}
-                      className="px-6 border border-gray-200 text-gray-700 font-semibold rounded-xl cursor-pointer hover:bg-gray-50 transition-all disabled:opacity-50"
+                      className="px-6 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                     >
                       Назад
                     </button>

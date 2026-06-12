@@ -231,7 +231,7 @@ export default function ManagementAdmin() {
           type="button"
           onClick={() => openContentForOwner(item, section)}
           disabled={normalizedCount === 0}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-lg cursor-pointer border border-gray-300 bg-white text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300 disabled:hover:border-gray-200 disabled:hover:text-gray-300"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 transition-colors hover:border-primary hover:text-primary disabled:border-gray-200 disabled:text-gray-300 disabled:hover:border-gray-200 disabled:hover:text-gray-300"
           title={`Открыть ${label} пользователя`}
           aria-label={`Открыть ${label} пользователя`}
         >
@@ -280,7 +280,7 @@ export default function ManagementAdmin() {
             <button
               type="button"
               onClick={() => setPendingAction({ type: "cancel", item })}
-              className="px-3 py-1.5 rounded-lg cursor-pointer border bg-white border-danger text-danger hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg border bg-white border-danger text-danger hover:bg-red-50 transition-colors"
               disabled={isSubmitting}
             >
               Отменить приглашение
@@ -296,7 +296,7 @@ export default function ManagementAdmin() {
           <button
             type="button"
             onClick={() => setPendingAction({ type: "revoke", item })}
-            className="px-3 py-1.5 rounded-lg bg-white cursor-pointer border border-danger text-danger hover:bg-red-50 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-white border border-danger text-danger hover:bg-red-50 transition-colors"
             disabled={isSubmitting}
           >
             Отозвать роль
@@ -330,7 +330,7 @@ export default function ManagementAdmin() {
             type="button"
             onClick={handleInvite}
             disabled={!canInvite}
-            className="px-4 py-2 rounded-xl cursor-pointer bg-primary text-white font-medium transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-primary text-white font-medium transition-colors hover:bg-primary-hover"
           >
             Назначить куратором
           </button>

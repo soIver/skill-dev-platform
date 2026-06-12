@@ -461,7 +461,14 @@ export default function Credentials() {
 
           <div className="space-y-6">
             <div>
-              <p className="text-sm text-gray-500">Имя пользователя</p>
+              <p className={`flex h-5 min-w-0 items-center gap-1 text-sm ${isUsernameEditing ? usernameStatusClass : "text-gray-500"}`}>
+                {isUsernameEditing && usernameAvailability === "checking" ? (
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                ) : null}
+                <span className="truncate">
+                  {isUsernameEditing ? usernameStatusText : "Имя пользователя"}
+                </span>
+              </p>
               <div className="flex min-h-9 items-center justify-between gap-4">
                 <div className="flex min-w-0 flex-1 items-center">
                   <span className="relative inline-block w-fit max-w-full min-w-0 flex-none">
@@ -483,7 +490,7 @@ export default function Credentials() {
                     <button
                       type="button"
                       onClick={handleStartUsernameEdit}
-                      className="ml-1 rounded-full p-1 text-gray-500 cursor-pointer transition-colors hover:bg-gray-50 hover:text-primary"
+                      className="ml-1 rounded-full p-1 text-gray-500 transition-colors hover:bg-gray-50 hover:text-primary"
                       title="Изменить имя пользователя"
                       aria-label="Изменить имя пользователя"
                     >
@@ -498,7 +505,7 @@ export default function Credentials() {
                       type="button"
                       onClick={handleConfirmUsernameEdit}
                       disabled={!canConfirmUsername}
-                      className="flex items-center gap-1 rounded-lg cursor-pointer bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
                     >
                       {isUsernameSubmitting ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -511,23 +518,13 @@ export default function Credentials() {
                       type="button"
                       onClick={handleCancelUsernameEdit}
                       disabled={isUsernameSubmitting}
-                      className="flex items-center gap-1 rounded-lg cursor-pointer border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-primary hover:text-primary"
                     >
                       <X className="h-4 w-4" />
                       Отмена
                     </button>
                   </div>
                 ) : null}
-              </div>
-              <div
-                className={` flex h-5 min-w-0 items-center gap-1 text-sm ${usernameStatusClass} ${
-                  isUsernameEditing ? "" : "invisible"
-                }`}
-              >
-                {usernameAvailability === "checking" ? (
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                ) : null}
-                <span className="truncate">{usernameStatusText}</span>
               </div>
             </div>
 
@@ -551,7 +548,7 @@ export default function Credentials() {
                   type="button"
                   onClick={() => handleRequestCredentialChange("email")}
                   disabled={isEmailChangeDisabled}
-                  className="primary-button disabled:cursor-not-allowed disabled:opacity-50"
+                  className="primary-button"
                 >
                   Сменить почту
                 </button>
@@ -568,7 +565,7 @@ export default function Credentials() {
                   type="button"
                   onClick={() => handleRequestCredentialChange("password")}
                   disabled={isPasswordChangeDisabled}
-                  className="primary-button disabled:cursor-not-allowed disabled:opacity-50"
+                  className="primary-button"
                 >
                   Сменить пароль
                 </button>

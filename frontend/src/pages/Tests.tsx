@@ -187,8 +187,12 @@ export default function Tests() {
   const renderLevel = (level: TestPublicLevelItem) => (
     <span className="flex min-w-0 items-center gap-1.5">
       <span className="truncate">{level.level_name}</span>
-      {level.latest_attempt_passed === true && <CheckCircle2 className="h-4 w-4 shrink-0" />}
-      {level.latest_attempt_passed === false && <XCircle className="h-4 w-4 shrink-0" />}
+      {level.latest_attempt_passed === true && (
+        <CheckCircle2 className={`h-4 w-4 shrink-0 ${level.id === activeModalLevel?.id ? "text-white" : "text-success"}`} />
+      )}
+      {level.latest_attempt_passed === false && (
+        <XCircle className={`h-4 w-4 shrink-0 ${level.id === activeModalLevel?.id ? "text-white" : "text-danger"}`} />
+      )}
     </span>
   );
 
@@ -211,7 +215,7 @@ export default function Tests() {
           <button
             onClick={handleSearch}
             disabled={!isSearchChanged || isLoading}
-            className="primary-button flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="primary-button flex-1"
           >
             {isLoading ? "Поиск..." : "Найти"}
           </button>
@@ -323,14 +327,14 @@ export default function Tests() {
             <div className="flex gap-4">
               <button
                 onClick={() => setSelectedTest(null)}
-                className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl cursor-pointer hover:bg-gray-50 transition-all"
+                className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
               >
                 Вернуться
               </button>
               <button
                 onClick={handleStartAttempt}
                 disabled={activeModalLevel.can_start_attempt === false || isStarting}
-                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl cursor-pointer hover:bg-primary-hover transition-all shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
               >
                 {isStarting ? "Запуск..." : "Начать тест"}
               </button>

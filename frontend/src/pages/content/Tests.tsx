@@ -614,7 +614,7 @@ export default function ContentTests() {
             <button
               onClick={handleCreateSelectedTest}
               disabled={!selectedSkillToCreate}
-              className="primary-button disabled:opacity-40 disabled:cursor-not-allowed"
+              className="primary-button"
             >
               Создать
             </button>
@@ -854,7 +854,7 @@ export default function ContentTests() {
                                 <button
                                   type="button"
                                   onClick={() => handleAddAnswer(q.id)}
-                                  className="text-sm font-semibold text-primary hover:text-primary-hover flex items-center gap-1 p-2 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors"
+                                  className="text-sm font-semibold text-primary hover:text-primary-hover flex items-center gap-1 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                                 >
                                   <Plus className="w-4 h-4" />
                                   Добавить вариант ответа

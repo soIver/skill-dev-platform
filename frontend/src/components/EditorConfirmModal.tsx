@@ -34,13 +34,13 @@ export function EditorConfirmModal({
         <div className="flex gap-3 justify-around">
           <button
             onClick={onCancel}
-            className="px-4 py-2 cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 cursor-pointer font-medium rounded-lg transition-colors ${confirmButtonColorClass}`}
+            className={`px-4 py-2 font-medium rounded-lg transition-colors ${confirmButtonColorClass}`}
           >
             {confirmText}
           </button>

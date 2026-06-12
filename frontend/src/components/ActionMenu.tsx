@@ -37,7 +37,7 @@ export function ActionMenu({ items, title = "Доступные действия
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer"
+        className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
         title={title}
       >
         <Menu className="w-5 h-5" />
@@ -81,7 +81,7 @@ export function ActionMenu({ items, title = "Доступные действия
                     setIsOpen(false);
                     item.onClick?.();
                   }}
-                  className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left cursor-pointer"
+                  className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
                   role="menuitem"
                 >
                   {item.label}
