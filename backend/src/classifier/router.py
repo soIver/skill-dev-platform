@@ -5,6 +5,7 @@ from ..auth.service import TokenClaims
 from ..auth.utils import require_role
 from ..utils.database import get_db
 from .schemas import (
+    ClassifierSearchResponse,
     ClassifierTreeResponse,
     ProfStandardCreateUpdate,
     ProfStandardDetail,
@@ -25,6 +26,15 @@ async def get_classifier_tree(
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
     return await ClassifierService(db).get_tree(query)
+
+
+@router.get("/search", response_model=ClassifierSearchResponse)
+async def search_classifier_names(
+    query: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("curator", "admin")),
+):
+    return await ClassifierService(db).search_names(query)
 
 
 @router.get("/prof-standards/{ps_id}", response_model=ProfStandardDetail)

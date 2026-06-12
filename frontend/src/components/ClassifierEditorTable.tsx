@@ -5,6 +5,7 @@ interface ClassifierEditorTableProps<T extends { id: number | string; name: stri
   items: T[];
   addText: string;
   canEdit?: boolean;
+  canAdd?: boolean;
   renderCode: (item: T) => string;
   onAdd: () => void;
   onOpen: (item: T) => void;
@@ -17,6 +18,7 @@ export function ClassifierEditorTable<T extends { id: number | string; name: str
   items,
   addText,
   canEdit = true,
+  canAdd = true,
   renderCode,
   onAdd,
   onOpen,
@@ -66,7 +68,8 @@ export function ClassifierEditorTable<T extends { id: number | string; name: str
         <button
           type="button"
           onClick={onAdd}
-          className="mt-4 w-full py-2.5 px-4 border border-dashed border-primary text-primary hover:bg-blue-50 transition-colors font-semibold rounded-lg flex items-center justify-center gap-2 shrink-0"
+          disabled={!canAdd}
+          className="mt-4 w-full py-2.5 px-4 border border-dashed border-primary text-primary hover:bg-blue-50 transition-colors font-semibold rounded-lg flex items-center justify-center gap-2 shrink-0 disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
         >
           <Plus className="w-5 h-5" />
           {addText}

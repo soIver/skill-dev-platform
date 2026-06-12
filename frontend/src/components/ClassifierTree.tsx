@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
+import { LoadingText } from "./LoadingText";
 import type {
   ClassifierFunctionTreeItem,
   ClassifierGroupTreeItem,
@@ -11,6 +12,8 @@ interface ClassifierTreeProps {
   selectedKey: string | null;
   isLoading?: boolean;
   canEdit?: boolean;
+  expandAllSignal?: number;
+  collapseAllSignal?: number;
   onSelectProfStandard: (item: ClassifierProfStandardTreeItem) => void;
   onSelectGroup: (standard: ClassifierProfStandardTreeItem, group: ClassifierGroupTreeItem) => void;
   onSelectFunction: (
@@ -36,6 +39,8 @@ export function ClassifierTree({
   selectedKey,
   isLoading = false,
   canEdit = true,
+  expandAllSignal = 0,
+  collapseAllSignal = 0,
   onSelectProfStandard,
   onSelectGroup,
   onSelectFunction,
@@ -57,6 +62,18 @@ export function ClassifierTree({
     setExpandedKeys(defaultExpanded);
   }, [defaultExpanded]);
 
+  useEffect(() => {
+    if (expandAllSignal > 0) {
+      setExpandedKeys(defaultExpanded);
+    }
+  }, [expandAllSignal, defaultExpanded]);
+
+  useEffect(() => {
+    if (collapseAllSignal > 0) {
+      setExpandedKeys(new Set());
+    }
+  }, [collapseAllSignal]);
+
   const toggleExpanded = (key: string) => {
     setExpandedKeys((prev) => {
       const next = new Set(prev);
@@ -77,7 +94,7 @@ export function ClassifierTree({
     }`;
 
   if (isLoading && items.length === 0) {
-    return <div className="text-sm text-gray-500 px-1 py-2">Загрузка классификатора...</div>;
+    return <LoadingText text="Загрузка классификатора..." className="px-1 py-2 text-sm text-gray-500" />;
   }
 
   return (
@@ -97,7 +114,7 @@ export function ClassifierTree({
                       type="button"
                       onClick={() => toggleExpanded(standardKey)}
                       className="p-0.5 rounded-xl hover:bg-black/10 shrink-0"
-                      title={isStandardExpanded ? "Свернуть" : "Развернуть"}
+                      title={isStandardExpanded ? "Скрыть" : "Раскрыть"}
                     >
                       <ChevronRight className={`w-4 h-4 transition-transform ${isStandardExpanded ? "rotate-90" : ""}`} />
                     </button>
@@ -122,7 +139,7 @@ export function ClassifierTree({
                   </div>
 
                   {isStandardExpanded && (
-                    <div className="ml-5 mt-1 flex flex-col gap-1">
+                    <div className="ml-5 mt-1 flex flex-col gap-1 border-l border-gray-200 pl-3">
                       {standard.groups.map((group) => {
                         const groupKey = `group:${group.id}`;
                         const isGroupExpanded = expandedKeys.has(groupKey);
@@ -158,7 +175,7 @@ export function ClassifierTree({
                             </div>
 
                             {isGroupExpanded && (
-                              <div className="ml-7 mt-1 flex flex-col gap-1">
+                              <div className="ml-7 mt-1 flex flex-col gap-1 border-l border-gray-200 pl-3">
                                 {group.functions.map((item) => {
                                   const functionKey = `function:${item.id}`;
                                   return (

@@ -26,6 +26,16 @@ class ClassifierTreeResponse(BaseModel):
     items: list[ProfStandardTreeItem]
 
 
+class ClassifierSearchItem(BaseModel):
+    id: str
+    name: str
+    entity_type: str
+
+
+class ClassifierSearchResponse(BaseModel):
+    items: list[ClassifierSearchItem]
+
+
 class PsFunctionsGroupSummary(BaseModel):
     id: int
     code: str

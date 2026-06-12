@@ -19,6 +19,7 @@ interface AutocompleteSearchProps<T> {
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   showClearButton?: boolean;
   clearOnSelect?: boolean;
+  maxLength?: number;
   nextFocusRef?: RefObject<HTMLButtonElement | null>;
   onSelectedItemChange?: (item: T | null) => void;
 }
@@ -40,12 +41,12 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   onKeyDown,
   showClearButton = false,
   clearOnSelect = false,
+  maxLength = 32,
   nextFocusRef,
   onSelectedItemChange,
 }: AutocompleteSearchProps<T>) {
   const [inputValue, setInputValue] = useState(value ?? "");
   const [results, setResults] = useState<T[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
 
@@ -106,7 +107,6 @@ export function AutocompleteSearch<T extends { id: number | string }>({
   const performSearch = async (query: string, revealResults: boolean) => {
     const searchId = latestSearchRef.current + 1;
     latestSearchRef.current = searchId;
-    setIsLoading(true);
 
     try {
       const data = await onSearchRef.current(query);
@@ -121,10 +121,6 @@ export function AutocompleteSearch<T extends { id: number | string }>({
         setShowDropdown(false);
       }
       console.error("Search failed", error);
-    } finally {
-      if (latestSearchRef.current === searchId) {
-        setIsLoading(false);
-      }
     }
   };
 
@@ -309,7 +305,7 @@ export function AutocompleteSearch<T extends { id: number | string }>({
         <input
           ref={inputRef}
           type="text"
-          maxLength={32}
+          maxLength={maxLength}
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);
@@ -360,10 +356,6 @@ export function AutocompleteSearch<T extends { id: number | string }>({
               );
             })}
           </ul>
-        )}
-        {isLoading && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 bg-white pl-1">
-          </span>
         )}
       </div>
       {!hideButton && (

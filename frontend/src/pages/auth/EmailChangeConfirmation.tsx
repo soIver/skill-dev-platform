@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 
 import { config } from "../../config";
+import { LoadingText } from "../../components/LoadingText";
 import { useUserStore } from "../../hooks/useUserStore";
 
 async function readApiError(response: Response): Promise<string> {
@@ -98,7 +99,7 @@ export default function EmailChangeConfirmation() {
         {status === "loading" ? (
           <>
             <h1 className="auth-panel-header">Смена адреса электронной почты</h1>
-            <p className="text-base text-gray-900">Проверка кода...</p>
+            <LoadingText text="Проверка кода..." className="text-base text-gray-900" />
           </>
         ) : null}
 

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { config } from "../../config";
 import FieldRequirements from "../../components/FieldRequirements";
+import { LoadingText } from "../../components/LoadingText";
 import { useToast } from "../../components/ToastProvider";
 import { checkEmail } from "../../validation";
 import { flashField } from "../../utils";
@@ -128,7 +129,7 @@ export default function EmailChange() {
         <h1 className="auth-panel-header">Смена адреса электронной почты</h1>
 
         {status === "loading" ? (
-          <p className="text-base text-gray-900">Проверка кода...</p>
+          <LoadingText text="Проверка кода..." className="text-base text-gray-900" />
         ) : null}
 
         {status === "invalid" ? (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { authFetch, authJson } from "../auth";
+import { LoadingText } from "../components/LoadingText";
 import { config } from "../config";
 
 interface AttemptAnswer {
@@ -353,7 +354,7 @@ export default function TestAttempt() {
   if (isLoading || !attemptState) {
     return (
       <div className="flex min-h-screen flex-1 items-center justify-center bg-gray-50 text-gray-500">
-        {loadError || "Загрузка..."}
+        {loadError || <LoadingText text="Загрузка..." />}
       </div>
     );
   }

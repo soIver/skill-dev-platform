@@ -5,6 +5,7 @@ import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { completeEmailRegistration } from "../../auth";
 import { config } from "../../config";
 import FieldRequirements from "../../components/FieldRequirements";
+import { LoadingText } from "../../components/LoadingText";
 import { useToast } from "../../components/ToastProvider";
 import { USERNAME_MAX_LENGTH, checkPassword, checkUsername } from "../../validation";
 import { flashField } from "../../utils";
@@ -157,7 +158,7 @@ export default function EmailConfirmation() {
             <h1 className="auth-panel-header">Регистрация</h1>
 
             {status === "loading" ? (
-              <p className="text-base text-gray-900">Проверка кода...</p>
+              <LoadingText text="Проверка кода..." className="text-base text-gray-900" />
             ) : null}
 
             {status === "invalid" ? (

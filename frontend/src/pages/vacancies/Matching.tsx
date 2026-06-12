@@ -3,6 +3,7 @@ import { authJson } from "../../auth";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
 import { VacancyCard } from "../../components/VacancyCard";
+import { LoadingText } from "../../components/LoadingText";
 import { Pagination } from "../../components/Pagination";
 import { RangeSlider } from "../../components/RangeSlider";
 import { useVacanciesStore, type VacancyAreaItem, type VacancySearchItem } from "../../hooks/useVacanciesStore";
@@ -178,9 +179,9 @@ export default function VacancyMatching() {
                   ref={searchButtonRef}
                   onClick={() => void handleSearch(1)}
                   disabled={isSearching}
-                  className="primary-button w-auto px-5"
+                  className="primary-button w-auto px-5 flex items-center justify-center"
                 >
-                  {isSearching ? "Поиск..." : "Поиск"}
+                  {isSearching ? <LoadingText text="Поиск..." /> : "Поиск"}
                 </button>
               </div>
             </div>
@@ -353,7 +354,7 @@ export default function VacancyMatching() {
             </div>
           ) : isSearching ? (
             <div className="flex h-full min-h-40 items-center justify-center text-gray-400">
-              Идёт поиск вакансий...
+              <LoadingText text="Идёт поиск вакансий..." />
             </div>
           ) : results.length === 0 ? (
             <div className="flex h-full min-h-40 items-center justify-center text-gray-400">

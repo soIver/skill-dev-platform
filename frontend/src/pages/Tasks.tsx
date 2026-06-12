@@ -4,13 +4,13 @@ import { ITEMS_PER_PAGE, TASK, SEARCH_DEBOUNCE_MS, ITEMS_PER_TABLE_PAGE } from "
 import { BentoSearch } from "../components/BentoSearch";
 import { AutocompleteSearch } from "../components/AutocompleteSearch";
 import { Pagination } from "../components/Pagination";
+import { LoadingText } from "../components/LoadingText";
 import { TaskCard } from "../components/TaskCard";
 import { useToast } from "../components/ToastProvider";
 import { useRepositoriesStore, type RepoItem } from "../hooks/useRepositoriesStore";
 import { useTasksStore, type SkillLevelItem, type TaskPublicItem } from "../hooks/useTasksStore";
 import { useUserStore } from "../hooks/useUserStore";
 import GitHubIcon from "../assets/icons/github.svg?react";
-import { Loader2 } from "lucide-react";
 
 // интерфейсы
 
@@ -263,9 +263,9 @@ export default function Tasks() {
           <button
             onClick={handleSearch}
             disabled={!isSearchChanged || isLoading}
-            className="primary-button flex-1"
+            className="primary-button flex-1 flex items-center justify-center"
           >
-            {isLoading ? "Поиск..." : "Найти"}
+            {isLoading ? <LoadingText text="Поиск..." /> : "Найти"}
           </button>
         </div>
 
@@ -307,7 +307,7 @@ export default function Tasks() {
       <div className="flex-1 overflow-y-auto px-8 pb-8">
         {!hasSearched || isLoading ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
-            {isLoading ? "Загрузка..." : ""}
+            {isLoading ? <LoadingText text="Загрузка..." /> : ""}
           </div>
         ) : results.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
@@ -341,8 +341,7 @@ export default function Tasks() {
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 border border-gray-100 modal-content-animate flex flex-col max-h-[90vh]">
             {isTaskLoading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                <p className="text-gray-500">Загрузка информации...</p>
+                <LoadingText text="Загрузка информации..." className="text-gray-500" iconClassName="h-10 w-10 text-primary" />
               </div>
             ) : selectedTask && (
               <>
@@ -446,8 +445,7 @@ export default function Tasks() {
                     </div>
                     {isSubmitting && (
                       <div className="flex items-center justify-center gap-2 text-primary font-medium mb-6">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Отправка на проверку...
+                        <LoadingText text="Отправка на проверку..." iconClassName="h-5 w-5" />
                       </div>
                     )}
                     <button

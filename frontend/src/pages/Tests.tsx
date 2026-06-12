@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, ListChecks, XCircle } from "lucide-react";
 import { authFetch, authJson } from "../auth";
 import { config, ITEMS_PER_PAGE, TEST } from "../config";
 import { BentoSearch } from "../components/BentoSearch";
+import { LoadingText } from "../components/LoadingText";
 import { Pagination } from "../components/Pagination";
 import { TestCard } from "../components/TestCard";
 import { useTestsStore, type TestPublicItem, type TestPublicLevelItem } from "../hooks/useTestsStore";
@@ -215,9 +216,9 @@ export default function Tests() {
           <button
             onClick={handleSearch}
             disabled={!isSearchChanged || isLoading}
-            className="primary-button flex-1"
+            className="primary-button flex-1 flex items-center justify-center"
           >
-            {isLoading ? "Поиск..." : "Найти"}
+            {isLoading ? <LoadingText text="Поиск..." /> : "Найти"}
           </button>
         </div>
 
@@ -227,7 +228,7 @@ export default function Tests() {
       <div className="flex-1 overflow-y-auto px-8 pb-8">
         {!hasSearched || isLoading ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
-            {isLoading ? "Загрузка..." : ""}
+            {isLoading ? <LoadingText text="Загрузка..." /> : ""}
           </div>
         ) : results.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
@@ -334,9 +335,9 @@ export default function Tests() {
               <button
                 onClick={handleStartAttempt}
                 disabled={activeModalLevel.can_start_attempt === false || isStarting}
-                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
+                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg flex items-center justify-center"
               >
-                {isStarting ? "Запуск..." : "Начать тест"}
+                {isStarting ? <LoadingText text="Запуск..." /> : "Начать тест"}
               </button>
             </div>
           </div>

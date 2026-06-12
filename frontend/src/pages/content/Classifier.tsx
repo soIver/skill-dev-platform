@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { authJson } from "../../auth";
 import { SEARCH_DEBOUNCE_MS } from "../../config";
+import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { ClassifierEditorTable } from "../../components/ClassifierEditorTable";
 import { ClassifierTree } from "../../components/ClassifierTree";
 import {
@@ -20,6 +21,16 @@ import { useUserStore } from "../../hooks/useUserStore";
 
 interface ClassifierTreeResponse {
   items: ClassifierProfStandardTreeItem[];
+}
+
+interface ClassifierSearchItem {
+  id: string;
+  name: string;
+  entity_type: string;
+}
+
+interface ClassifierSearchResponse {
+  items: ClassifierSearchItem[];
 }
 
 interface ProfStandardDetail {
@@ -60,31 +71,12 @@ interface FunctionDetail {
   };
 }
 
-const cyrillicCodeMap: Record<string, string> = {
-  А: "A",
-  В: "B",
-  С: "C",
-  Е: "E",
-  Н: "H",
-  К: "K",
-  М: "M",
-  О: "O",
-  Р: "P",
-  Т: "T",
-  Х: "X",
-};
-
 function formatPsCode(code: number): string {
   return `06.${code.toString().padStart(3, "0")}`;
 }
 
 function formatTfCode(code: number, qualificationLevel: number): string {
   return `${code.toString().padStart(2, "0")}.${qualificationLevel}`;
-}
-
-function normalizeGroupCode(value: string): string {
-  const upper = value.trim().toUpperCase();
-  return (cyrillicCodeMap[upper] ?? upper).slice(0, 1);
 }
 
 function nextGroupCode(groups: { code: string }[]): string | null {
@@ -111,6 +103,8 @@ export default function Classifier() {
   const user = useUserStore((state) => state.user);
   const canEdit = user?.role === "admin";
   const [isSearching, setIsSearching] = useState(false);
+  const [expandAllSignal, setExpandAllSignal] = useState(0);
+  const [collapseAllSignal, setCollapseAllSignal] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const nameInputRef = useRef<HTMLTextAreaElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
@@ -133,6 +127,13 @@ export default function Classifier() {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const searchClassifierNames = async (query: string) => {
+    const params = new URLSearchParams();
+    if (query.trim()) params.append("query", query.trim());
+    const response = await authJson<ClassifierSearchResponse>(`/classifier/search?${params.toString()}`);
+    return response.items;
   };
 
   useEffect(() => {
@@ -304,29 +305,20 @@ export default function Classifier() {
     });
   };
 
+  const getPsCodeTail = (): string => {
+    if (!editorData || editorData.kind !== "ps") return "";
+    return editorData.codeInput.replace(/\D/g, "").slice(2, 5);
+  };
+
   const parsePsCode = (): number | null => {
     if (!editorData || editorData.kind !== "ps") return null;
-    const digits = editorData.codeInput.replace(/\D/g, "").slice(2);
-    if (digits.length !== 3) return null;
-    return Number(digits);
+    return Number(getPsCodeTail().padStart(3, "0"));
   };
 
   const validationError = useMemo(() => {
     if (!editorData) return null;
     if (!editorData.name.trim()) return "Название не может быть пустым";
     if (editorData.name.length > 256) return "Название не может быть длиннее 256 символов";
-
-    if (editorData.kind === "ps" && parsePsCode() === null) {
-      return "Код профессионального стандарта должен иметь формат 06.DDD";
-    }
-
-    if (editorData.kind === "group" && !/^[A-Z]$/.test(editorData.code)) {
-      return "Код ОТФ должен быть буквой от A до Z";
-    }
-
-    if (editorData.kind === "function" && (editorData.code < 1 || editorData.code > 99)) {
-      return "Код ТФ должен находиться в интервале от 1 до 99";
-    }
 
     return null;
   }, [editorData]);
@@ -473,8 +465,7 @@ export default function Classifier() {
     }
 
     if (editorData.kind === "ps") {
-      const code = parsePsCode();
-      return code === null ? "06.DDD" : formatPsCode(code);
+      return formatPsCode(parsePsCode() ?? 0);
     }
 
     if (editorData.kind === "group") {
@@ -531,21 +522,48 @@ export default function Classifier() {
 
       <div className="workspace-panel flex-1 flex flex-col h-full min-w-0">
         <h2 className="workspace-panel-header">Классификатор компетенций</h2>
-        <div className="mb-4">
-          <input
-            type="text"
+        <div className="mb-4 grid grid-cols-[2fr_1fr_1fr] gap-3">
+          <AutocompleteSearch<ClassifierSearchItem>
             value={queryInput}
-            onChange={(event) => setClassifierState({ queryInput: event.target.value })}
-            maxLength={128}
-            className="input-field mt-0!"
+            onSearch={searchClassifierNames}
+            onSelect={(item) => setClassifierState({ queryInput: item.name })}
+            onInputChange={(value) => setClassifierState({ queryInput: value })}
+            itemToString={(item) => item.name}
+            renderItem={(item) => (
+              <span className="flex items-start justify-between gap-3">
+                <span className="min-w-0 whitespace-normal wrap-break-word">{item.name}</span>
+                <span className="shrink-0 text-xs font-medium text-gray-400">{item.entity_type}</span>
+              </span>
+            )}
             placeholder="Поиск по коду или названию"
+            className="ml-0!"
+            hideButton={true}
+            showClearButton={true}
+            maxLength={256}
+            debounceMs={SEARCH_DEBOUNCE_MS}
           />
+          <button
+            type="button"
+            onClick={() => setExpandAllSignal((value) => value + 1)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:border-primary hover:text-primary transition-colors"
+          >
+            Раскрыть все
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollapseAllSignal((value) => value + 1)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:border-primary hover:text-primary transition-colors"
+          >
+            Скрыть все
+          </button>
         </div>
         <ClassifierTree
           items={tree}
           selectedKey={selectedKey}
           isLoading={isSearching}
           canEdit={canEdit}
+          expandAllSignal={expandAllSignal}
+          collapseAllSignal={collapseAllSignal}
           onSelectProfStandard={(item) => requestAction({ type: "load-ps", id: item.id })}
           onSelectGroup={(_, group) => requestAction({ type: "load-group", id: group.id })}
           onSelectFunction={(_, __, item) => requestAction({ type: "load-function", id: item.id })}
@@ -583,17 +601,13 @@ export default function Classifier() {
               <div className="flex flex-col gap-4 h-full min-h-0">
                 <div className="max-w-xs">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Код ПС</label>
-                  <input
-                    type="text"
-                    value={editorData.codeInput}
-                    onChange={(event) => handlePsCodeChange(event.target.value)}
+                  <PsCodeInput
+                    value={getPsCodeTail()}
+                    onChange={handlePsCodeChange}
                     disabled={!canEdit}
-                    className="input-field mt-0!"
-                    placeholder="06.001"
                   />
                 </div>
                 <NameField editorData={editorData} nameInputRef={nameInputRef} updateEditorData={updateEditorData} disabled={!canEdit} />
-                {validationError && <p className="text-sm text-danger">{validationError}</p>}
 
                 <ClassifierEditorTable<PsGroupSummary>
                   title="Обобщённые трудовые функции"
@@ -604,10 +618,7 @@ export default function Classifier() {
                   onDragStart={startDrag}
                   onDrop={handleGroupDrop}
                   onAdd={() => {
-                    if (editorData.id === "new") {
-                      showToast({ title: "Сначала сохраните ПС", message: "ОТФ можно добавить после сохранения профессионального стандарта", variant: "error" });
-                      return;
-                    }
+                    if (editorData.id === "new") return;
                     handleCreateGroup({
                       id: editorData.id,
                       code: parsePsCode() ?? 0,
@@ -616,39 +627,26 @@ export default function Classifier() {
                     });
                   }}
                   canEdit={canEdit}
+                  canAdd={editorData.id !== "new"}
                 />
               </div>
             )}
 
             {editorData.kind === "group" && (
               <div className="flex flex-col gap-4 h-full min-h-0">
-                <div className="flex gap-4">
-                  <div className="w-32">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Код ОТФ</label>
-                    <input
-                      type="text"
-                      value={editorData.code}
-                      onChange={(event) => updateEditorData({ ...editorData, code: normalizeGroupCode(event.target.value) })}
-                      disabled={!canEdit}
-                      className="input-field mt-0!"
-                      maxLength={1}
-                    />
-                  </div>
-                  <div className="w-48">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Уровень квалификации</label>
-                    <NumberInput
-                      mode="integer"
-                      min={1}
-                      max={9}
-                      value={editorData.qualification_level}
-                      onChange={(value) => updateEditorData({ ...editorData, qualification_level: value })}
-                      disabled={!canEdit}
-                      className="input-field mt-0! w-full"
-                    />
-                  </div>
+                <div className="w-48">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Уровень квалификации</label>
+                  <NumberInput
+                    mode="integer"
+                    min={1}
+                    max={9}
+                    value={editorData.qualification_level}
+                    onChange={(value) => updateEditorData({ ...editorData, qualification_level: value })}
+                    disabled={!canEdit}
+                    className="input-field mt-0! w-full"
+                  />
                 </div>
                 <NameField editorData={editorData} nameInputRef={nameInputRef} updateEditorData={updateEditorData} disabled={!canEdit} />
-                {validationError && <p className="text-sm text-danger">{validationError}</p>}
 
                 <ClassifierEditorTable<PsFunctionSummary>
                   title="Трудовые функции"
@@ -659,10 +657,7 @@ export default function Classifier() {
                   onDragStart={startDrag}
                   onDrop={handleFunctionDrop}
                   onAdd={() => {
-                    if (editorData.id === "new") {
-                      showToast({ title: "Сначала сохраните ОТФ", message: "ТФ можно добавить после сохранения обобщённой трудовой функции", variant: "error" });
-                      return;
-                    }
+                    if (editorData.id === "new") return;
                     handleCreateFunction(editorData.prof_standard, {
                       id: editorData.id,
                       code: editorData.code,
@@ -672,26 +667,14 @@ export default function Classifier() {
                     });
                   }}
                   canEdit={canEdit}
+                  canAdd={editorData.id !== "new"}
                 />
               </div>
             )}
 
             {editorData.kind === "function" && (
               <div className="flex flex-col gap-4">
-                <div className="max-w-xs">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Код ТФ</label>
-                  <NumberInput
-                    mode="integer"
-                    min={1}
-                    max={99}
-                    value={editorData.code}
-                    onChange={(value) => updateEditorData({ ...editorData, code: value })}
-                    disabled={!canEdit}
-                    className="input-field mt-0! w-full"
-                  />
-                </div>
                 <NameField editorData={editorData} nameInputRef={nameInputRef} updateEditorData={updateEditorData} disabled={!canEdit} />
-                {validationError && <p className="text-sm text-danger">{validationError}</p>}
               </div>
             )}
           </div>
@@ -734,6 +717,43 @@ function NameField({
           {editorData.name.length}/256
         </span>
       </div>
+    </div>
+  );
+}
+
+function PsCodeInput({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const missingZeros = "0".repeat(Math.max(0, 3 - value.length));
+
+  return (
+    <div
+      className={`input-field mt-0! flex items-center font-mono ${disabled ? "opacity-50" : ""}`.trim()}
+      onClick={() => {
+        if (!disabled) inputRef.current?.focus();
+      }}
+    >
+      <span className="text-gray-900">06.</span>
+      <span className="text-gray-400">{missingZeros}</span>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        inputMode="numeric"
+        maxLength={3}
+        className="bg-transparent p-0 outline-none disabled:pointer-events-none"
+        style={{ width: `${Math.max(value.length, 1)}ch` }}
+        aria-label="Код ПС"
+      />
     </div>
   );
 }

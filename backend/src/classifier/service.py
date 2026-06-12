@@ -5,6 +5,8 @@ from sqlalchemy.orm import selectinload
 
 from ..models import ProfStandard, PsFunction, PsFunctionsGroup
 from .schemas import (
+    ClassifierSearchItem,
+    ClassifierSearchResponse,
     ClassifierTreeResponse,
     ProfStandardCreateUpdate,
     ProfStandardDetail,
@@ -138,6 +140,44 @@ class ClassifierService:
                 ))
 
         return ClassifierTreeResponse(items=items)
+
+    async def search_names(self, query: str | None) -> ClassifierSearchResponse:
+        needle = (query or "").strip()
+        if not needle:
+            return ClassifierSearchResponse(items=[])
+
+        standard_result = await self.db.execute(
+            select(ProfStandard.id, ProfStandard.name)
+            .where(ProfStandard.name.ilike(f"%{needle}%"))
+            .order_by(ProfStandard.name)
+            .limit(10)
+        )
+        group_result = await self.db.execute(
+            select(PsFunctionsGroup.id, PsFunctionsGroup.name)
+            .where(PsFunctionsGroup.name.ilike(f"%{needle}%"))
+            .order_by(PsFunctionsGroup.name)
+            .limit(10)
+        )
+        function_result = await self.db.execute(
+            select(PsFunction.id, PsFunction.name)
+            .where(PsFunction.name.ilike(f"%{needle}%"))
+            .order_by(PsFunction.name)
+            .limit(10)
+        )
+
+        items = [
+            ClassifierSearchItem(id=f"ps-{row.id}", name=row.name, entity_type="ПС")
+            for row in standard_result.all()
+        ]
+        items.extend(
+            ClassifierSearchItem(id=f"group-{row.id}", name=row.name, entity_type="ОТФ")
+            for row in group_result.all()
+        )
+        items.extend(
+            ClassifierSearchItem(id=f"function-{row.id}", name=row.name, entity_type="ТФ")
+            for row in function_result.all()
+        )
+        return ClassifierSearchResponse(items=items[:20])
 
     async def get_prof_standard(self, ps_id: int) -> ProfStandardDetail:
         standard = await self._get_prof_standard(ps_id)

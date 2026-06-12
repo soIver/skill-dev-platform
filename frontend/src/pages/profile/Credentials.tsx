@@ -9,6 +9,7 @@ import {
   logout,
   updateUsername,
 } from "../../auth";
+import { LoadingText } from "../../components/LoadingText";
 import { useToast } from "../../components/ToastProvider";
 import { config, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useUserStore, type GitHubProfile } from "../../hooks/useUserStore";
@@ -548,9 +549,9 @@ export default function Credentials() {
                   type="button"
                   onClick={() => handleRequestCredentialChange("email")}
                   disabled={isEmailChangeDisabled}
-                  className="primary-button"
+                  className="primary-button flex items-center justify-center"
                 >
-                  Сменить почту
+                  {credentialSubmitting.email ? <LoadingText text="Отправка..." /> : "Сменить почту"}
                 </button>
               </span>
               <span
@@ -565,9 +566,9 @@ export default function Credentials() {
                   type="button"
                   onClick={() => handleRequestCredentialChange("password")}
                   disabled={isPasswordChangeDisabled}
-                  className="primary-button"
+                  className="primary-button flex items-center justify-center"
                 >
-                  Сменить пароль
+                  {credentialSubmitting.password ? <LoadingText text="Отправка..." /> : "Сменить пароль"}
                 </button>
               </span>
               <button onClick={handleLogout} className="danger-button flex-2">
@@ -583,7 +584,7 @@ export default function Credentials() {
           <div className="space-y-4">
             {isGitHubLoading ? (
               <div className="rounded-2xl border border-gray-200 px-6 py-4 text-sm text-gray-500">
-                Загрузка статуса GitHub...
+                <LoadingText text="Загрузка статуса GitHub..." />
               </div>
             ) : githubConnection?.connected ? (
               <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 px-6 py-4 md:flex-row md:items-center md:justify-between">

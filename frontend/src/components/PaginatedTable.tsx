@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { ITEMS_PER_TABLE_PAGE } from "../config";
+import { LoadingText } from "./LoadingText";
 import { Pagination } from "./Pagination";
 
 export interface Column<T> {
@@ -100,7 +101,7 @@ export function PaginatedTable<T extends { id: number | string }>({
             ) : (
               <tr>
                 <td colSpan={columns.length} className="py-8 text-center text-gray-500">
-                  {isLoading ? "Поиск..." : emptyMessage}
+                  {isLoading ? <LoadingText text="Поиск..." /> : emptyMessage}
                 </td>
               </tr>
             )}

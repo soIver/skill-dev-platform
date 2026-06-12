@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 
 import { config } from "../../config";
+import { LoadingText } from "../../components/LoadingText";
 
 async function readApiError(response: Response): Promise<string> {
   try {
@@ -66,7 +67,7 @@ export default function CuratorInvitationConfirmation() {
         {status === "loading" ? (
           <>
             <h1 className="auth-panel-header">Подтверждение роли</h1>
-            <p className="text-base text-gray-900">Проверка приглашения...</p>
+            <LoadingText text="Проверка приглашения..." className="text-base text-gray-900" />
           </>
         ) : null}
 
