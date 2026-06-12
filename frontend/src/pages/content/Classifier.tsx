@@ -103,10 +103,13 @@ export default function Classifier() {
   const user = useUserStore((state) => state.user);
   const canEdit = user?.role === "admin";
   const [isSearching, setIsSearching] = useState(false);
+  const [isDebouncing, setIsDebouncing] = useState(false);
   const [expandAllSignal, setExpandAllSignal] = useState(0);
   const [collapseAllSignal, setCollapseAllSignal] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const nameInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchQueryRef = useRef(queryInput);
   const dragIndexRef = useRef<number | null>(null);
 
   const selectedKey = editorData && editorData.id !== "new" ? `${editorData.kind}:${editorData.id}` : null;
@@ -126,6 +129,7 @@ export default function Classifier() {
       console.error("Failed to fetch classifier tree", error);
     } finally {
       setIsSearching(false);
+      setIsDebouncing(false);
     }
   };
 
@@ -137,12 +141,27 @@ export default function Classifier() {
   };
 
   useEffect(() => {
-    const timerId = setTimeout(() => {
-      if (queryInput === lastSearch.query && hasLoaded) return;
+    const hasQueryChanged = searchQueryRef.current !== queryInput;
+    searchQueryRef.current = queryInput;
+
+    if (!hasQueryChanged && queryInput === lastSearch.query && hasLoaded) return;
+
+    setIsDebouncing(true);
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    searchTimerRef.current = setTimeout(() => {
+      if (queryInput === lastSearch.query && hasLoaded) {
+        setIsDebouncing(false);
+        return;
+      }
       fetchTree(queryInput);
     }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timerId);
-  }, [queryInput, lastSearch.query, hasLoaded]);
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [queryInput]);
 
   useEffect(() => {
     if (editorData?.id === "new") {
@@ -560,7 +579,7 @@ export default function Classifier() {
         <ClassifierTree
           items={tree}
           selectedKey={selectedKey}
-          isLoading={isSearching}
+          isLoading={isSearching || isDebouncing}
           canEdit={canEdit}
           expandAllSignal={expandAllSignal}
           collapseAllSignal={collapseAllSignal}
@@ -680,7 +699,9 @@ export default function Classifier() {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-500">Выберите элемент классификатора для редактирования</p>
+            <p className="text-gray-500">
+              Выберите элемент классификатора для {canEdit ? "редактирования" : "просмотра"}
+            </p>
           </div>
         )}
       </div>

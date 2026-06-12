@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { LoadingText } from "./LoadingText";
 import type {
@@ -57,10 +57,14 @@ export function ClassifierTree({
     return keys;
   }, [items]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(defaultExpanded);
+  const hasInitializedExpansionRef = useRef(items.length > 0);
 
   useEffect(() => {
-    setExpandedKeys(defaultExpanded);
-  }, [defaultExpanded]);
+    if (!hasInitializedExpansionRef.current && items.length > 0) {
+      setExpandedKeys(defaultExpanded);
+      hasInitializedExpansionRef.current = true;
+    }
+  }, [defaultExpanded, items.length]);
 
   useEffect(() => {
     if (expandAllSignal > 0) {
@@ -93,15 +97,13 @@ export function ClassifierTree({
         : "hover:bg-gray-100 text-gray-800"
     }`;
 
-  if (isLoading && items.length === 0) {
-    return <LoadingText text="Загрузка классификатора..." className="px-1 py-2 text-sm text-gray-500" />;
-  }
-
   return (
     <div className="flex flex-col min-h-0 max-w-150 flex-1">
       <div className="flex-1 overflow-y-auto pr-1">
         {items.length === 0 ? (
-          <div className="text-sm text-gray-500 px-1 py-2">Элементы не найдены</div>
+          <div className="flex h-full min-h-40 items-start justify-center px-1 py-8 text-center text-gray-500">
+            {isLoading ? <LoadingText text="Поиск..." /> : "Элементы не найдены"}
+          </div>
         ) : (
           <div className="flex flex-col gap-1">
             {items.map((standard) => {
