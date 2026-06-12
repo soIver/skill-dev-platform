@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { CheckCircle2, Clock, ListChecks } from "lucide-react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { CheckCircle2, Clock, ListChecks, XCircle } from "lucide-react";
 
-import { authJson } from "../auth";
-import { ITEMS_PER_PAGE, TEST } from "../config";
+import { authFetch, authJson } from "../auth";
+import { config, ITEMS_PER_PAGE, TEST } from "../config";
 import { BentoSearch } from "../components/BentoSearch";
 import { Pagination } from "../components/Pagination";
 import { TestCard } from "../components/TestCard";
@@ -33,6 +34,11 @@ function getMinutesWord(count: number): string {
 }
 
 export default function Tests() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const initialRefreshRef = useRef(false);
+  const restoredSelectionRef = useRef(false);
+  const refreshedAfterAttemptRef = useRef(false);
   const {
     keywordInput,
     results,
@@ -46,6 +52,7 @@ export default function Tests() {
   } = useTestsStore();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [selectedTest, setSelectedTest] = useState<TestPublicItem | null>(null);
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
 
@@ -74,10 +81,14 @@ export default function Tests() {
   }, [setSearchState]);
 
   useEffect(() => {
+    if (initialRefreshRef.current) return;
+    initialRefreshRef.current = true;
     if (!hasSearched || lastSearchSkillIds.length > 0) {
       doSearch(1, keywordInput);
+      return;
     }
-  }, [doSearch, hasSearched, keywordInput, lastSearchSkillIds.length]);
+    doSearch(currentPage, lastSearchKeyword);
+  }, [currentPage, doSearch, hasSearched, keywordInput, lastSearchKeyword, lastSearchSkillIds.length]);
 
   const handleSearch = () => doSearch(1, keywordInput);
 
@@ -97,13 +108,95 @@ export default function Tests() {
     return selectedTest.levels.find((level) => level.id === selectedLevelId) ?? selectedTest.levels[0] ?? null;
   }, [selectedLevelId, selectedTest]);
 
+  useEffect(() => {
+    if (!selectedTest) return;
+    const updatedTest = results.find((test) => test.skill_id === selectedTest.skill_id);
+    if (!updatedTest) return;
+    const updatedLevel = updatedTest.levels.find((level) => level.id === selectedLevelId) ?? updatedTest.levels[0] ?? null;
+    setSelectedTest(updatedTest);
+    setSelectedLevelId(updatedLevel?.id ?? null);
+  }, [results, selectedLevelId, selectedTest]);
+
   const modalDescription = activeModalLevel?.description_preview || "Описание теста пока не заполнено.";
+  const attemptState = location.state as {
+    skillId?: number;
+    skillLevelId?: number;
+    forceRefresh?: boolean;
+  } | null;
+
+  useEffect(() => {
+    if ((!attemptState?.forceRefresh && !attemptState?.skillLevelId) || refreshedAfterAttemptRef.current) return;
+    refreshedAfterAttemptRef.current = true;
+    doSearch(currentPage, lastSearchKeyword || keywordInput);
+  }, [attemptState?.forceRefresh, attemptState?.skillLevelId, currentPage, doSearch, keywordInput, lastSearchKeyword]);
+
+  useEffect(() => {
+    if (restoredSelectionRef.current || !attemptState?.skillLevelId || results.length === 0) {
+      return;
+    }
+    const test = results.find((item) => (
+      attemptState.skillId
+        ? item.skill_id === attemptState.skillId
+        : item.levels.some((level) => level.skill_level_id === attemptState.skillLevelId)
+    ));
+    const level = test?.levels.find((item) => item.skill_level_id === attemptState.skillLevelId);
+    if (!test || !level) return;
+    restoredSelectionRef.current = true;
+    setSelectedTest(test);
+    setSelectedLevelId(level.id);
+    navigate("/tests", { replace: true, state: null });
+  }, [attemptState, navigate, results]);
+
+  const handleStartAttempt = async () => {
+    if (!activeModalLevel || isStarting) return;
+    setIsStarting(true);
+    try {
+      const response = await authFetch(`${config.apiBaseUrl}/tests/public/${activeModalLevel.skill_level_id}/start`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        await doSearch(currentPage, lastSearchKeyword || keywordInput);
+        return;
+      }
+      const attempt = await response.json() as { attempt_id: string };
+      navigate(`/tests/attempt/${attempt.attempt_id}`, {
+        state: {
+          attempt,
+          skillId: selectedTest?.skill_id,
+          skillLevelId: activeModalLevel.skill_level_id,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to start test attempt", error);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const formatDateTime = (value: string | null) => {
+    if (!value) return "";
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  };
+
+  const renderLevel = (level: TestPublicLevelItem) => (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="truncate">{level.level_name}</span>
+      {level.latest_attempt_passed === true && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+      {level.latest_attempt_passed === false && <XCircle className="h-4 w-4 shrink-0" />}
+    </span>
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="sticky top-0 z-20 bg-gray-50 px-8 pt-6">
         <h1 className="text-3xl font-extrabold text-gray-800">Банк тестов</h1>
-        <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для повторения теоретических навыков</h2>
+        <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для проверки теоретических основ</h2>
 
         <div className="flex gap-3 items-center mb-4 w-1/2 min-w-md">
           <input
@@ -169,7 +262,7 @@ export default function Tests() {
                 items={selectedTest.levels}
                 itemToString={(level) => level.level_name}
                 itemToId={(level) => level.id}
-                renderItem={(level) => level.level_name}
+                renderItem={renderLevel}
                 prefixTitle="Уровни"
                 activeItemId={activeModalLevel.id}
                 reorderEnabled={false}
@@ -208,6 +301,25 @@ export default function Tests() {
               Тест доступен к прохождению один раз в 7 дней вне зависимости от результата.
             </p>
 
+            {activeModalLevel.latest_attempt_completed_at && (
+              <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                <p className="font-semibold text-gray-900">
+                  Последний результат: {activeModalLevel.latest_attempt_score} из {activeModalLevel.latest_attempt_total_score} баллов
+                </p>
+                <p className="mt-1">
+                  Статус: {activeModalLevel.latest_attempt_passed ? "тест пройден успешно" : "тест не пройден"}
+                </p>
+                <p className="mt-1">
+                  Завершено: {formatDateTime(activeModalLevel.latest_attempt_completed_at)}
+                </p>
+                {activeModalLevel.next_attempt_at && activeModalLevel.can_start_attempt === false && (
+                  <p className="mt-1">
+                    Следующая попытка будет доступна: {formatDateTime(activeModalLevel.next_attempt_at)}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-4">
               <button
                 onClick={() => setSelectedTest(null)}
@@ -216,10 +328,11 @@ export default function Tests() {
                 Вернуться
               </button>
               <button
-                onClick={() => undefined}
-                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl cursor-pointer hover:bg-primary-hover transition-all shadow-md hover:shadow-lg"
+                onClick={handleStartAttempt}
+                disabled={activeModalLevel.can_start_attempt === false || isStarting}
+                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl cursor-pointer hover:bg-primary-hover transition-all shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Начать тест
+                {isStarting ? "Запуск..." : "Начать тест"}
               </button>
             </div>
           </div>

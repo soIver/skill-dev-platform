@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 import type { SkillLevelItem } from "./useTasksStore";
 
@@ -13,6 +12,13 @@ export interface TestPublicLevelItem {
   total_score: number;
   threshold_score: number;
   time_limit_minutes: number;
+  latest_attempt_score: number | null;
+  latest_attempt_total_score: number | null;
+  latest_attempt_threshold_score: number | null;
+  latest_attempt_completed_at: string | null;
+  latest_attempt_passed: boolean | null;
+  next_attempt_at: string | null;
+  can_start_attempt: boolean;
 }
 
 export interface TestPublicItem {
@@ -55,17 +61,10 @@ const initialState = {
   lastSearchSkillIds: [] as number[],
 };
 
-export const useTestsStore = create<TestsSearchStore>()(
-  persist(
-    (set) => ({
-      ...initialState,
-      setKeywordInput: (keywordInput) => set({ keywordInput }),
-      setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
-      setSearchState: (state) => set(state),
-      resetSearchState: () => set(initialState),
-    }),
-    {
-      name: "tests-search-store",
-    },
-  ),
-);
+export const useTestsStore = create<TestsSearchStore>()((set) => ({
+  ...initialState,
+  setKeywordInput: (keywordInput) => set({ keywordInput }),
+  setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
+  setSearchState: (state) => set(state),
+  resetSearchState: () => set(initialState),
+}));

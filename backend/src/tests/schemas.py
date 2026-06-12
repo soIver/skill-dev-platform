@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -65,6 +67,13 @@ class TestPublicLevelItem(BaseModel):
     total_score: int
     threshold_score: int
     time_limit_minutes: int
+    latest_attempt_score: int | None = None
+    latest_attempt_total_score: int | None = None
+    latest_attempt_threshold_score: int | None = None
+    latest_attempt_completed_at: datetime | None = None
+    latest_attempt_passed: bool | None = None
+    next_attempt_at: datetime | None = None
+    can_start_attempt: bool = True
 
 class TestPublicItem(BaseModel):
     id: int
@@ -76,3 +85,49 @@ class TestPublicSearchResponse(BaseModel):
     items: list[TestPublicItem]
     total_pages: int
     current_page: int
+
+class TestAttemptAnswerItem(BaseModel):
+    id: int
+    answer_text: str
+
+class TestAttemptQuestionItem(BaseModel):
+    id: int
+    question_text: str
+    answers: list[TestAttemptAnswerItem]
+    multiple: bool
+
+class TestAttemptState(BaseModel):
+    attempt_id: str
+    skill_level_id: int
+    skill_name: str
+    level_name: str
+    question: TestAttemptQuestionItem
+    question_number: int
+    question_count: int
+    remaining_seconds: int
+    total_score: int
+    threshold_score: int
+
+class TestAttemptStartResponse(TestAttemptState):
+    pass
+
+class TestAttemptAnswerRequest(BaseModel):
+    question_id: int
+    answer_ids: list[int] = Field(..., min_length=1)
+
+class TestAttemptResult(BaseModel):
+    score: int
+    total_score: int
+    threshold_score: int
+    passed: bool
+    completed_at: datetime
+    cheated: bool = False
+
+class TestAttemptAnswerResponse(BaseModel):
+    completed: bool
+    next_state: TestAttemptState | None = None
+    result: TestAttemptResult | None = None
+
+class TestAttemptFinishRequest(BaseModel):
+    reason: str = "manual"
+    cheated: bool = False

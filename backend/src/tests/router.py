@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+import asyncio
+
+from fastapi import APIRouter, Depends, Query, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, case, delete, or_
 from sqlalchemy.orm import aliased
@@ -6,11 +8,22 @@ from sqlalchemy.orm import aliased
 from .schemas import (
     TestSearchResponse, TestItem, TestDetail, TestCreateUpdate,
     QuestionDetail, AnswerDetail, TestPublicSearchResponse, TestPublicItem,
-    TestPublicLevelItem
+    TestPublicLevelItem, TestAttemptStartResponse, TestAttemptState,
+    TestAttemptAnswerRequest, TestAttemptAnswerResponse, TestAttemptFinishRequest,
+    TestAttemptResult
+)
+from .service import (
+    finish_attempt,
+    finish_attempt_without_user,
+    get_attempt_state,
+    get_latest_attempts_by_skill_level,
+    heartbeat_attempt,
+    start_attempt,
+    submit_answer,
 )
 from ..auth.utils import require_role, resolve_author_filter
 from ..auth.service import TokenClaims
-from ..utils.database import get_db
+from ..utils.database import AsyncSessionLocal, get_db
 from ..models import Test, SkillLevel, Skill, Level, TestAttempt, TestQuestion, QuestionAnswer
 
 router = APIRouter(prefix="/tests", tags=["Tests"])
@@ -219,15 +232,22 @@ async def search_public_tests(
         .order_by(Skill.name, SkillLevel.order_index, Level.name)
     )
     levels_result = await db.execute(levels_query)
+    level_rows = levels_result.all()
+    latest_attempts = await get_latest_attempts_by_skill_level(
+        db,
+        claims.user_id,
+        [row.skill_level_id for row in level_rows],
+    )
 
     items_by_skill = {
         row.id: TestPublicItem(id=row.id, skill_id=row.id, skill_name=row.name, levels=[])
         for row in skill_rows
     }
-    for row in levels_result.all():
+    for row in level_rows:
         item = items_by_skill.get(row.skill_id)
         if not item:
             continue
+        latest_attempt = latest_attempts.get(row.skill_level_id)
         item.levels.append(TestPublicLevelItem(
             id=row.skill_level_id,
             test_id=row.test_id,
@@ -238,6 +258,13 @@ async def search_public_tests(
             total_score=row.total_score or 0,
             threshold_score=row.threshold_score or 0,
             time_limit_minutes=row.time_limit_minutes or 0,
+            latest_attempt_score=latest_attempt["score"] if latest_attempt else None,
+            latest_attempt_total_score=latest_attempt["total_score"] if latest_attempt else None,
+            latest_attempt_threshold_score=latest_attempt["threshold_score"] if latest_attempt else None,
+            latest_attempt_completed_at=latest_attempt["completed_at"] if latest_attempt else None,
+            latest_attempt_passed=latest_attempt["passed"] if latest_attempt else None,
+            next_attempt_at=latest_attempt["next_attempt_at"] if latest_attempt else None,
+            can_start_attempt=latest_attempt["can_start_attempt"] if latest_attempt else True,
         ))
 
     return TestPublicSearchResponse(
@@ -245,6 +272,62 @@ async def search_public_tests(
         total_pages=total_pages,
         current_page=page,
     )
+
+@router.post("/public/{skill_level_id}/start", response_model=TestAttemptStartResponse)
+async def start_public_test_attempt(skill_level_id: int, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("user", "curator", "admin"))):
+    return await start_attempt(db, claims.user_id, skill_level_id)
+
+@router.get("/attempts/{attempt_id}", response_model=TestAttemptState)
+async def get_public_test_attempt(attempt_id: str, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("user", "curator", "admin"))):
+    return await get_attempt_state(db, attempt_id, claims.user_id)
+
+@router.post("/attempts/{attempt_id}/heartbeat")
+async def heartbeat_public_test_attempt(attempt_id: str, claims: TokenClaims = Depends(require_role("user", "curator", "admin"))):
+    await heartbeat_attempt(attempt_id, claims.user_id)
+    return {"status": "ok"}
+
+@router.post("/attempts/{attempt_id}/answer", response_model=TestAttemptAnswerResponse)
+async def answer_public_test_attempt(
+    attempt_id: str,
+    data: TestAttemptAnswerRequest,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
+):
+    next_state, result = await submit_answer(
+        db,
+        attempt_id,
+        claims.user_id,
+        data.question_id,
+        data.answer_ids,
+    )
+    return TestAttemptAnswerResponse(
+        completed=result is not None,
+        next_state=next_state,
+        result=result,
+    )
+
+@router.post("/attempts/{attempt_id}/finish", response_model=TestAttemptResult)
+async def finish_public_test_attempt(
+    attempt_id: str,
+    data: TestAttemptFinishRequest,
+    db: AsyncSession = Depends(get_db),
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
+):
+    return await finish_attempt(db, attempt_id, claims.user_id, cheated=data.cheated)
+
+@router.websocket("/attempts/{attempt_id}/monitor")
+async def monitor_public_test_attempt(websocket: WebSocket, attempt_id: str):
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=45)
+            except asyncio.TimeoutError:
+                continue
+    except WebSocketDisconnect:
+        await asyncio.sleep(2)
+        async with AsyncSessionLocal() as db:
+            await finish_attempt_without_user(db, attempt_id)
 
 @router.get("/{test_id}", response_model=TestDetail)
 async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):

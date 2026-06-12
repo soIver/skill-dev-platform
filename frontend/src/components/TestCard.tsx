@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Clock, ListChecks } from "lucide-react";
+import { CheckCircle2, Clock, ListChecks, XCircle } from "lucide-react";
 
 import { BentoSearch } from "./BentoSearch";
 import type { TestPublicItem, TestPublicLevelItem } from "../hooks/useTestsStore";
@@ -45,6 +45,13 @@ export function TestCard({ test, onClick }: TestCardProps) {
   if (!activeLevel) return null;
 
   const description = activeLevel.description_preview || "Описание теста пока не заполнено.";
+  const renderLevel = (level: TestPublicLevelItem) => (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="truncate">{level.level_name}</span>
+      {level.latest_attempt_passed === true && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+      {level.latest_attempt_passed === false && <XCircle className="h-4 w-4 shrink-0" />}
+    </span>
+  );
 
   return (
     <div
@@ -60,7 +67,7 @@ export function TestCard({ test, onClick }: TestCardProps) {
             items={test.levels}
             itemToString={(level) => level.level_name}
             itemToId={(level) => level.id}
-            renderItem={(level) => level.level_name}
+            renderItem={renderLevel}
             activeItemId={activeLevel.id}
             reorderEnabled={false}
             closeable={false}

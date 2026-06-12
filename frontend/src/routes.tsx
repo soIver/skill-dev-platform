@@ -14,6 +14,7 @@ import Repositories from "./pages/profile/Repositories";
 import Recommendations from "./pages/Recommendations";
 import Tasks from "./pages/Tasks";
 import Tests from "./pages/Tests";
+import TestAttempt from "./pages/TestAttempt";
 import Vacancies from "./pages/vacancies/Vacancies";
 import VacancyMatching from "./pages/vacancies/Matching";
 import VacancyAnalysis from "./pages/vacancies/Analysis";
@@ -74,6 +75,14 @@ export default function AppRoutes() {
         element={
           <RequireAuth>
             <Tests />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tests/attempt/:attemptId"
+        element={
+          <RequireAuth>
+            <TestAttempt />
           </RequireAuth>
         }
       />

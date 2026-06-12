@@ -159,6 +159,11 @@
     .toast-close {
         @apply cursor-pointer text-xl leading-none opacity-70 transition-opacity hover:opacity-100;
     }
+
+    .test-secure-area {
+        user-select: none;
+        -webkit-user-select: none;
+    }
 }
 
 :root {
