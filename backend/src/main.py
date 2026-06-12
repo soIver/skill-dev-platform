@@ -1,7 +1,7 @@
 import asyncio
 import signal
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
@@ -10,6 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from .auth.router import router as auth_router
+from .classifier.router import router as classifier_router
 from .config import global_config
 from .management.router import router as management_router
 from .utils.database import init_database, db_engine
@@ -63,16 +64,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+root_router = APIRouter(prefix="/api")
 
-app.include_router(auth_router, prefix="/api")
-app.include_router(management_router, prefix="/api")
-app.include_router(github_router, prefix="/api")
-app.include_router(skills_router, prefix="/api")
-app.include_router(tasks_router, prefix="/api")
-app.include_router(analysis_router, prefix="/api")
-app.include_router(notifications_router, prefix="/api")
-app.include_router(tests_router, prefix="/api")
-app.include_router(vacancies_router, prefix="/api")
+root_router.include_router(auth_router)
+root_router.include_router(classifier_router)
+root_router.include_router(management_router)
+root_router.include_router(github_router)
+root_router.include_router(skills_router)
+root_router.include_router(tasks_router)
+root_router.include_router(analysis_router)
+root_router.include_router(notifications_router)
+root_router.include_router(tests_router)
+root_router.include_router(vacancies_router)
+
+app.include_router(root_router)
 
 app.add_middleware(
     CORSMiddleware,

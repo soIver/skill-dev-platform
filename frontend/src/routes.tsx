@@ -19,6 +19,7 @@ import Vacancies from "./pages/vacancies/Vacancies";
 import VacancyMatching from "./pages/vacancies/Matching";
 import VacancyAnalysis from "./pages/vacancies/Analysis";
 import Content from "./pages/content/Content";
+import ContentClassifier from "./pages/content/Classifier";
 import ContentSkills from "./pages/content/Skills";
 import ContentTests from "./pages/content/Tests";
 import ContentTasks from "./pages/content/Tasks";
@@ -107,6 +108,7 @@ export default function AppRoutes() {
         }
       >
         <Route index element={<TabRedirect section="content" defaultTab="skills" />} />
+        <Route path="classifier" element={<ContentClassifier />} />
         <Route path="skills" element={<ContentSkills />} />
         <Route path="tests" element={<ContentTests />} />
         <Route path="tasks" element={<ContentTasks />} />

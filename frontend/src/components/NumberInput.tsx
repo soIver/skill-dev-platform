@@ -13,6 +13,7 @@ interface NumberInputProps {
   unitForms?: UnitForms;
   className?: string;
   containerClassName?: string;
+  disabled?: boolean;
 }
 
 const integerAllowedCharPattern = /^[0-9]$/;
@@ -56,6 +57,7 @@ export function NumberInput({
   unitForms,
   className = "input-field mt-0! w-full",
   containerClassName = "relative flex items-center",
+  disabled = false,
 }: NumberInputProps) {
   const currentValue = value ?? 0;
   const allowedCharPattern = mode === "decimal" ? decimalAllowedCharPattern : integerAllowedCharPattern;
@@ -121,6 +123,7 @@ export function NumberInput({
         max={max}
         step={step ?? (mode === "decimal" ? 0.1 : 1)}
         value={currentValue}
+        disabled={disabled}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onChange={(event) => handleChange(event.currentTarget)}

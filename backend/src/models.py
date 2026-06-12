@@ -56,6 +56,7 @@ class PsFunctionsGroup(Base):
     )
     code = Column(String, nullable=False)
     name = Column(String, nullable=False)
+    qualification_level = Column(Integer, nullable=False, default=1, server_default="1")
 
     prof_standard = relationship("ProfStandard", back_populates="functions_groups", lazy="select")
     functions = relationship("PsFunction", back_populates="functions_group", cascade="all, delete-orphan")

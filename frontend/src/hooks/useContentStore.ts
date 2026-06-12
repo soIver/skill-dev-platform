@@ -145,6 +145,85 @@ interface SkillsState {
   pendingSelectId: number | null;
 }
 
+export interface ClassifierFunctionTreeItem {
+  id: number;
+  code: number;
+  name: string;
+}
+
+export interface ClassifierGroupTreeItem {
+  id: number;
+  code: string;
+  name: string;
+  qualification_level: number;
+  functions: ClassifierFunctionTreeItem[];
+}
+
+export interface ClassifierProfStandardTreeItem {
+  id: number;
+  code: number;
+  name: string;
+  groups: ClassifierGroupTreeItem[];
+}
+
+export interface ClassifierGroupSummary {
+  id: number;
+  code: string;
+  name: string;
+  qualification_level: number;
+}
+
+export interface ClassifierFunctionSummary {
+  id: number;
+  code: number;
+  name: string;
+}
+
+export type ClassifierEditorData =
+  | {
+    kind: "ps";
+    id: number | "new";
+    codeInput: string;
+    name: string;
+    description: string;
+    groups: ClassifierGroupSummary[];
+  }
+  | {
+    kind: "group";
+    id: number | "new";
+    code: string;
+    name: string;
+    qualification_level: number;
+    prof_standard: { id: number; code: number; name: string };
+    functions: ClassifierFunctionSummary[];
+  }
+  | {
+    kind: "function";
+    id: number | "new";
+    code: number;
+    name: string;
+    functions_group: { id: number; code: string; name: string; qualification_level: number };
+    prof_standard: { id: number; code: number; name: string };
+  };
+
+export type ClassifierPendingAction =
+  | { type: "load-ps"; id: number }
+  | { type: "load-group"; id: number }
+  | { type: "load-function"; id: number }
+  | { type: "new-ps" }
+  | { type: "new-group"; standard: { id: number; code: number; name: string }; code: string }
+  | { type: "new-function"; standard: { id: number; code: number; name: string }; group: { id: number; code: string; name: string; qualification_level: number }; code: number };
+
+interface ClassifierState {
+  queryInput: string;
+  results: ClassifierProfStandardTreeItem[];
+  lastSearch: { query: string };
+  hasLoaded: boolean;
+  editorData: ClassifierEditorData | null;
+  hasUnsavedChanges: boolean;
+  pendingAction: ClassifierPendingAction | null;
+}
+
 const initialSkillsState: SkillsState = {
   skillInput: "",
   levelInput: "",
@@ -190,22 +269,36 @@ const initialTestsState: TestsState = {
   pendingSelectId: null,
 };
 
+const initialClassifierState: ClassifierState = {
+  queryInput: "",
+  results: [],
+  lastSearch: { query: "" },
+  hasLoaded: false,
+  editorData: null,
+  hasUnsavedChanges: false,
+  pendingAction: null,
+};
+
 interface ContentStore {
   skills: SkillsState;
   tasks: TasksState;
   tests: TestsState;
+  classifier: ClassifierState;
   setSkillsState: (state: Partial<SkillsState>) => void;
   resetSkillsState: () => void;
   setTasksState: (state: Partial<TasksState>) => void;
   resetTasksState: () => void;
   setTestsState: (state: Partial<TestsState>) => void;
   resetTestsState: () => void;
+  setClassifierState: (state: Partial<ClassifierState>) => void;
+  resetClassifierState: () => void;
 }
 
 export const useContentStore = create<ContentStore>((set) => ({
   skills: initialSkillsState,
   tasks: initialTasksState,
   tests: initialTestsState,
+  classifier: initialClassifierState,
   setSkillsState: (newState) =>
     set((state) => ({
       skills: { ...state.skills, ...newState },
@@ -221,4 +314,9 @@ export const useContentStore = create<ContentStore>((set) => ({
       tests: { ...state.tests, ...newState },
     })),
   resetTestsState: () => set({ tests: initialTestsState }),
+  setClassifierState: (newState) =>
+    set((state) => ({
+      classifier: { ...state.classifier, ...newState },
+    })),
+  resetClassifierState: () => set({ classifier: initialClassifierState }),
 }));
