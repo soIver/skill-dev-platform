@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 
+import { resetCachedStores } from "../resetCachedStores";
+
 export interface User {
   id: number;
   username: string;
@@ -55,12 +57,15 @@ export const useUserStore = create<UserStore>()(
           set((state) => ({ 
             activeTabs: { ...state.activeTabs, [section]: tab } 
           })),
-        clearSession: () =>
+        clearSession: () => {
+          resetCachedStores();
           set({
             user: null,
             githubProfile: null,
             isAuthChecked: true,
-          }),
+            activeTabs: {},
+          });
+        },
         setHydrated: (isHydrated) => set({ isHydrated }),
         setAuthChecked: (isAuthChecked) => set({ isAuthChecked }),
       }),
