@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
-import { SEARCH_DEBOUNCE_MS, TEST } from "../../config";
+import { PS_FUNCTIONS, SEARCH_DEBOUNCE_MS, TEST } from "../../config";
 import { useContentStore, type TestItem, type SkillLevelItem, type QuestionEditorItem, type AnswerEditorItem, type PsFunctionItem } from "../../hooks/useContentStore";
+import { useClassifierTree } from "../../hooks/useClassifierTree";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { NumberInput } from "../../components/NumberInput";
+import { PsFunctionSelectorField } from "../../components/PsFunctionSelectorField";
 import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { ChevronDown, X, Plus } from "lucide-react";
@@ -69,6 +71,7 @@ export default function ContentTests() {
   } = tests;
 
   const { showToast } = useToast();
+  const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
   const [isSearching, setIsSearching] = useState(false);
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -491,7 +494,11 @@ export default function ContentTests() {
 
   const totalPoints = editorData?.questions?.reduce((sum, q) => sum + (Number(q.points) || 0), 0) || 0;
   const validationError = selectedId ? getValidationError() : null;
-  const isValid = selectedId ? validationError === null : false;
+  const psFunctionsError = editorData.ps_functions.length > PS_FUNCTIONS.MAX_COUNT
+    ? `Можно выбрать не более ${PS_FUNCTIONS.MAX_COUNT} трудовых функций`
+    : "";
+  const isPsFunctionsValid = psFunctionsError === "";
+  const isValid = selectedId ? validationError === null && isPsFunctionsValid : false;
   const canSave = hasUnsavedChanges && isValid;
   const canTogglePublish = isValid;
 
@@ -686,6 +693,15 @@ export default function ContentTests() {
                 minCharacters={TEST.DESCRIPTION.MIN_LENGTH}
                 maxCharacters={TEST.DESCRIPTION.MAX_LENGTH}
                 validationName="содержание"
+              />
+
+              <PsFunctionSelectorField
+                items={classifierTree}
+                selectedFunctions={editorData.ps_functions}
+                isLoading={isClassifierLoading}
+                error={psFunctionsError}
+                maxSelected={PS_FUNCTIONS.MAX_COUNT}
+                onChange={(items) => updateEditorData({ ps_functions: items })}
               />
 
               {/* параметры времени и порога */}

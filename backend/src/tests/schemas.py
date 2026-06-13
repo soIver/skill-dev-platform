@@ -37,7 +37,7 @@ class TestCreateUpdate(BaseModel):
     threshold_score: int = Field(..., ge=1)
     is_published: bool
     skill_level_id: int
-    ps_function_ids: list[int] = []
+    ps_function_ids: list[int] = Field(default_factory=list, max_length=10)
     questions: List[QuestionCreateUpdate]
 
 class AnswerDetail(BaseModel):

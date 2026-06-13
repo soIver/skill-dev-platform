@@ -6,6 +6,7 @@ import type {
   ClassifierGroupTreeItem,
   ClassifierProfStandardTreeItem,
 } from "../hooks/useContentStore";
+import { formatPsCode, formatTfCode } from "../utils/classifier";
 
 interface ClassifierTreeProps {
   items: ClassifierProfStandardTreeItem[];
@@ -24,14 +25,6 @@ interface ClassifierTreeProps {
   onCreateProfStandard: () => void;
   onCreateGroup: (standard: ClassifierProfStandardTreeItem) => void;
   onCreateFunction: (standard: ClassifierProfStandardTreeItem, group: ClassifierGroupTreeItem) => void;
-}
-
-function psCode(code: number): string {
-  return `06.${code.toString().padStart(3, "0")}`;
-}
-
-function functionCode(code: number, qualificationLevel: number): string {
-  return `${code.toString().padStart(2, "0")}.${qualificationLevel}`;
 }
 
 export function ClassifierTree({
@@ -125,7 +118,7 @@ export function ClassifierTree({
                       onClick={() => onSelectProfStandard(standard)}
                       className="flex-1 min-w-0 text-left"
                     >
-                      <span className="font-semibold mr-2">{psCode(standard.code)}</span>
+                      <span className="font-semibold mr-2">{formatPsCode(standard.code)}</span>
                       <span className="align-bottom whitespace-normal wrap-break-word">{standard.name}</span>
                     </button>
                     {canEdit && (
@@ -188,7 +181,7 @@ export function ClassifierTree({
                                       className={rowClass(functionKey)}
                                     >
                                       <span className="font-semibold shrink-0">
-                                        {functionCode(item.code, group.qualification_level)}
+                                        {formatTfCode(item.code, group.qualification_level)}
                                       </span>
                                       <span className="whitespace-normal wrap-break-word">{item.name}</span>
                                     </button>

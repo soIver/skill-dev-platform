@@ -67,7 +67,7 @@ class TaskCreateUpdate(BaseModel):
     is_published: bool
     skill_level_ids: list[int]
     requirements: list[TaskRequirementCreateUpdate] = Field(..., min_length=2, max_length=10)
-    ps_function_ids: list[int] = []
+    ps_function_ids: list[int] = Field(default_factory=list, max_length=10)
 
 class TaskPublicItem(BaseModel):
     id: int

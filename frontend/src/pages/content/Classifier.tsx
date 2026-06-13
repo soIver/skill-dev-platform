@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { authJson } from "../../auth";
-import { SEARCH_DEBOUNCE_MS } from "../../config";
-import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { ClassifierEditorTable } from "../../components/ClassifierEditorTable";
 import { ClassifierTree } from "../../components/ClassifierTree";
 import {
@@ -19,19 +17,11 @@ import { NumberInput } from "../../components/NumberInput";
 import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { useUserStore } from "../../hooks/useUserStore";
+import { filterClassifierTree, formatPsCode, formatTfCode } from "../../utils/classifier";
+import { X } from "lucide-react";
 
 interface ClassifierTreeResponse {
   items: ClassifierProfStandardTreeItem[];
-}
-
-interface ClassifierSearchItem {
-  id: string;
-  name: string;
-  entity_type: string;
-}
-
-interface ClassifierSearchResponse {
-  items: ClassifierSearchItem[];
 }
 
 interface ProfStandardDetail {
@@ -72,14 +62,6 @@ interface FunctionDetail {
   };
 }
 
-function formatPsCode(code: number): string {
-  return `06.${code.toString().padStart(3, "0")}`;
-}
-
-function formatTfCode(code: number, qualificationLevel: number): string {
-  return `${code.toString().padStart(2, "0")}.${qualificationLevel}`;
-}
-
 function nextGroupCode(groups: { code: string }[]): string | null {
   if (groups.length >= 26) return null;
   return String.fromCharCode("A".charCodeAt(0) + groups.length);
@@ -95,7 +77,6 @@ export default function Classifier() {
   const {
     queryInput,
     results: tree,
-    lastSearch,
     hasLoaded,
     editorData,
     hasUnsavedChanges,
@@ -104,65 +85,34 @@ export default function Classifier() {
   const user = useUserStore((state) => state.user);
   const canEdit = user?.role === "admin";
   const [isSearching, setIsSearching] = useState(false);
-  const [isDebouncing, setIsDebouncing] = useState(false);
   const [expandAllSignal, setExpandAllSignal] = useState(0);
   const [collapseAllSignal, setCollapseAllSignal] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const nameInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchQueryRef = useRef(queryInput);
   const dragIndexRef = useRef<number | null>(null);
 
   const selectedKey = editorData && editorData.id !== "new" ? `${editorData.kind}:${editorData.id}` : null;
+  const filteredTree = useMemo(() => filterClassifierTree(tree, queryInput), [tree, queryInput]);
 
-  const fetchTree = async (query: string) => {
+  const fetchTree = async () => {
     setIsSearching(true);
     try {
-      const params = new URLSearchParams();
-      if (query.trim()) params.append("query", query.trim());
-      const response = await authJson<ClassifierTreeResponse>(`/classifier/tree?${params.toString()}`);
+      const response = await authJson<ClassifierTreeResponse>("/classifier/tree");
       setClassifierState({
         results: response.items,
-        lastSearch: { query },
+        lastSearch: { query: "" },
         hasLoaded: true,
       });
     } catch (error) {
       console.error("Failed to fetch classifier tree", error);
     } finally {
       setIsSearching(false);
-      setIsDebouncing(false);
     }
   };
 
-  const searchClassifierNames = async (query: string) => {
-    const params = new URLSearchParams();
-    if (query.trim()) params.append("query", query.trim());
-    const response = await authJson<ClassifierSearchResponse>(`/classifier/search?${params.toString()}`);
-    return response.items;
-  };
-
   useEffect(() => {
-    const hasQueryChanged = searchQueryRef.current !== queryInput;
-    searchQueryRef.current = queryInput;
-
-    if (!hasQueryChanged && queryInput === lastSearch.query && hasLoaded) return;
-
-    setIsDebouncing(true);
-
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-
-    searchTimerRef.current = setTimeout(() => {
-      if (queryInput === lastSearch.query && hasLoaded) {
-        setIsDebouncing(false);
-        return;
-      }
-      fetchTree(queryInput);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    };
-  }, [queryInput]);
+    if (!hasLoaded) void fetchTree();
+  }, [hasLoaded]);
 
   useEffect(() => {
     if (editorData?.id === "new") {
@@ -368,7 +318,7 @@ export default function Classifier() {
           },
         );
         showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
-        await fetchTree(queryInput);
+        await fetchTree();
         await loadProfStandard(response.id);
       } else if (editorData.kind === "group") {
         const payload = {
@@ -388,7 +338,7 @@ export default function Classifier() {
           },
         );
         showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
-        await fetchTree(queryInput);
+        await fetchTree();
         await loadGroup(response.id);
       } else {
         const payload = {
@@ -406,7 +356,7 @@ export default function Classifier() {
           },
         );
         showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
-        await fetchTree(queryInput);
+        await fetchTree();
         await loadFunction(response.id);
       }
     } catch (error) {
@@ -433,7 +383,7 @@ export default function Classifier() {
       await authJson(url, { method: "DELETE" });
       setClassifierState({ editorData: null, hasUnsavedChanges: false });
       setShowDeleteConfirm(false);
-      await fetchTree(queryInput);
+      await fetchTree();
       showToast({ title: "Успех", message: "Элемент удалён", variant: "success" });
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось удалить элемент", variant: "error" });
@@ -543,25 +493,26 @@ export default function Classifier() {
       <div className="workspace-panel flex-1 flex flex-col h-full min-w-0">
         <h2 className="workspace-panel-header">Классификатор компетенций</h2>
         <div className="mb-4 grid grid-cols-[2fr_1fr_1fr] gap-3">
-          <AutocompleteSearch<ClassifierSearchItem>
-            value={queryInput}
-            onSearch={searchClassifierNames}
-            onSelect={(item) => setClassifierState({ queryInput: item.name })}
-            onInputChange={(value) => setClassifierState({ queryInput: value })}
-            itemToString={(item) => item.name}
-            renderItem={(item) => (
-              <span className="flex items-start justify-between gap-3">
-                <span className="min-w-0 whitespace-normal wrap-break-word">{item.name}</span>
-                <span className="shrink-0 text-xs font-medium text-gray-400">{item.entity_type}</span>
-              </span>
+          <div className="relative">
+            <input
+              type="text"
+              value={queryInput}
+              maxLength={256}
+              onChange={(event) => setClassifierState({ queryInput: event.target.value })}
+              placeholder="Поиск по коду или названию"
+              className="input-field mt-0! pr-10"
+            />
+            {queryInput && (
+              <button
+                type="button"
+                aria-label="Очистить поле"
+                onClick={() => setClassifierState({ queryInput: "" })}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
             )}
-            placeholder="Поиск по коду или названию"
-            className="ml-0!"
-            hideButton={true}
-            showClearButton={true}
-            maxLength={256}
-            debounceMs={SEARCH_DEBOUNCE_MS}
-          />
+          </div>
           <button
             type="button"
             onClick={() => setExpandAllSignal((value) => value + 1)}
@@ -578,9 +529,9 @@ export default function Classifier() {
           </button>
         </div>
         <ClassifierTree
-          items={tree}
+          items={filteredTree}
           selectedKey={selectedKey}
-          isLoading={isSearching || isDebouncing}
+          isLoading={isSearching}
           canEdit={canEdit}
           expandAllSignal={expandAllSignal}
           collapseAllSignal={collapseAllSignal}

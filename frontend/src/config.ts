@@ -49,6 +49,10 @@ export const SKILL_LEVEL = {
   },
 } as const;
 
+export const PS_FUNCTIONS = {
+  MAX_COUNT: 10,
+} as const;
+
 export const SEARCH_DEBOUNCE_MS = 1000;
 
 export const ITEMS_PER_TABLE_PAGE = {

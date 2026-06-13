@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
-import { TASK, SEARCH_DEBOUNCE_MS } from "../../config";
+import { PS_FUNCTIONS, TASK, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useContentStore, type TaskItem, type PsFunctionItem, type SkillTaskItem } from "../../hooks/useContentStore";
+import { useClassifierTree } from "../../hooks/useClassifierTree";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
+import { PsFunctionSelectorField } from "../../components/PsFunctionSelectorField";
 import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { Plus, X } from "lucide-react";
@@ -44,6 +46,7 @@ export default function ContentTasks() {
   const { tasks, setTasksState } = useContentStore();
   const { keywordInput, skillInput, ownerId, ownerUsername, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
   const { showToast } = useToast();
+  const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
 
   const [isSearching, setIsSearching] = useState(false);
   const [isDebouncing, setIsDebouncing] = useState(false);
@@ -380,8 +383,12 @@ export default function ContentTasks() {
       ? `Проверьте размер требований: ${invalidRequirementNumbers.join(", ")}`
       : "";
   const isRequirementsValid = isRequirementsCountValid && invalidRequirementNumbers.length === 0;
-  const canSave = hasUnsavedChanges && isDescriptionValid && isTitleValid && isRequirementsValid;
-  const canTogglePublish = isDescriptionValid && isTitleValid && isRequirementsValid;
+  const psFunctionsError = editorData.ps_functions.length > PS_FUNCTIONS.MAX_COUNT
+    ? `Можно выбрать не более ${PS_FUNCTIONS.MAX_COUNT} трудовых функций`
+    : "";
+  const isPsFunctionsValid = psFunctionsError === "";
+  const canSave = hasUnsavedChanges && isDescriptionValid && isTitleValid && isRequirementsValid && isPsFunctionsValid;
+  const canTogglePublish = isDescriptionValid && isTitleValid && isRequirementsValid && isPsFunctionsValid;
 
   const columns: Column<TaskItem>[] = [
     {
@@ -600,6 +607,15 @@ export default function ContentTasks() {
               maxCharacters={TASK.DESCRIPTION.MAX_LENGTH}
               validationName="описание"
               onChange={(e) => updateEditorData({ description: e.target.value })}
+            />
+
+            <PsFunctionSelectorField
+              items={classifierTree}
+              selectedFunctions={editorData.ps_functions}
+              isLoading={isClassifierLoading}
+              error={psFunctionsError}
+              maxSelected={PS_FUNCTIONS.MAX_COUNT}
+              onChange={(items) => updateEditorData({ ps_functions: items })}
             />
 
             <div className="mb-4 max-w-150">
