@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 
-import { authJson } from "../../auth";
-import { ITEMS_PER_TABLE_PAGE, SEARCH_DEBOUNCE_MS } from "../../config";
-import { EditorConfirmModal } from "../../components/EditorConfirmModal";
-import { PaginatedTable, type Column } from "../../components/PaginatedTable";
-import { useToast } from "../../components/ToastProvider";
-import { useContentStore } from "../../hooks/useContentStore";
-import { useManagementStore, type CuratorManagementItem } from "../../hooks/useManagementStore";
-import { checkEmail } from "../../validation";
+import { authJson } from "../auth";
+import { ITEMS_PER_TABLE_PAGE, SEARCH_DEBOUNCE_MS } from "../config";
+import { EditorConfirmModal } from "../components/EditorConfirmModal";
+import { PaginatedTable, type Column } from "../components/PaginatedTable";
+import { useToast } from "../components/ToastProvider";
+import { useContentStore } from "../hooks/useContentStore";
+import { useManagementStore, type CuratorManagementItem } from "../hooks/useManagementStore";
+import { checkEmail } from "../validation";
 
 interface CuratorManagementResponse {
   items: CuratorManagementItem[];

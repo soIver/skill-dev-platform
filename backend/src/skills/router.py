@@ -72,7 +72,7 @@ async def delete_skill_level(sl_id: int, db: AsyncSession = Depends(get_db), cla
     return {"status": "ok"}
 
 
-@router.get("/me", response_model=UserSkillResponse)
+@router.get("/my", response_model=UserSkillResponse)
 async def get_my_skills(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),

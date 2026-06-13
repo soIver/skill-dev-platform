@@ -9,7 +9,6 @@ import TestsIcon from "../assets/icons/tests.svg?react";
 import VacanciesIcon from "../assets/icons/vacancies.svg?react";
 import ContentIcon from "../assets/icons/content.svg?react";
 import ManagementIcon from "../assets/icons/management.svg?react";
-import StatisticsIcon from "../assets/icons/statistics.svg?react";
 import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
 import IsdLogo from "../assets/icons/isd-logo.svg?react";
 
@@ -48,18 +47,18 @@ export default function VerNavBar() {
       {/* область навигации */}
       <nav className="flex-1 pe-2 py-4 space-y-3">
         <VerNavItem
-          to="/profile"
+          to="/my"
           icon={ProfileIcon}
           label="Профиль"
           isExpanded={isExpanded}
-          isActive={location.pathname.startsWith("/profile")}
+          isActive={location.pathname.startsWith("/my")}
         />
         <VerNavItem
-          to="/recommendations"
+          to="/progress"
           icon={RecommendationsIcon}
-          label="Рекомендации"
+          label="Прогресс"
           isExpanded={isExpanded}
-          isActive={location.pathname.startsWith("/recommendations")}
+          isActive={location.pathname.startsWith("/progress")}
         />
         <VerNavItem
           to="/tasks"
@@ -99,13 +98,6 @@ export default function VerNavBar() {
               label="Управление"
               isExpanded={isExpanded}
               isActive={location.pathname.startsWith("/management")}
-            />
-            <VerNavItem
-              to="/statistics"
-              icon={StatisticsIcon}
-              label="Статистика"
-              isExpanded={isExpanded}
-              isActive={location.pathname.startsWith("/statistics")}
             />
           </>
         )}

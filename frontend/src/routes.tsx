@@ -7,11 +7,11 @@ import EmailConfirmation from "./pages/auth/EmailConfirmation";
 import CuratorInvitationConfirmation from "./pages/auth/CuratorInvitationConfirmation";
 import EmailChange from "./pages/auth/EmailChange";
 import EmailChangeConfirmation from "./pages/auth/EmailChangeConfirmation";
-import Profile from "./pages/profile/Profile";
-import Credentials from "./pages/profile/Credentials";
-import Skills from "./pages/profile/Skills";
-import Repositories from "./pages/profile/Repositories";
-import Recommendations from "./pages/Recommendations";
+import My from "./pages/my/My";
+import Credentials from "./pages/my/Credentials";
+import Profile from "./pages/my/Profile";
+import Repositories from "./pages/my/Repositories";
+import Progress from "./pages/Progress";
 import Tasks from "./pages/Tasks";
 import Tests from "./pages/Tests";
 import TestAttempt from "./pages/TestAttempt";
@@ -23,8 +23,7 @@ import ContentClassifier from "./pages/content/Classifier";
 import ContentSkills from "./pages/content/Skills";
 import ContentTests from "./pages/content/Tests";
 import ContentTasks from "./pages/content/Tasks";
-import Management from "./pages/admin/Management";
-import Statistics from "./pages/admin/Statistics";
+import Management from "./pages/Management";
 import RequireAuth from "./components/RequireAuth";
 import RootRedirect from "./components/RootRedirect";
 import { TabRedirect } from "./components/TabTracker";
@@ -43,23 +42,23 @@ export default function AppRoutes() {
       <Route path="/auth/change-email" element={<EmailChange />} />
       <Route path="/auth/confirm-email-change" element={<EmailChangeConfirmation />} />
       <Route
-        path="/profile"
+        path="/my"
         element={
           <RequireAuth>
-            <Profile />
+            <My />
           </RequireAuth>
         }
       >
-        <Route index element={<TabRedirect section="profile" defaultTab="skills" />} />
-        <Route path="skills" element={<Skills />} />
+        <Route index element={<TabRedirect section="my" defaultTab="profile" />} />
+        <Route path="profile" element={<Profile />} />
         <Route path="repositories" element={<Repositories />} />
         <Route path="credentials" element={<Credentials />} />
       </Route>
       <Route
-        path="/recommendations"
+        path="/progress"
         element={
           <RequireAuth>
-            <Recommendations />
+            <Progress />
           </RequireAuth>
         }
       />
@@ -118,14 +117,6 @@ export default function AppRoutes() {
         element={
           <RequireAuth allowedRoles={["admin"]}>
             <Management />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/statistics"
-        element={
-          <RequireAuth allowedRoles={["admin"]}>
-            <Statistics />
           </RequireAuth>
         }
       />

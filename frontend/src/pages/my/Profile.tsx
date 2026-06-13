@@ -18,7 +18,7 @@ interface PaginatedResponse {
   current_page: number;
 }
 
-export default function Skills() {
+export default function Profile() {
   const [data, setData] = useState<UserSkill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,7 +33,7 @@ export default function Skills() {
 
     setIsLoading(true);
     try {
-      const response = await authJson<PaginatedResponse>(`/skills/me?page=${page}&limit=10`);
+      const response = await authJson<PaginatedResponse>(`/skills/my?page=${page}&limit=10`);
       setData(response.items);
       setTotalPages(response.total_pages);
     } catch (error) {
