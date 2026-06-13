@@ -8,6 +8,7 @@ import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
+import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { Plus, X } from "lucide-react";
 interface SearchResponse {
@@ -376,7 +377,7 @@ export default function ContentTasks() {
   const requirementsError = !isRequirementsCountValid
     ? `Количество требований должно быть от ${TASK.REQUIREMENTS.MIN_COUNT} до ${TASK.REQUIREMENTS.MAX_COUNT}`
     : invalidRequirementNumbers.length > 0
-      ? `Проверьте длину требований: ${invalidRequirementNumbers.join(", ")}`
+      ? `Проверьте размер требований: ${invalidRequirementNumbers.join(", ")}`
       : "";
   const isRequirementsValid = isRequirementsCountValid && invalidRequirementNumbers.length === 0;
   const canSave = hasUnsavedChanges && isDescriptionValid && isTitleValid && isRequirementsValid;
@@ -591,32 +592,19 @@ export default function ContentTasks() {
               </div>
             </div>
 
-            <div className="w-full">
-              <textarea
-                className="input-field min-h-[150px] max-h-[360px] resize-y mb-1 relative"
-                style={{ font: "inherit" }}
-                placeholder="Описание задания"
-                value={editorData.description}
-                onChange={(e) => updateEditorData({ description: e.target.value })}
-                onScroll={(e) => {
-                  const overlay = e.currentTarget.previousSibling as HTMLDivElement;
-                  if (overlay) overlay.scrollTop = e.currentTarget.scrollTop;
-                }}
-              />
-            </div>
-
-            <div className="text-xs flex flex-col mb-2 gap-1">
-              <div className="text-gray-500 flex justify-between">
-                <span>{editorData.description.length < TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length > 0 ? "Слишком короткое описание" : ""}</span>
-                <span className={editorData.description.length > TASK.DESCRIPTION.MAX_LENGTH ? "text-danger" : ""}>
-                  {editorData.description.length}/{TASK.DESCRIPTION.MAX_LENGTH}
-                </span>
-              </div>
-            </div>
+            <TextareaField
+              containerClassName="w-full mb-2"
+              placeholder="Описание задания"
+              value={editorData.description}
+              minCharacters={TASK.DESCRIPTION.MIN_LENGTH}
+              maxCharacters={TASK.DESCRIPTION.MAX_LENGTH}
+              validationName="описание"
+              onChange={(e) => updateEditorData({ description: e.target.value })}
+            />
 
             <div className="mb-4 max-w-150">
               <div className="flex justify-between items-center ml-1 mb-3">
-                <h3 className="text-xl font-medium text-gray-900">Список требований</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Список требований</h3>
                 <span className="text-sm font-medium text-gray-500 bg-gray-100 py-1 px-2.5 rounded-lg">
                   Всего требований: {editorData.requirements.length}
                 </span>
@@ -628,29 +616,19 @@ export default function ContentTasks() {
                 </span>
               )}
 
-              <div className="flex flex-col gap-3">
+              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 flex flex-col gap-3">
                 {editorData.requirements.map((requirement, index) => (
                   <div key={requirement.id} className="flex items-start gap-3">
-                    <div className="flex-1">
-                      <textarea
-                        value={requirement.description}
-                        onChange={(e) => handleUpdateRequirement(requirement.id, e.target.value)}
-                        placeholder={`Требование №${index + 1}`}
-                        className="input-field mt-0! resize-y mb-1 max-h-24"
-                        style={{ minHeight: "40px" }}
-                        maxLength={TASK.REQUIREMENTS.MAX_LENGTH}
-                      />
-                      <div className="text-xs flex justify-between">
-                        <span className="text-gray-500">
-                          {requirement.description.trim().length > 0 && requirement.description.trim().length < TASK.REQUIREMENTS.MIN_LENGTH
-                            ? "Слишком короткое требование"
-                            : ""}
-                        </span>
-                        <span className={requirement.description.length > TASK.REQUIREMENTS.MAX_LENGTH ? "text-danger" : "text-gray-500"}>
-                          {requirement.description.length}/{TASK.REQUIREMENTS.MAX_LENGTH}
-                        </span>
-                      </div>
-                    </div>
+                    <TextareaField
+                      containerClassName="flex-1"
+                      value={requirement.description}
+                      onChange={(e) => handleUpdateRequirement(requirement.id, e.target.value)}
+                      placeholder={`Требование №${index + 1}`}
+                      className="mt-0!"
+                      minCharacters={TASK.REQUIREMENTS.MIN_LENGTH}
+                      maxCharacters={TASK.REQUIREMENTS.MAX_LENGTH}
+                      validationName="требование"
+                    />
                     <button
                       type="button"
                       onClick={() => handleRemoveRequirement(requirement.id)}

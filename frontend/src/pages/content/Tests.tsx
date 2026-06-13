@@ -8,6 +8,7 @@ import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { NumberInput } from "../../components/NumberInput";
+import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { ChevronDown, X, Plus } from "lucide-react";
 
@@ -677,25 +678,15 @@ export default function ContentTests() {
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1 min-w-0">
               {/* содержание теста */}
-              <div className="mb-4">
-                <textarea
-                  value={editorData.description}
-                  onChange={(e) => updateEditorData({ description: e.target.value })}
-                  placeholder="Описание содержания теста"
-                  className="input-field resize-y mb-1 max-h-[260px]"
-                  style={{ minHeight: "120px" }}
-                />
-                <div className="text-xs flex justify-between">
-                  <span className="text-gray-500">
-                    {editorData.description.trim().length > 0 && editorData.description.trim().length < TEST.DESCRIPTION.MIN_LENGTH
-                      ? "Слишком короткое содержание"
-                      : ""}
-                  </span>
-                  <span className={editorData.description.length > TEST.DESCRIPTION.MAX_LENGTH ? "text-danger" : "text-gray-500"}>
-                    {editorData.description.length}/{TEST.DESCRIPTION.MAX_LENGTH}
-                  </span>
-                </div>
-              </div>
+              <TextareaField
+                containerClassName="mb-4"
+                value={editorData.description}
+                onChange={(e) => updateEditorData({ description: e.target.value })}
+                placeholder="Описание содержания теста"
+                minCharacters={TEST.DESCRIPTION.MIN_LENGTH}
+                maxCharacters={TEST.DESCRIPTION.MAX_LENGTH}
+                validationName="содержание"
+              />
 
               {/* параметры времени и порога */}
               <div className="flex gap-4 mb-4">
@@ -797,25 +788,15 @@ export default function ContentTests() {
                         {/* тело вопроса */}
                         {q.is_expanded && (
                           <div className="flex flex-col gap-3 mt-1">
-                            <div className="w-full">
-                              <textarea
-                                value={q.question_text}
-                                onChange={(e) => handleUpdateQuestion(q.id, "question_text", e.target.value)}
-                                placeholder="Описание вопроса"
-                                className="input-field resize-y mb-1 max-h-60"
-                                style={{ minHeight: "80px" }}
-                              />
-                              <div className="text-xs flex justify-between">
-                                <span className="text-gray-500">
-                                  {q.question_text.trim().length > 0 && q.question_text.trim().length < 32
-                                    ? "Слишком короткое описание"
-                                    : ""}
-                                </span>
-                                <span className={q.question_text.length > 1024 ? "text-danger" : "text-gray-500"}>
-                                  {q.question_text.length}/1024
-                                </span>
-                              </div>
-                            </div>
+                            <TextareaField
+                              containerClassName="w-full"
+                              value={q.question_text}
+                              onChange={(e) => handleUpdateQuestion(q.id, "question_text", e.target.value)}
+                              placeholder="Описание вопроса"
+                              minCharacters={32}
+                              maxCharacters={1024}
+                              validationName="описание"
+                            />
 
                             {/* варианты ответа */}
                             <div className="flex flex-col gap-2">
@@ -829,20 +810,14 @@ export default function ContentTests() {
                                       onChange={(e) => handleUpdateAnswer(q.id, a.id, "is_correct", e.target.checked)}
                                       className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0 mt-3"
                                     />
-                                    <div className="flex-1">
-                                      <textarea
-                                        value={a.answer_text}
-                                        onChange={(e) => handleUpdateAnswer(q.id, a.id, "answer_text", e.target.value)}
-                                        placeholder="Описание варианта ответа"
-                                        className="input-field mt-0! resize-y mb-1 max-h-24"
-                                        style={{ minHeight: "40px" }}
-                                      />
-                                      <div className="text-xs flex justify-between">
-                                        <span className={`text-[10px] ${a.answer_text.length > 64 ? "text-danger" : "text-gray-500"}`}>
-                                          {a.answer_text.length}/64
-                                        </span>
-                                      </div>
-                                    </div>
+                                    <TextareaField
+                                      containerClassName="flex-1"
+                                      value={a.answer_text}
+                                      onChange={(e) => handleUpdateAnswer(q.id, a.id, "answer_text", e.target.value)}
+                                      placeholder="Описание варианта ответа"
+                                      className="mt-0!"
+                                      maxCharacters={64}
+                                    />
                                     <button
                                       type="button"
                                       onClick={() => handleRemoveAnswer(q.id, a.id)}

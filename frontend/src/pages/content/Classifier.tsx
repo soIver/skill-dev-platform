@@ -16,6 +16,7 @@ import {
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { IconButton } from "../../components/IconButton";
 import { NumberInput } from "../../components/NumberInput";
+import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { useUserStore } from "../../hooks/useUserStore";
 
@@ -723,21 +724,15 @@ function NameField({
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">Название</label>
-      <textarea
+      <TextareaField
         ref={nameInputRef}
         value={editorData.name}
         onChange={(event) => updateEditorData({ ...editorData, name: event.target.value })}
         disabled={disabled}
-        maxLength={256}
-        className="input-field mt-0! resize-y max-h-40"
-        style={{ minHeight: "80px" }}
+        maxCharacters={256}
+        className="mt-0!"
         placeholder="Название"
       />
-      <div className="text-xs flex justify-end">
-        <span className={editorData.name.length > 256 ? "text-danger" : "text-gray-500"}>
-          {editorData.name.length}/256
-        </span>
-      </div>
     </div>
   );
 }
