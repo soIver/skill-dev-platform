@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export interface TaskPublicSkillItem {
   skill_name: string;
@@ -71,17 +70,14 @@ const initialState = {
   lastSearchSkillIds: [] as number[],
 };
 
-export const useTasksStore = create<TasksSearchStore>()(
-  persist(
-    (set) => ({
-      ...initialState,
-      setKeywordInput: (keywordInput) => set({ keywordInput }),
-      setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
-      setSearchState: (state) => set(state),
-      resetSearchState: () => set(initialState),
-    }),
-    {
-      name: "tasks-search-store",
-    },
-  ),
-);
+if (typeof window !== "undefined") {
+  window.localStorage.removeItem("tasks-search-store");
+}
+
+export const useTasksStore = create<TasksSearchStore>()((set) => ({
+  ...initialState,
+  setKeywordInput: (keywordInput) => set({ keywordInput }),
+  setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
+  setSearchState: (state) => set(state),
+  resetSearchState: () => set(initialState),
+}));
