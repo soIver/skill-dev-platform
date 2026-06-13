@@ -4,6 +4,7 @@ import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "./useUserStore";
 import { useRepositoriesStore } from "./useRepositoriesStore";
 import type { RepoItem } from "./useRepositoriesStore";
+import { useTasksStore, type TaskLatestAttempt } from "./useTasksStore";
 
 const RECENT_NOTIFICATION_TTL_MS = 2000;
 const recentNotificationKeys = new Map<string, number>();
@@ -41,6 +42,8 @@ export function useNotifications() {
   const user = useUserStore((state) => state.user);
   const clearSession = useUserStore((state) => state.clearSession);
   const updateRepoStatus = useRepositoriesStore((state) => state.updateRepoStatus);
+  const setTaskAnalysisStatus = useTasksStore((state) => state.setTaskAnalysisStatus);
+  const updateTaskLatestAttempt = useTasksStore((state) => state.updateTaskLatestAttempt);
 
   useEffect(() => {
     if (!user) return;
@@ -66,8 +69,17 @@ export function useNotifications() {
           }
           // Обновляем статус репозитория в сторе без перезагрузки страницы
           updateRepoStatus(data.repo_name, "Проверен");
+          if (typeof data.task_id === "number" && data.latest_attempt) {
+            updateTaskLatestAttempt(data.task_id, data.latest_attempt as TaskLatestAttempt);
+          }
         } else if (data.type === "repository_analysis_processing") {
           updateRepoStatus(data.repo_name, "В процессе...");
+          if (typeof data.task_id === "number") {
+            setTaskAnalysisStatus(data.task_id, "processing", {
+              name: data.repo_name,
+              url: typeof data.repo_url === "string" ? data.repo_url : null,
+            });
+          }
         } else if (data.type === "repository_analysis_failed") {
           if (shouldShowNotification(`${data.type}:${data.repo_name}:${data.message}:${data.status ?? ""}`)) {
             showToast({
@@ -77,6 +89,9 @@ export function useNotifications() {
             });
           }
           updateRepoStatus(data.repo_name, isRepoStatus(data.status) ? data.status : "Доступен");
+          if (typeof data.task_id === "number") {
+            setTaskAnalysisStatus(data.task_id, null);
+          }
         } else if (data.type === "session_invalidated") {
           clearSession();
           if (!location.pathname.startsWith("/auth")) {
@@ -101,5 +116,14 @@ export function useNotifications() {
     return () => {
       eventSource.close();
     };
-  }, [clearSession, location.pathname, navigate, showToast, user, updateRepoStatus]);
+  }, [
+    clearSession,
+    location.pathname,
+    navigate,
+    setTaskAnalysisStatus,
+    showToast,
+    updateRepoStatus,
+    updateTaskLatestAttempt,
+    user,
+  ]);
 }

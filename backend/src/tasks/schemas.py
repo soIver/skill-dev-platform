@@ -27,6 +27,7 @@ class TaskFailedRequirementItem(BaseModel):
 
 class TaskLatestAttemptItem(BaseModel):
     repo_name: str
+    repo_url: str | None = None
     completed_at: datetime | None = None
     successful: bool
     failed_requirements: list[TaskFailedRequirementItem] = []

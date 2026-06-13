@@ -68,7 +68,7 @@ async def analyze_repo(
 
         if repo:
             # защита от повторного анализа неизменённого кода
-            if not request.task_id and repo.analyzed_at and commit_dt and repo.analyzed_at >= commit_dt:
+            if repo.analyzed_at and commit_dt and repo.analyzed_at >= commit_dt:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Репозиторий уже проверен для текущей версии кода",

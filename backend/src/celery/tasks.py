@@ -91,14 +91,19 @@ async def _process_repository(
                         repository_payload.tokens,
                         analyzer.max_payload_tokens,
                     ),
+                    task_id=task_id,
                 )
                 return
 
             await db.commit()
-            await _publish_notification(user_id, {
+            processing_payload = {
                 "type": "repository_analysis_processing",
                 "repo_name": repo_name,
-            })
+                "repo_url": repo_url,
+            }
+            if task_id:
+                processing_payload["task_id"] = task_id
+            await _publish_notification(user_id, processing_payload)
 
             extracted = await analyzer.extract_skills(
                 repository_payload.payload,
@@ -112,7 +117,9 @@ async def _process_repository(
                 extracted_skills = await analyzer.match_skills(db, extracted.skills, analyzer.DISTANCE_TRESHOLD)
 
             repo.analyzed_at = datetime.now(timezone.utc)
+            completed_at = repo.analyzed_at
             task_history = None
+            failed_requirement_items: list[dict] = []
             if task_id:
                 task_history = TaskHistory(
                     user_id=user_id,
@@ -145,6 +152,10 @@ async def _process_repository(
                 if not extracted_skills and requirements_by_id and not failed_requirement_ids:
                     failed_requirement_ids = list(requirements_by_id.keys())
                 for requirement_id in failed_requirement_ids:
+                    failed_requirement_items.append({
+                        "id": requirement_id,
+                        "description": requirements_by_id.get(requirement_id, ""),
+                    })
                     db.add(TaskHistoryFailedRequirement(
                         task_history_id=task_history.id,
                         task_requirement_id=requirement_id,
@@ -152,14 +163,27 @@ async def _process_repository(
             await db.commit()
 
         # уведомление об успехе
-        await _publish_notification(user_id, {
+        analyzed_payload = {
             "type": "repository_analyzed",
             "repo_name": repo_name,
+            "repo_url": repo_url,
             "message": f"Анализ репозитория {repo_name} завершён.",
-        })
+        }
+        if task_id:
+            analyzed_payload.update({
+                "task_id": task_id,
+                "latest_attempt": {
+                    "repo_name": repo_name,
+                    "repo_url": repo_url,
+                    "completed_at": completed_at.isoformat(),
+                    "successful": len(failed_requirement_items) == 0,
+                    "failed_requirements": failed_requirement_items,
+                },
+            })
+        await _publish_notification(user_id, analyzed_payload)
 
     except Exception:
-        await _cleanup_repository_state(user_id, repo_name, previous_analyzed_at, task_engine)
+        await _cleanup_repository_state(user_id, repo_name, previous_analyzed_at, task_engine, task_id=task_id)
         raise
 
     finally:
@@ -170,6 +194,7 @@ async def _publish_repository_too_large_notification(
     user_id: int,
     repo_name: str,
     exc: RepositoryTooLargeError,
+    task_id: int | None = None,
 ):
     logger.info(
         "Репозиторий %s слишком большой: %s токенов при лимите %s",
@@ -177,12 +202,15 @@ async def _publish_repository_too_large_notification(
         exc.actual_tokens,
         exc.max_tokens,
     )
-    await _publish_notification(user_id, {
+    payload = {
         "type": "repository_analysis_failed",
         "repo_name": repo_name,
         "status": "Недоступен",
         "message": str(exc),
-    })
+    }
+    if task_id:
+        payload["task_id"] = task_id
+    await _publish_notification(user_id, payload)
 
 
 async def _cleanup_repository_state(
@@ -191,6 +219,7 @@ async def _cleanup_repository_state(
     previous_analyzed_at: str | None,
     engine: any = None,
     message: str | None = None,
+    task_id: int | None = None,
 ):
     """восстановление состояния БД и уведомление пользователя при ошибке"""
     internal_engine = engine
@@ -247,6 +276,8 @@ async def _cleanup_repository_state(
         }
         if status:
             payload["status"] = status
+        if task_id:
+            payload["task_id"] = task_id
         await _publish_notification(user_id, payload)
     except Exception as e:
         logger.error(f"Не удалось отправить уведомление об ошибке: {e}")
@@ -279,5 +310,5 @@ def analyze_repository_task(
     except Exception as e:
         logger.error(f"Критическая ошибка в Celery-задаче для {repo_name}: {e}")
         # принудительная очистка, если asyncio.run упал или произошла иная ошибка уровня задачи
-        asyncio.run(_cleanup_repository_state(user_id, repo_name, previous_analyzed_at))
+        asyncio.run(_cleanup_repository_state(user_id, repo_name, previous_analyzed_at, task_id=task_id))
         raise

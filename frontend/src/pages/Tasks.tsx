@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { authJson } from "../auth";
 import { ITEMS_PER_PAGE, TASK, SEARCH_DEBOUNCE_MS, ITEMS_PER_TABLE_PAGE } from "../config";
 import { BentoSearch } from "../components/BentoSearch";
@@ -13,6 +14,7 @@ import {
   type SkillLevelItem,
   type TaskLatestAttempt,
   type TaskPublicItem,
+  type TaskPublicSkillItem,
   type TaskRequirementItem,
 } from "../hooks/useTasksStore";
 import { useUserStore } from "../hooks/useUserStore";
@@ -35,10 +37,13 @@ interface TaskDetail {
   id: number;
   title: string;
   description: string;
-  skills: { skill_name: string; level_name: string }[];
+  skills: TaskPublicSkillItem[];
   requirements: TaskRequirementItem[];
   attached_repo_name?: string | null;
   latest_attempt?: TaskLatestAttempt | null;
+  analysis_status?: "preparing" | "processing" | null;
+  analysis_repo_name?: string | null;
+  analysis_repo_url?: string | null;
 }
 
 export default function Tasks() {
@@ -54,6 +59,7 @@ export default function Tasks() {
     setKeywordInput,
     setSelectedSkills,
     setSearchState,
+    setTaskAnalysisStatus,
   } = useTasksStore();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -192,6 +198,25 @@ export default function Tasks() {
     void loadRepos();
   }, [loadRepos]);
 
+  useEffect(() => {
+    if (!selectedTask) return;
+    const updatedTask = results.find((task) => task.id === selectedTask.id);
+    if (!updatedTask) return;
+
+    setSelectedTask((currentTask) => (
+      currentTask?.id === updatedTask.id
+        ? {
+            ...currentTask,
+            attached_repo_name: updatedTask.attached_repo_name,
+            latest_attempt: updatedTask.latest_attempt,
+            analysis_status: updatedTask.analysis_status,
+            analysis_repo_name: updatedTask.analysis_repo_name,
+            analysis_repo_url: updatedTask.analysis_repo_url,
+          }
+        : currentTask
+    ));
+  }, [results, selectedTask?.id]);
+
   const handleFetchRepos = async (query: string): Promise<RepoItem[]> => {
     // если профиль привязан, но репозитории еще не загружены — пробуем загрузить
     if (githubProfile?.connected && !isInitialized) {
@@ -203,8 +228,15 @@ export default function Tasks() {
     return repos.filter(r => r.name.toLowerCase().includes(lowerQuery));
   };
 
+  const isRepoAlreadyChecked = (repo: RepoItem) => {
+    if (!repo.analyzed_at || !repo.last_commit_date) return false;
+    return new Date(repo.analyzed_at).getTime() >= new Date(repo.last_commit_date).getTime();
+  };
+
   const handleAttachRepo = async (repo: RepoItem) => {
     if (!selectedTask) return;
+    if (isRepoAlreadyChecked(repo)) return;
+
     setIsSubmitting(true);
     try {
       await authJson("/analysis/repository", {
@@ -223,9 +255,14 @@ export default function Tasks() {
         variant: "success",
       });
       updateRepoStatus(repo.name, "Подготовка");
-      setIsModalOpen(false);
-      // обновление списка для отображения статуса "выполнено" (галочки)
-      doSearch(currentPage, keywordInput, selectedSkills);
+      setTaskAnalysisStatus(selectedTask.id, "preparing", { name: repo.name, url: repo.url });
+      setSelectedTask({
+        ...selectedTask,
+        analysis_status: "preparing",
+        analysis_repo_name: repo.name,
+        analysis_repo_url: repo.url,
+      });
+      setModalView("details");
     } catch (err) {
       // ошибка уже показана authJson
       if (err instanceof Error && err.message.includes("Репозиторий слишком большой")) {
@@ -260,6 +297,40 @@ export default function Tasks() {
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(value));
+  };
+
+  const getAttemptRepoUrl = (repoName: string | null | undefined) => {
+    if (!repoName) return null;
+    if (selectedTask?.latest_attempt?.repo_name === repoName && selectedTask.latest_attempt.repo_url) {
+      return selectedTask.latest_attempt.repo_url;
+    }
+    return repos.find((repo) => repo.name === repoName)?.url ?? null;
+  };
+
+  const getRequirementStatus = (requirementId: number) => {
+    if (selectedTask?.analysis_status) return null;
+    if (!selectedTask?.latest_attempt) return null;
+    if (selectedTask.latest_attempt.successful) return "success";
+    if (selectedTask.latest_attempt.failed_requirements.length === 0) return "failed";
+    return selectedTask.latest_attempt.failed_requirements.some((requirement) => requirement.id === requirementId)
+      ? "failed"
+      : "success";
+  };
+
+  const getTaskStatusText = (task: TaskDetail) => {
+    if (task.analysis_status === "preparing") {
+      return "подготовка";
+    }
+    if (task.analysis_status === "processing") {
+      return "проверка";
+    }
+    if (task.latest_attempt?.successful) {
+      return "задание выполнено успешно";
+    }
+    if (task.latest_attempt) {
+      return "задание не выполнено";
+    }
+    return null;
   };
 
   return (
@@ -380,53 +451,96 @@ export default function Tasks() {
                             Требования
                           </h4>
                           <ul className="space-y-2">
-                            {selectedTask.requirements.map((requirement) => (
-                              <li key={requirement.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                                {requirement.description}
-                              </li>
-                            ))}
+                            {selectedTask.requirements.map((requirement) => {
+                              const status = getRequirementStatus(requirement.id);
+                              const isFailed = status === "failed";
+                              const isSuccessful = status === "success";
+
+                              return (
+                                <li
+                                  key={requirement.id}
+                                  className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+                                    isFailed
+                                      ? "border-red-100 bg-red-50 text-danger"
+                                      : isSuccessful
+                                        ? "border-green-100 bg-green-50 text-success"
+                                        : "border-gray-100 bg-gray-50 text-gray-700"
+                                  }`}
+                                >
+                                  {isFailed && <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+                                  {isSuccessful && <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />}
+                                  <span>{requirement.description}</span>
+                                </li>
+                              );
+                            })}
                           </ul>
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {selectedTask.skills.map((s, idx) => (
-                          <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
-                            {s.skill_name} — {s.level_name}
-                          </span>
-                        ))}
+                      <div className="mb-4">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">
+                          Навыки
+                        </h4>
+                        <BentoSearch<TaskPublicSkillItem, SkillLevelItem>
+                          items={selectedTask.skills}
+                          itemToString={(skill) => `${skill.skill_name} - ${skill.level_name}`}
+                          itemToId={(skill) => skill.skill_level_id}
+                          renderItem={(skill) => (
+                            <>
+                              {skill.skill_name} - <span className="opacity-70">{skill.level_name}</span>
+                            </>
+                          )}
+                          reorderEnabled={false}
+                          closeable={false}
+                          customSelectLogic={false}
+                          onSearch={async () => [] as SkillLevelItem[]}
+                          onAdd={() => undefined}
+                          searchItemToString={(skill) => `${skill.skill_name} - ${skill.level_name}`}
+                          hideSearch={true}
+                        />
                       </div>
-                      {selectedTask.latest_attempt && (
+                      {(selectedTask.analysis_status || selectedTask.latest_attempt) && (
                         <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-                          <p className="font-semibold text-gray-900">
-                            Последняя попытка: {selectedTask.latest_attempt.repo_name}
-                          </p>
-                          {selectedTask.latest_attempt.completed_at && (
-                            <p className="mt-1">
-                              Завершено: {formatDateTime(selectedTask.latest_attempt.completed_at)}
-                            </p>
-                          )}
-                          {selectedTask.latest_attempt.successful ? (
-                            <p className="mt-2 font-semibold text-success">
-                              Все требования выполнены.
-                            </p>
-                          ) : (
-                            <div className="mt-2">
-                              <p className="font-semibold text-danger">Невыполненные требования:</p>
-                              {selectedTask.latest_attempt.failed_requirements.length > 0 ? (
-                                <ul className="mt-2 space-y-1 text-danger">
-                                  {selectedTask.latest_attempt.failed_requirements.map((requirement, index) => (
-                                    <li key={`${requirement.id ?? "unknown"}-${index}`}>
-                                      {requirement.description}
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="mt-1 text-danger">
-                                  Задание не выполнено: модель не подтвердила соответствие репозитория заданию.
-                                </p>
-                              )}
-                            </div>
-                          )}
+                          {(() => {
+                            const status = getTaskStatusText(selectedTask);
+                            const repoName = selectedTask.analysis_status
+                              ? selectedTask.analysis_repo_name
+                              : selectedTask.latest_attempt?.repo_name;
+                            const repoUrl = selectedTask.analysis_status
+                              ? selectedTask.analysis_repo_url
+                              : getAttemptRepoUrl(repoName);
+
+                            return (
+                              <>
+                                {repoName && (
+                                  <p className="font-semibold text-gray-900">
+                                    Последняя попытка:{" "}
+                                    {repoUrl ? (
+                                      <a
+                                        href={repoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline"
+                                      >
+                                        {repoName}
+                                      </a>
+                                    ) : (
+                                      repoName
+                                    )}
+                                  </p>
+                                )}
+                                {status && (
+                                  <p className="mt-1">
+                                    Статус: {status}
+                                  </p>
+                                )}
+                                {selectedTask.latest_attempt?.completed_at && !selectedTask.analysis_status && (
+                                  <p className="mt-1">
+                                    Завершено: {formatDateTime(selectedTask.latest_attempt.completed_at)}
+                                  </p>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
@@ -437,7 +551,11 @@ export default function Tasks() {
                       >
                         Вернуться
                       </button>
-                      {selectedTask.latest_attempt?.successful ? (
+                      {selectedTask.analysis_status ? (
+                        <div className="flex-1 py-3 px-6 border border-warning text-warning font-semibold rounded-xl text-center bg-transparent">
+                          Проверка выполняется
+                        </div>
+                      ) : selectedTask.latest_attempt?.successful ? (
                         <div className="flex-1 py-3 px-6 border border-success text-success font-semibold rounded-xl text-center bg-transparent">
                           Задание выполнено
                         </div>
@@ -450,22 +568,6 @@ export default function Tasks() {
                         </button>
                       )}
                     </div>
-
-                    {selectedTask?.attached_repo_name && selectedTask.latest_attempt?.successful && (
-                      <div className="text-center mt-6">
-                        <p className="text-sm text-gray-500">
-                          сейчас прикреплён{" "}
-                          <a 
-                            href={repos.find(r => r.name === selectedTask.attached_repo_name)?.url || "#"} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline font-medium"
-                          >
-                            {selectedTask.attached_repo_name}
-                          </a>
-                        </p>
-                      </div>
-                    )}
                   </>
                 ) : !githubProfile?.connected ? (
                   <div className="flex flex-col items-start py-6">
@@ -484,7 +586,7 @@ export default function Tasks() {
                     <button
                       onClick={() => setModalView("details")}
                       disabled={isSubmitting}
-                      className="w-1/4 py-3 px-6 border border-gray-200 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition-all"
+                      className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                     >
                       Назад
                     </button>
@@ -499,13 +601,19 @@ export default function Tasks() {
                         onSearch={handleFetchRepos}
                         onSelect={handleAttachRepo}
                         itemToString={(r) => r.name}
-                        placeholder="Начните вводить название репозитория..."
+                        isItemDisabled={isRepoAlreadyChecked}
+                        placeholder="Название репозитория"
                         buttonText="Выбрать и отправить"
                         debounceMs={isInitialized ? 0 : SEARCH_DEBOUNCE_MS}
                         renderItem={(r) => (
                           <div className="flex flex-col">
                             <span className="font-medium text-gray-900">{r.name}</span>
                             {r.description && <span className="text-xs text-gray-500 truncate">{r.description}</span>}
+                            {isRepoAlreadyChecked(r) && (
+                              <span className="text-xs text-gray-500">
+                                Репозиторий уже проверен для текущей версии кода
+                              </span>
+                            )}
                           </div>
                         )}
                       />
@@ -518,7 +626,7 @@ export default function Tasks() {
                     <button
                       onClick={() => setModalView("details")}
                       disabled={isSubmitting}
-                      className="px-6 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                      className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                     >
                       Назад
                     </button>

@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, ListChecks, XCircle } from "lucide-react";
 
 import type { TaskPublicItem } from "../hooks/useTasksStore";
 
@@ -24,10 +24,16 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         <p className="font-semibold text-gray-900 truncate" title={task.title}>
           {task.title}
         </p>
-        {task.attached_repo_name && (
+        {task.analysis_status === "preparing" && (
+          <Clock className="w-4.5 h-4.5 text-amber-500 shrink-0" />
+        )}
+        {task.analysis_status === "processing" && (
+          <ListChecks className="w-4.5 h-4.5 text-primary shrink-0" />
+        )}
+        {!task.analysis_status && task.attached_repo_name && (
           <CheckCircle2 className="w-4.5 h-4.5 text-success shrink-0" />
         )}
-        {task.latest_attempt && !task.latest_attempt.successful && (
+        {!task.analysis_status && task.latest_attempt && !task.latest_attempt.successful && (
           <XCircle className="w-4.5 h-4.5 text-danger shrink-0" />
         )}
       </div>

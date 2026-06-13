@@ -55,6 +55,7 @@ async def _load_latest_task_attempts(
             TaskHistory.id,
             TaskHistory.task_id,
             GitHubRepo.name.label("repo_name"),
+            GitHubRepo.url.label("repo_url"),
             TaskHistory.completed_at,
             failed_count_sq.label("failed_count"),
         )
@@ -88,6 +89,7 @@ async def _load_latest_task_attempts(
     return {
         row.task_id: TaskLatestAttemptItem(
             repo_name=row.repo_name,
+            repo_url=row.repo_url,
             completed_at=row.completed_at,
             successful=(row.failed_count or 0) == 0,
             failed_requirements=failed_map.get(row.id, []),
