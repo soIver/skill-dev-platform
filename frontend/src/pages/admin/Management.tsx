@@ -30,6 +30,7 @@ export default function ManagementAdmin() {
   const { query, results, currentPage, totalPages, hasLoaded, lastSearch, setManagementState } = useManagementStore();
   const { setSkillsState, setTasksState, setTestsState } = useContentStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [isDebouncing, setIsDebouncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availability, setAvailability] = useState<CuratorInvitationAvailabilityResponse | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
@@ -62,6 +63,7 @@ export default function ManagementAdmin() {
       });
     } finally {
       setIsLoading(false);
+      setIsDebouncing(false);
     }
   };
 
@@ -70,10 +72,16 @@ export default function ManagementAdmin() {
       clearTimeout(debounceRef.current);
     }
 
+    const shouldSearch = !hasLoaded || query !== lastSearch.query;
+
+    if (!shouldSearch) {
+      setIsDebouncing(false);
+      return;
+    }
+
+    setIsDebouncing(true);
+
     debounceRef.current = setTimeout(() => {
-      if (hasLoaded && query === lastSearch.query) {
-        return;
-      }
       void loadCurators(1, query);
     }, SEARCH_DEBOUNCE_MS);
 
@@ -82,7 +90,7 @@ export default function ManagementAdmin() {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [query, hasLoaded, lastSearch.query]);
+  }, [query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -339,8 +347,8 @@ export default function ManagementAdmin() {
         <PaginatedTable
           columns={columns}
           data={results}
-          isLoading={isLoading}
-          emptyMessage="Кураторы и приглашения не найдены"
+          isLoading={isLoading || isDebouncing}
+          emptyMessage="Кураторы не найдены"
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={(page) => void loadCurators(page, query)}
