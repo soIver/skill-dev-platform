@@ -33,6 +33,7 @@ export interface TestEditorData {
   skill_name?: string;
   level_name?: string;
   variant_number?: number;
+  ps_functions: PsFunctionItem[];
   questions: QuestionEditorItem[];
 }
 
@@ -65,6 +66,12 @@ export interface SkillTaskItem {
   level_name: string;
 }
 
+export interface PsFunctionItem {
+  id: number;
+  code: number;
+  name: string;
+}
+
 export interface TaskItem {
   id: number;
   title: string;
@@ -79,6 +86,7 @@ export interface TaskEditorData {
   description: string;
   is_published: boolean;
   skills: SkillTaskItem[];
+  ps_functions: PsFunctionItem[];
 }
 
 interface TasksState {
@@ -249,7 +257,7 @@ const initialTasksState: TasksState = {
   totalPages: 1,
   lastSearch: { keyword: "", skill: "", ownerId: null, page: 1 },
   selectedId: null,
-  editorData: { title: "", description: "", is_published: false, skills: [] },
+  editorData: { title: "", description: "", is_published: false, skills: [], ps_functions: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };
@@ -264,7 +272,7 @@ const initialTestsState: TestsState = {
   totalPages: 1,
   lastSearch: { keyword: "", skill: "", ownerId: null, page: 1 },
   selectedId: null,
-  editorData: { description: "", time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null, questions: [] },
+  editorData: { description: "", time_limit_minutes: null, threshold_score: null, is_published: false, skill_level_id: null, ps_functions: [], questions: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };

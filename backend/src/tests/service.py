@@ -14,7 +14,7 @@ from .schemas import (
     TestAttemptState,
 )
 from ..config import global_config
-from ..models import Level, QuestionAnswer, Skill, SkillLevel, Test, TestAttempt, TestQuestion
+from ..models import Level, QuestionAnswer, Skill, SkillLevel, Test, TestAttempt, TestGroup, TestQuestion
 from ..utils.redis import get_redis
 
 ATTEMPT_KEY_PREFIX = "test_attempt"
@@ -122,7 +122,7 @@ async def get_latest_attempts_by_skill_level(db: AsyncSession, user_id: int, ski
     )
     attempts_query = (
         select(
-            Test.skill_level_id,
+            TestGroup.skill_level_id,
             TestAttempt.score,
             TestAttempt.completed_at,
             Test.threshold_score,
@@ -130,12 +130,13 @@ async def get_latest_attempts_by_skill_level(db: AsyncSession, user_id: int, ski
         )
         .select_from(TestAttempt)
         .join(Test, TestAttempt.test_id == Test.id)
+        .join(TestGroup, Test.test_group_id == TestGroup.id)
         .where(
             TestAttempt.user_id == user_id,
             TestAttempt.completed_at.isnot(None),
-            Test.skill_level_id.in_(skill_level_ids),
+            TestGroup.skill_level_id.in_(skill_level_ids),
         )
-        .order_by(Test.skill_level_id, TestAttempt.completed_at.desc())
+        .order_by(TestGroup.skill_level_id, TestAttempt.completed_at.desc())
     )
     attempts_result = await db.execute(attempts_query)
 
@@ -319,9 +320,10 @@ async def _get_latest_skill_level_attempt(db: AsyncSession, user_id: int, skill_
     latest_attempt_result = await db.execute(
         select(TestAttempt)
         .join(Test, TestAttempt.test_id == Test.id)
+        .join(TestGroup, Test.test_group_id == TestGroup.id)
         .where(
             TestAttempt.user_id == user_id,
-            Test.skill_level_id == skill_level_id,
+            TestGroup.skill_level_id == skill_level_id,
             TestAttempt.completed_at.isnot(None),
         )
         .order_by(TestAttempt.completed_at.desc())
@@ -333,8 +335,9 @@ async def _get_latest_skill_level_attempt(db: AsyncSession, user_id: int, skill_
 async def _select_test_variant(db: AsyncSession, user_id: int, skill_level_id: int) -> Test:
     tests_result = await db.execute(
         select(Test)
+        .join(TestGroup, Test.test_group_id == TestGroup.id)
         .where(
-            Test.skill_level_id == skill_level_id,
+            TestGroup.skill_level_id == skill_level_id,
             Test.is_published == True,
         )
         .order_by(Test.id)

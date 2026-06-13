@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from ..config import global_config
 from ..models import Base, Role, User
@@ -35,10 +35,69 @@ async def get_db() -> AsyncSession:
 
 async def init_tables():
     async with db_engine.begin() as conn:
-        from sqlalchemy import text
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
+        await ensure_database_triggers(conn)
         logger.debug("Таблицы БД созданы")
+
+
+async def ensure_database_triggers(conn):
+    await conn.execute(text("""
+        CREATE OR REPLACE FUNCTION delete_unused_level_after_skill_level_delete()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM skill_levels WHERE level_id = OLD.level_id
+            ) THEN
+                DELETE FROM levels WHERE id = OLD.level_id;
+            END IF;
+            RETURN OLD;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+    await conn.execute(text("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_trigger
+                WHERE tgname = 'trg_delete_unused_level_after_skill_level_delete'
+            ) THEN
+                CREATE TRIGGER trg_delete_unused_level_after_skill_level_delete
+                AFTER DELETE ON skill_levels
+                FOR EACH ROW
+                EXECUTE FUNCTION delete_unused_level_after_skill_level_delete();
+            END IF;
+        END $$;
+    """))
+    await conn.execute(text("""
+        CREATE OR REPLACE FUNCTION delete_empty_test_group_after_test_delete()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF pg_trigger_depth() = 1
+                AND OLD.test_group_id IS NOT NULL
+                AND NOT EXISTS (
+                SELECT 1 FROM tests WHERE test_group_id = OLD.test_group_id
+            ) THEN
+                DELETE FROM test_groups WHERE id = OLD.test_group_id;
+            END IF;
+            RETURN OLD;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+    await conn.execute(text("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_trigger
+                WHERE tgname = 'trg_delete_empty_test_group_after_test_delete'
+            ) THEN
+                CREATE TRIGGER trg_delete_empty_test_group_after_test_delete
+                AFTER DELETE ON tests
+                FOR EACH ROW
+                EXECUTE FUNCTION delete_empty_test_group_after_test_delete();
+            END IF;
+        END $$;
+    """))
 
 
 async def init_roles():

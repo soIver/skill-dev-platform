@@ -78,6 +78,8 @@ class PsFunction(Base):
     name = Column(String, nullable=False)
 
     functions_group = relationship("PsFunctionsGroup", back_populates="functions", lazy="select")
+    task_links = relationship("TaskPsFunction", back_populates="ps_function", cascade="all, delete-orphan")
+    test_links = relationship("TestPsFunction", back_populates="ps_function", cascade="all, delete-orphan")
 
 
 class GitHubProfile(Base):
@@ -212,16 +214,33 @@ class SkillLevel(Base):
     author = relationship("User", lazy="select")
 
 
-class Test(Base):
-    __tablename__ = "tests"
+class TestGroup(Base):
+    __tablename__ = "test_groups"
 
     id = Column(Integer, primary_key=True)
     skill_level_id = Column(
         Integer,
-        ForeignKey("skill_levels.id"),
-        nullable=True,
+        ForeignKey("skill_levels.id", ondelete="CASCADE"),
+        nullable=False,
     )
     description = Column(Text, nullable=False, server_default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    skill_level = relationship("SkillLevel", lazy="select")
+    tests = relationship("Test", back_populates="test_group", cascade="all, delete-orphan")
+    ps_function_links = relationship("TestPsFunction", back_populates="test_group", cascade="all, delete-orphan")
+
+
+class Test(Base):
+    __tablename__ = "tests"
+
+    id = Column(Integer, primary_key=True)
+    test_group_id = Column(
+        Integer,
+        ForeignKey("test_groups.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     time_limit_minutes = Column(Integer, nullable=True)
     threshold_score = Column(Integer, nullable=True)
     is_published = Column(Boolean, default=False)
@@ -233,7 +252,7 @@ class Test(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    skill_level = relationship("SkillLevel", lazy="select")
+    test_group = relationship("TestGroup", back_populates="tests", lazy="select")
     author = relationship("User", lazy="select")
 
 
@@ -282,7 +301,7 @@ class TestAttempt(Base):
     )
     test_id = Column(
         Integer,
-        ForeignKey("tests.id"),
+        ForeignKey("tests.id", ondelete="SET NULL"),
         nullable=True,
     )
     score = Column(Integer, nullable=True)
@@ -357,6 +376,7 @@ class Task(Base):
 
     author = relationship("User", lazy="select")
     skill_level_tasks = relationship("SkillLevelTask", back_populates="task", cascade="all, delete-orphan")
+    ps_function_links = relationship("TaskPsFunction", back_populates="task", cascade="all, delete-orphan")
 
 
 class TaskScore(Base):
@@ -425,6 +445,50 @@ class SkillLevelTask(Base):
 
     skill_level = relationship("SkillLevel", lazy="select")
     task = relationship("Task", back_populates="skill_level_tasks")
+
+
+class TaskPsFunction(Base):
+    __tablename__ = "task_ps_functions"
+    __table_args__ = (
+        UniqueConstraint("task_id", "ps_function_id", name="uq_task_ps_functions_task_function"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(
+        Integer,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ps_function_id = Column(
+        Integer,
+        ForeignKey("ps_functions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    task = relationship("Task", back_populates="ps_function_links")
+    ps_function = relationship("PsFunction", back_populates="task_links", lazy="select")
+
+
+class TestPsFunction(Base):
+    __tablename__ = "test_ps_functions"
+    __table_args__ = (
+        UniqueConstraint("test_group_id", "ps_function_id", name="uq_test_ps_functions_group_function"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    test_group_id = Column(
+        Integer,
+        ForeignKey("test_groups.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ps_function_id = Column(
+        Integer,
+        ForeignKey("ps_functions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    test_group = relationship("TestGroup", back_populates="ps_function_links")
+    ps_function = relationship("PsFunction", back_populates="test_links", lazy="select")
 
 
 class UserRecommendation(Base):

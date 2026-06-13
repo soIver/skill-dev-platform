@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
 import { TASK, SEARCH_DEBOUNCE_MS } from "../../config";
-import { useContentStore, type TaskItem } from "../../hooks/useContentStore";
+import { useContentStore, type TaskItem, type PsFunctionItem, type SkillTaskItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
@@ -26,6 +26,15 @@ interface SkillLevelSearchResponse {
   items: SkillLevelItemLocal[];
   total_pages: number;
   current_page: number;
+}
+
+interface TaskDetailResponse {
+  id: number;
+  title: string;
+  description: string;
+  is_published: boolean;
+  skills: SkillTaskItem[];
+  ps_functions: PsFunctionItem[];
 }
 
 export default function ContentTasks() {
@@ -157,14 +166,15 @@ export default function ContentTasks() {
 
   const loadTask = async (id: number) => {
     try {
-      const response = await authJson<any>(`/tasks/${id}`);
+      const response = await authJson<TaskDetailResponse>(`/tasks/${id}`);
       setTasksState({
         selectedId: id,
         editorData: {
           title: response.title || "",
           description: response.description || "",
           is_published: response.is_published,
-          skills: response.skills
+          skills: response.skills,
+          ps_functions: response.ps_functions ?? []
         },
         hasUnsavedChanges: false,
         pendingSelectId: null
@@ -195,7 +205,7 @@ export default function ContentTasks() {
     } else {
       setTasksState({
         selectedId: "new",
-        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [] },
+        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [], ps_functions: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -213,7 +223,8 @@ export default function ContentTasks() {
         title: editorData.title.trim(),
         description: editorData.description,
         is_published: newPublishStatus,
-        skill_level_ids: editorData.skills.map(s => s.skill_level_id)
+        skill_level_ids: editorData.skills.map(s => s.skill_level_id),
+        ps_function_ids: editorData.ps_functions.map((item) => item.id)
       };
 
       const response = await authJson<any>(url, {
@@ -228,7 +239,8 @@ export default function ContentTasks() {
           title: response.title || "",
           description: response.description || "",
           is_published: response.is_published,
-          skills: response.skills
+          skills: response.skills,
+          ps_functions: response.ps_functions ?? []
         },
         hasUnsavedChanges: false
       });
@@ -263,7 +275,7 @@ export default function ContentTasks() {
     if (pendingSelectId === "new") {
       setTasksState({
         selectedId: "new",
-        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [] },
+        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [], ps_functions: [] },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });

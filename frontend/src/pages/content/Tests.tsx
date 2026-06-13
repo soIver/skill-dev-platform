@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
 import { SEARCH_DEBOUNCE_MS, TEST } from "../../config";
-import { useContentStore, type TestItem, type SkillLevelItem, type QuestionEditorItem, type AnswerEditorItem } from "../../hooks/useContentStore";
+import { useContentStore, type TestItem, type SkillLevelItem, type QuestionEditorItem, type AnswerEditorItem, type PsFunctionItem } from "../../hooks/useContentStore";
 import { PaginatedTable, type Column } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
@@ -46,6 +46,7 @@ interface TestDetailResponse {
   skill_name: string;
   level_name: string;
   variant_number: number;
+  ps_functions: PsFunctionItem[];
   questions: TestDetailQuestion[];
 }
 
@@ -152,6 +153,7 @@ export default function ContentTests() {
       skill_level_id: item.id,
       skill_name: item.skill_name,
       level_name: item.level_name,
+      ps_functions: [],
       questions: [
         {
           id: `temp-q-${Date.now()}`,
@@ -204,6 +206,7 @@ export default function ContentTests() {
           skill_name: response.skill_name,
           level_name: response.level_name,
           variant_number: response.variant_number,
+          ps_functions: response.ps_functions ?? [],
           questions: response.questions.map((q) => ({
             id: q.id,
             question_text: q.question_text,
@@ -247,6 +250,7 @@ export default function ContentTests() {
         threshold_score: Number(editorData.threshold_score),
         is_published: newPublishStatus,
         skill_level_id: editorData.skill_level_id,
+        ps_function_ids: editorData.ps_functions.map((item) => item.id),
         questions: editorData.questions.map((q) => ({
           question_text: q.question_text.trim(),
           points: Number(q.points),
@@ -301,6 +305,7 @@ export default function ContentTests() {
           skill_level_id: item.id,
           skill_name: item.skill_name,
           level_name: item.level_name,
+          ps_functions: [],
           questions: [
             {
               id: `temp-q-${Date.now()}`,

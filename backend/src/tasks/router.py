@@ -8,7 +8,7 @@ from ..auth.service import TokenClaims
 from ..utils.database import get_db
 from ..models import (
     Task, UserRepo, GitHubRepo, TaskHistory, UserRecommendation, TaskScore,
-    SkillLevelTask, SkillLevel, Skill, Level,
+    SkillLevelTask, SkillLevel, Skill, Level, TaskPsFunction, PsFunction,
 )
 from .schemas import (
     TaskSearchResponse,
@@ -18,6 +18,7 @@ from .schemas import (
     TaskCreateUpdate,
     TaskPublicItem,
     TaskPublicSearchResponse,
+    PsFunctionItem,
 )
 
 router = APIRouter(tags=["tasks"])
@@ -47,6 +48,29 @@ async def _load_successful_task_repos(
     for task_id, repo_name in result.all():
         attached_map.setdefault(task_id, repo_name)
     return attached_map
+
+
+async def _load_task_ps_functions(db: AsyncSession, task_ids: list[int]) -> dict[int, list[PsFunctionItem]]:
+    if not task_ids:
+        return {}
+
+    result = await db.execute(
+        select(TaskPsFunction.task_id, PsFunction.id, PsFunction.code, PsFunction.name)
+        .join(PsFunction, TaskPsFunction.ps_function_id == PsFunction.id)
+        .where(TaskPsFunction.task_id.in_(task_ids))
+        .order_by(TaskPsFunction.task_id, PsFunction.code, PsFunction.name)
+    )
+
+    functions_map: dict[int, list[PsFunctionItem]] = {}
+    for row in result.all():
+        functions_map.setdefault(row.task_id, []).append(
+            PsFunctionItem(id=row.id, code=row.code, name=row.name)
+        )
+    return functions_map
+
+
+def _unique_ids(ids: list[int]) -> list[int]:
+    return list(dict.fromkeys(ids))
 
 @router.get("/tasks")
 async def search_tasks(
@@ -140,6 +164,7 @@ async def search_tasks(
         task_ids = [row[0].id for row in rows]
 
         attached_map = await _load_successful_task_repos(db, claims.user_id, task_ids)
+        ps_functions_map = await _load_task_ps_functions(db, task_ids)
 
         items = []
         for row in rows:
@@ -165,6 +190,7 @@ async def search_tasks(
                         level_name=slt.skill_level.level.name
                     ) for slt in task_obj.skill_level_tasks
                 ],
+                ps_functions=ps_functions_map.get(task_obj.id, []),
                 attached_repo_name=repo_name
             ))
 
@@ -182,6 +208,7 @@ async def search_tasks(
         
         task_ids = [t.id for t in tasks]
         attached_map = await _load_successful_task_repos(db, claims.user_id, task_ids)
+        ps_functions_map = await _load_task_ps_functions(db, task_ids)
 
         items = [
             TaskPublicItem(
@@ -195,6 +222,7 @@ async def search_tasks(
                         level_name=slt.skill_level.level.name
                     ) for slt in task.skill_level_tasks
                 ],
+                ps_functions=ps_functions_map.get(task.id, []),
                 attached_repo_name=attached_map.get(task.id)
             ) for task in tasks
         ]
@@ -241,6 +269,7 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
         ))
 
     attached_map = await _load_successful_task_repos(db, claims.user_id, [rec_id])
+    ps_functions_map = await _load_task_ps_functions(db, [rec_id])
 
     return TaskDetail(
         id=rec.id,
@@ -248,6 +277,7 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
         description=rec.description,
         is_published=rec.is_published,
         skills=skills_items,
+        ps_functions=ps_functions_map.get(rec_id, []),
         attached_repo_name=attached_map.get(rec_id)
     )
 
@@ -282,6 +312,7 @@ async def get_task_public(
         ))
 
     attached_map = await _load_successful_task_repos(db, claims.user_id, [task_id])
+    ps_functions_map = await _load_task_ps_functions(db, [task_id])
 
     return TaskDetail(
         id=task.id,
@@ -289,6 +320,7 @@ async def get_task_public(
         description=task.description,
         is_published=True,
         skills=skills_items,
+        ps_functions=ps_functions_map.get(task_id, []),
         attached_repo_name=attached_map.get(task_id)
     )
 
@@ -307,6 +339,12 @@ async def create_task(data: TaskCreateUpdate, db: AsyncSession = Depends(get_db)
         db.add(SkillLevelTask(
             skill_level_id=sl_id,
             task_id=rec.id
+        ))
+
+    for ps_function_id in _unique_ids(data.ps_function_ids):
+        db.add(TaskPsFunction(
+            task_id=rec.id,
+            ps_function_id=ps_function_id
         ))
 
     await db.commit()
@@ -332,12 +370,19 @@ async def update_task(
 
     # удаление старых навыков
     await db.execute(delete(SkillLevelTask).where(SkillLevelTask.task_id == rec_id))
+    await db.execute(delete(TaskPsFunction).where(TaskPsFunction.task_id == rec_id))
 
     # добавление новых навыков
     for sl_id in data.skill_level_ids:
         db.add(SkillLevelTask(
             skill_level_id=sl_id,
             task_id=rec.id
+        ))
+
+    for ps_function_id in _unique_ids(data.ps_function_ids):
+        db.add(TaskPsFunction(
+            task_id=rec.id,
+            ps_function_id=ps_function_id
         ))
 
     await db.commit()

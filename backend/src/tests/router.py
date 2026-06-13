@@ -10,7 +10,7 @@ from .schemas import (
     QuestionDetail, AnswerDetail, TestPublicSearchResponse, TestPublicItem,
     TestPublicLevelItem, TestAttemptStartResponse, TestAttemptState,
     TestAttemptAnswerRequest, TestAttemptAnswerResponse, TestAttemptFinishRequest,
-    TestAttemptResult
+    TestAttemptResult, PsFunctionItem
 )
 from .service import (
     finish_attempt,
@@ -24,9 +24,77 @@ from .service import (
 from ..auth.utils import require_role, resolve_author_filter
 from ..auth.service import TokenClaims
 from ..utils.database import AsyncSessionLocal, get_db
-from ..models import Test, SkillLevel, Skill, Level, TestAttempt, TestQuestion, QuestionAnswer
+from ..models import (
+    Test, TestGroup, TestPsFunction, SkillLevel, Skill, Level,
+    TestAttempt, TestQuestion, QuestionAnswer, PsFunction,
+)
 
 router = APIRouter(prefix="/tests", tags=["Tests"])
+
+
+def _unique_ids(ids: list[int]) -> list[int]:
+    return list(dict.fromkeys(ids))
+
+
+async def _load_test_group_ps_functions(db: AsyncSession, group_ids: list[int]) -> dict[int, list[PsFunctionItem]]:
+    if not group_ids:
+        return {}
+
+    result = await db.execute(
+        select(TestPsFunction.test_group_id, PsFunction.id, PsFunction.code, PsFunction.name)
+        .join(PsFunction, TestPsFunction.ps_function_id == PsFunction.id)
+        .where(TestPsFunction.test_group_id.in_(group_ids))
+        .order_by(TestPsFunction.test_group_id, PsFunction.code, PsFunction.name)
+    )
+
+    functions_map: dict[int, list[PsFunctionItem]] = {}
+    for row in result.all():
+        functions_map.setdefault(row.test_group_id, []).append(
+            PsFunctionItem(id=row.id, code=row.code, name=row.name)
+        )
+    return functions_map
+
+
+async def _get_or_create_test_group(
+    db: AsyncSession,
+    skill_level_id: int,
+    description: str,
+    ps_function_ids: list[int],
+) -> TestGroup:
+    unique_ps_function_ids = _unique_ids(ps_function_ids)
+    groups_result = await db.execute(
+        select(TestGroup)
+        .where(
+            TestGroup.skill_level_id == skill_level_id,
+            TestGroup.description == description,
+        )
+        .order_by(TestGroup.id)
+    )
+    groups = groups_result.scalars().all()
+
+    functions_map = await _load_test_group_ps_functions(db, [group.id for group in groups])
+    target_ids = set(unique_ps_function_ids)
+    for group in groups:
+        current_ids = {item.id for item in functions_map.get(group.id, [])}
+        if current_ids == target_ids:
+            return group
+
+    group = TestGroup(skill_level_id=skill_level_id, description=description)
+    db.add(group)
+    await db.flush()
+    for ps_function_id in unique_ps_function_ids:
+        db.add(TestPsFunction(test_group_id=group.id, ps_function_id=ps_function_id))
+    return group
+
+
+async def _delete_empty_test_group(db: AsyncSession, test_group_id: int):
+    variants_count = await db.scalar(
+        select(func.count(Test.id)).where(Test.test_group_id == test_group_id)
+    )
+    if variants_count == 0:
+        group = await db.get(TestGroup, test_group_id)
+        if group:
+            await db.delete(group)
 
 @router.get("", response_model=TestSearchResponse)
 async def search_tests(
@@ -49,7 +117,7 @@ async def search_tests(
 
     t_alias = aliased(Test)
     variant_subq = select(func.count(t_alias.id)).where(
-        t_alias.skill_level_id == Test.skill_level_id,
+        t_alias.test_group_id == Test.test_group_id,
         t_alias.id <= Test.id
     ).scalar_subquery()
 
@@ -61,7 +129,8 @@ async def search_tests(
         variant_subq.label("variant_number"),
         func.count(TestAttempt.id).label("attempts_count"),
         func.sum(case((TestAttempt.score >= Test.threshold_score, 1), else_=0)).label("passed_count")
-    ).outerjoin(SkillLevel, Test.skill_level_id == SkillLevel.id) \
+    ).outerjoin(TestGroup, Test.test_group_id == TestGroup.id) \
+     .outerjoin(SkillLevel, TestGroup.skill_level_id == SkillLevel.id) \
      .outerjoin(Skill, SkillLevel.skill_id == Skill.id) \
      .outerjoin(Level, SkillLevel.level_id == Level.id) \
      .outerjoin(TestAttempt, TestAttempt.test_id == Test.id)
@@ -70,7 +139,7 @@ async def search_tests(
         query = query.where(Test.author_id == resolved_author_id)
 
     if keyword:
-        query = query.where(or_(Skill.name.ilike(f"%{keyword}%"), Test.description.ilike(f"%{keyword}%")))
+        query = query.where(or_(Skill.name.ilike(f"%{keyword}%"), TestGroup.description.ilike(f"%{keyword}%")))
 
     if skill_query:
         if " - " in skill_query:
@@ -81,7 +150,7 @@ async def search_tests(
         else:
             query = query.where(Skill.name.ilike(f"%{skill_query}%"))
 
-    query = query.group_by(Test.id, Skill.name, Level.name, Test.is_published, Test.skill_level_id)
+    query = query.group_by(Test.id, Skill.name, Level.name, Test.is_published, Test.test_group_id)
     query = query.order_by(Test.id.desc())
 
     offset = (page - 1) * limit
@@ -91,12 +160,13 @@ async def search_tests(
         count_query = count_query.where(Test.author_id == resolved_author_id)
 
     if keyword or skill_query:
-        count_query = count_query.outerjoin(SkillLevel, Test.skill_level_id == SkillLevel.id) \
+        count_query = count_query.outerjoin(TestGroup, Test.test_group_id == TestGroup.id) \
+                                 .outerjoin(SkillLevel, TestGroup.skill_level_id == SkillLevel.id) \
                                  .outerjoin(Skill, SkillLevel.skill_id == Skill.id) \
                                  .outerjoin(Level, SkillLevel.level_id == Level.id)
 
         if keyword:
-            count_query = count_query.where(or_(Skill.name.ilike(f"%{keyword}%"), Test.description.ilike(f"%{keyword}%")))
+            count_query = count_query.where(or_(Skill.name.ilike(f"%{keyword}%"), TestGroup.description.ilike(f"%{keyword}%")))
 
         if skill_query:
             if " - " in skill_query:
@@ -108,7 +178,8 @@ async def search_tests(
                 count_query = count_query.where(Skill.name.ilike(f"%{skill_query}%"))
 
     elif search:
-        count_query = count_query.outerjoin(SkillLevel, Test.skill_level_id == SkillLevel.id) \
+        count_query = count_query.outerjoin(TestGroup, Test.test_group_id == TestGroup.id) \
+                                 .outerjoin(SkillLevel, TestGroup.skill_level_id == SkillLevel.id) \
                                  .outerjoin(Skill, SkillLevel.skill_id == Skill.id) \
                                  .outerjoin(Level, SkillLevel.level_id == Level.id)
         if " - " in search:
@@ -117,7 +188,7 @@ async def search_tests(
             level_part = " - ".join(parts[1:]).strip()
             count_query = count_query.where(and_(Skill.name.ilike(f"%{skill_part}%"), Level.name.ilike(f"%{level_part}%")))
         else:
-            count_query = count_query.where(or_(Skill.name.ilike(f"%{search}%"), Test.description.ilike(f"%{search}%")))
+            count_query = count_query.where(or_(Skill.name.ilike(f"%{search}%"), TestGroup.description.ilike(f"%{search}%")))
 
     total_count = await db.scalar(count_query)
     total_pages = (total_count + limit - 1) // limit if total_count else 1
@@ -154,9 +225,11 @@ async def search_public_tests(
     claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
 ):
     latest_published_tests = (
-        select(Test.skill_level_id, func.max(Test.id).label("test_id"))
+        select(TestGroup.skill_level_id, func.max(Test.id).label("test_id"))
+        .select_from(Test)
+        .join(TestGroup, Test.test_group_id == TestGroup.id)
         .where(Test.is_published == True)
-        .group_by(Test.skill_level_id)
+        .group_by(TestGroup.skill_level_id)
         .subquery()
     )
 
@@ -167,7 +240,7 @@ async def search_public_tests(
             filters.append(or_(
                 Skill.name.ilike(f"%{trimmed_keyword}%"),
                 Level.name.ilike(f"%{trimmed_keyword}%"),
-                Test.description.ilike(f"%{trimmed_keyword}%"),
+                TestGroup.description.ilike(f"%{trimmed_keyword}%"),
             ))
     if skill_level_ids:
         filters.append(SkillLevel.id.in_(skill_level_ids))
@@ -177,6 +250,7 @@ async def search_public_tests(
         .join(SkillLevel, SkillLevel.skill_id == Skill.id)
         .join(latest_published_tests, latest_published_tests.c.skill_level_id == SkillLevel.id)
         .join(Test, Test.id == latest_published_tests.c.test_id)
+        .join(TestGroup, Test.test_group_id == TestGroup.id)
         .join(Level, SkillLevel.level_id == Level.id)
         .where(*filters)
         .group_by(Skill.id)
@@ -218,7 +292,8 @@ async def search_public_tests(
             SkillLevel.id.label("skill_level_id"),
             Level.name.label("level_name"),
             Test.id.label("test_id"),
-            Test.description,
+            Test.test_group_id,
+            TestGroup.description,
             Test.time_limit_minutes,
             Test.threshold_score,
             question_count_sq.label("question_count"),
@@ -227,6 +302,7 @@ async def search_public_tests(
         .join(SkillLevel, SkillLevel.skill_id == Skill.id)
         .join(latest_published_tests, latest_published_tests.c.skill_level_id == SkillLevel.id)
         .join(Test, Test.id == latest_published_tests.c.test_id)
+        .join(TestGroup, Test.test_group_id == TestGroup.id)
         .join(Level, SkillLevel.level_id == Level.id)
         .where(Skill.id.in_(skill_ids))
         .order_by(Skill.name, SkillLevel.order_index, Level.name)
@@ -237,6 +313,10 @@ async def search_public_tests(
         db,
         claims.user_id,
         [row.skill_level_id for row in level_rows],
+    )
+    ps_functions_map = await _load_test_group_ps_functions(
+        db,
+        [row.test_group_id for row in level_rows],
     )
 
     items_by_skill = {
@@ -258,6 +338,7 @@ async def search_public_tests(
             total_score=row.total_score or 0,
             threshold_score=row.threshold_score or 0,
             time_limit_minutes=row.time_limit_minutes or 0,
+            ps_functions=ps_functions_map.get(row.test_group_id, []),
             latest_attempt_score=latest_attempt["score"] if latest_attempt else None,
             latest_attempt_total_score=latest_attempt["total_score"] if latest_attempt else None,
             latest_attempt_threshold_score=latest_attempt["threshold_score"] if latest_attempt else None,
@@ -331,18 +412,21 @@ async def monitor_public_test_attempt(websocket: WebSocket, attempt_id: str):
 
 @router.get("/{test_id}", response_model=TestDetail)
 async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
-    query = select(Test).where(Test.id == test_id)
+    query = select(Test).join(TestGroup, Test.test_group_id == TestGroup.id).where(Test.id == test_id)
     result = await db.execute(query)
     test_obj = result.scalar_one_or_none()
     if not test_obj:
         raise HTTPException(status_code=404, detail="Тест не найден")
+    test_group = await db.get(TestGroup, test_obj.test_group_id)
+    if not test_group:
+        raise HTTPException(status_code=404, detail="Группа теста не найдена")
 
     # получение навыка и уровня
     skill_level_q = select(Skill.name.label("skill_name"), Level.name.label("level_name")) \
         .select_from(SkillLevel) \
         .join(Skill, SkillLevel.skill_id == Skill.id) \
         .join(Level, SkillLevel.level_id == Level.id) \
-        .where(SkillLevel.id == test_obj.skill_level_id)
+        .where(SkillLevel.id == test_group.skill_level_id)
     sl_res = await db.execute(skill_level_q)
     sl_row = sl_res.first()
     skill_name = sl_row.skill_name if sl_row else "Неизвестно"
@@ -350,7 +434,7 @@ async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: Tok
 
     # вариант
     variant_q = select(func.count(Test.id)).where(
-        Test.skill_level_id == test_obj.skill_level_id,
+        Test.test_group_id == test_obj.test_group_id,
         Test.id <= test_obj.id
     )
     variant_number = await db.scalar(variant_q) or 1
@@ -378,17 +462,19 @@ async def get_test(test_id: int, db: AsyncSession = Depends(get_db), claims: Tok
             points=q.points,
             answers=[AnswerDetail(id=a.id, answer_text=a.answer_text, is_correct=a.is_correct) for a in ans_list]
         ))
+    ps_functions_map = await _load_test_group_ps_functions(db, [test_obj.test_group_id])
 
     return TestDetail(
         id=test_obj.id,
-        skill_level_id=test_obj.skill_level_id,
+        skill_level_id=test_group.skill_level_id,
         skill_name=skill_name,
         level_name=level_name,
-        description=test_obj.description or "",
+        description=test_group.description or "",
         time_limit_minutes=test_obj.time_limit_minutes or 0,
         threshold_score=test_obj.threshold_score or 0,
         is_published=test_obj.is_published,
         variant_number=variant_number,
+        ps_functions=ps_functions_map.get(test_obj.test_group_id, []),
         questions=questions_detail
     )
 
@@ -402,9 +488,15 @@ async def create_test(data: TestCreateUpdate, db: AsyncSession = Depends(get_db)
     if data.threshold_score > total_points:
         raise HTTPException(status_code=400, detail="Порог прохождения не может превышать сумму баллов за вопросы")
 
+    test_group = await _get_or_create_test_group(
+        db,
+        data.skill_level_id,
+        data.description,
+        data.ps_function_ids,
+    )
+
     new_test = Test(
-        skill_level_id=data.skill_level_id,
-        description=data.description,
+        test_group_id=test_group.id,
         time_limit_minutes=data.time_limit_minutes,
         threshold_score=data.threshold_score,
         is_published=data.is_published,
@@ -456,7 +548,14 @@ async def update_test(
     if data.threshold_score > total_points:
         raise HTTPException(status_code=400, detail="Порог прохождения не может превышать сумму баллов за вопросы")
 
-    test_obj.description = data.description
+    old_test_group_id = test_obj.test_group_id
+    test_group = await _get_or_create_test_group(
+        db,
+        data.skill_level_id,
+        data.description,
+        data.ps_function_ids,
+    )
+    test_obj.test_group_id = test_group.id
     test_obj.time_limit_minutes = data.time_limit_minutes
     test_obj.threshold_score = data.threshold_score
     test_obj.is_published = data.is_published
@@ -483,6 +582,10 @@ async def update_test(
                 order_index=a_idx + 1
             )
             db.add(new_a)
+
+    await db.flush()
+    if old_test_group_id != test_group.id:
+        await _delete_empty_test_group(db, old_test_group_id)
 
     await db.commit()
     return await get_test(test_id, db, claims)

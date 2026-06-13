@@ -17,6 +17,11 @@ class TestSearchResponse(BaseModel):
     total_pages: int
     current_page: int
 
+class PsFunctionItem(BaseModel):
+    id: int
+    code: int
+    name: str
+
 class AnswerCreateUpdate(BaseModel):
     answer_text: str = Field(..., max_length=64)
     is_correct: bool
@@ -32,6 +37,7 @@ class TestCreateUpdate(BaseModel):
     threshold_score: int = Field(..., ge=1)
     is_published: bool
     skill_level_id: int
+    ps_function_ids: list[int] = []
     questions: List[QuestionCreateUpdate]
 
 class AnswerDetail(BaseModel):
@@ -55,6 +61,7 @@ class TestDetail(BaseModel):
     threshold_score: int
     is_published: bool
     variant_number: int
+    ps_functions: list[PsFunctionItem] = []
     questions: List[QuestionDetail]
 
 class TestPublicLevelItem(BaseModel):
@@ -67,6 +74,7 @@ class TestPublicLevelItem(BaseModel):
     total_score: int
     threshold_score: int
     time_limit_minutes: int
+    ps_functions: list[PsFunctionItem] = []
     latest_attempt_score: int | None = None
     latest_attempt_total_score: int | None = None
     latest_attempt_threshold_score: int | None = None

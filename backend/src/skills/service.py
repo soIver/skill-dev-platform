@@ -17,7 +17,7 @@ from .utils import (
 )
 from ..models import (
     Skill, Level, SkillLevel, RepoSkill, UserRepo, Test,
-    TestAttempt, SkillRelation,
+    TestAttempt, SkillRelation, TestGroup,
 )
 from ..analysis.utils import get_embedding
 from ..auth.service import TokenClaims
@@ -204,12 +204,13 @@ class SkillService:
             return None
 
         test_query = (
-            select(Test.skill_level_id)
+            select(TestGroup.skill_level_id)
             .select_from(TestAttempt)
             .join(Test, TestAttempt.test_id == Test.id)
+            .join(TestGroup, Test.test_group_id == TestGroup.id)
             .where(
                 TestAttempt.user_id == user_id,
-                Test.skill_level_id.in_(list(skill_level_indexes.keys())),
+                TestGroup.skill_level_id.in_(list(skill_level_indexes.keys())),
                 Test.threshold_score.isnot(None),
                 TestAttempt.score >= Test.threshold_score,
             )
@@ -261,8 +262,9 @@ class SkillService:
             select(TestAttempt.user_id)
             .select_from(TestAttempt)
             .join(Test, TestAttempt.test_id == Test.id)
+            .join(TestGroup, Test.test_group_id == TestGroup.id)
             .where(
-                Test.skill_level_id.in_(list(skill_level_indexes.keys())),
+                TestGroup.skill_level_id.in_(list(skill_level_indexes.keys())),
                 Test.threshold_score.isnot(None),
                 TestAttempt.score >= Test.threshold_score,
             )
@@ -483,7 +485,9 @@ class SkillService:
 
         # проверка наличия привязанных тестов
         test_count = await self.db.scalar(
-            select(func.count(Test.id)).where(Test.skill_level_id == sl_id)
+            select(func.count(Test.id))
+            .join(TestGroup, Test.test_group_id == TestGroup.id)
+            .where(TestGroup.skill_level_id == sl_id)
         )
         if test_count and test_count > 0:
             raise HTTPException(
@@ -526,7 +530,8 @@ class SkillService:
         # навыки из успешных тестов
         test_skill_ids_query = (
             select(SkillLevel.skill_id)
-            .join(Test, Test.skill_level_id == SkillLevel.id)
+            .join(TestGroup, TestGroup.skill_level_id == SkillLevel.id)
+            .join(Test, Test.test_group_id == TestGroup.id)
             .join(TestAttempt, TestAttempt.test_id == Test.id)
             .where(
                 TestAttempt.user_id == user_id,
@@ -657,9 +662,10 @@ class SkillService:
         test_attempt_query = (
             select(TestAttempt, Test)
             .join(Test, TestAttempt.test_id == Test.id)
+            .join(TestGroup, Test.test_group_id == TestGroup.id)
             .where(
                 TestAttempt.user_id == user_id,
-                Test.skill_level_id == current_prof.id,
+                TestGroup.skill_level_id == current_prof.id,
                 TestAttempt.completed_at >= test_cutoff,
             )
             .order_by(TestAttempt.completed_at.desc())

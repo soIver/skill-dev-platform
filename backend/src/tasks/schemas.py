@@ -6,6 +6,11 @@ class SkillTaskItem(BaseModel):
     skill_name: str
     level_name: str
 
+class PsFunctionItem(BaseModel):
+    id: int
+    code: int
+    name: str
+
 class TaskItem(BaseModel):
     id: int
     title: str
@@ -14,6 +19,7 @@ class TaskItem(BaseModel):
     average_rating: str
     status: str
     skills: list[SkillTaskItem]
+    ps_functions: list[PsFunctionItem] = []
     attached_repo_name: Optional[str] = None
 
 class TaskSearchResponse(BaseModel):
@@ -28,6 +34,7 @@ class TaskDetail(BaseModel):
     description: str
     is_published: bool
     skills: list[SkillTaskItem]
+    ps_functions: list[PsFunctionItem] = []
     attached_repo_name: Optional[str] = None
 
 class TaskCreateUpdate(BaseModel):
@@ -35,12 +42,14 @@ class TaskCreateUpdate(BaseModel):
     description: str = Field(..., min_length=64, max_length=2048)
     is_published: bool
     skill_level_ids: list[int]
+    ps_function_ids: list[int] = []
 
 class TaskPublicItem(BaseModel):
     id: int
     title: str
     description_preview: str
     skills: list[SkillTaskItem]
+    ps_functions: list[PsFunctionItem] = []
     attached_repo_name: Optional[str] = None
 
 class TaskPublicSearchResponse(BaseModel):
