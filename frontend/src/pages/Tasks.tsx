@@ -8,7 +8,13 @@ import { LoadingText } from "../components/LoadingText";
 import { TaskCard } from "../components/TaskCard";
 import { useToast } from "../components/ToastProvider";
 import { useRepositoriesStore, type RepoItem } from "../hooks/useRepositoriesStore";
-import { useTasksStore, type SkillLevelItem, type TaskPublicItem } from "../hooks/useTasksStore";
+import {
+  useTasksStore,
+  type SkillLevelItem,
+  type TaskLatestAttempt,
+  type TaskPublicItem,
+  type TaskRequirementItem,
+} from "../hooks/useTasksStore";
 import { useUserStore } from "../hooks/useUserStore";
 import GitHubIcon from "../assets/icons/github.svg?react";
 
@@ -30,7 +36,9 @@ interface TaskDetail {
   title: string;
   description: string;
   skills: { skill_name: string; level_name: string }[];
+  requirements: TaskRequirementItem[];
   attached_repo_name?: string | null;
+  latest_attempt?: TaskLatestAttempt | null;
 }
 
 export default function Tasks() {
@@ -243,6 +251,17 @@ export default function Tasks() {
     }
   };
 
+  const formatDateTime = (value: string | null | undefined) => {
+    if (!value) return "";
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* sticky панель поиска — bg совпадает с фоном, без рамок */}
@@ -355,6 +374,20 @@ export default function Tasks() {
                       <div className="text-gray-700 whitespace-pre-line text-lg leading-relaxed mb-6">
                         {selectedTask.description}
                       </div>
+                      {selectedTask.requirements.length > 0 && (
+                        <div className="mb-6">
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">
+                            Требования
+                          </h4>
+                          <ul className="space-y-2">
+                            {selectedTask.requirements.map((requirement) => (
+                              <li key={requirement.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                                {requirement.description}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-2 mb-4">
                         {selectedTask.skills.map((s, idx) => (
                           <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
@@ -362,6 +395,40 @@ export default function Tasks() {
                           </span>
                         ))}
                       </div>
+                      {selectedTask.latest_attempt && (
+                        <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                          <p className="font-semibold text-gray-900">
+                            Последняя попытка: {selectedTask.latest_attempt.repo_name}
+                          </p>
+                          {selectedTask.latest_attempt.completed_at && (
+                            <p className="mt-1">
+                              Завершено: {formatDateTime(selectedTask.latest_attempt.completed_at)}
+                            </p>
+                          )}
+                          {selectedTask.latest_attempt.successful ? (
+                            <p className="mt-2 font-semibold text-success">
+                              Все требования выполнены.
+                            </p>
+                          ) : (
+                            <div className="mt-2">
+                              <p className="font-semibold text-danger">Невыполненные требования:</p>
+                              {selectedTask.latest_attempt.failed_requirements.length > 0 ? (
+                                <ul className="mt-2 space-y-1 text-danger">
+                                  {selectedTask.latest_attempt.failed_requirements.map((requirement, index) => (
+                                    <li key={`${requirement.id ?? "unknown"}-${index}`}>
+                                      {requirement.description}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="mt-1 text-danger">
+                                  Задание не выполнено: модель не подтвердила соответствие репозитория заданию.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-4">
                       <button
@@ -370,7 +437,7 @@ export default function Tasks() {
                       >
                         Вернуться
                       </button>
-                      {selectedTask.attached_repo_name ? (
+                      {selectedTask.latest_attempt?.successful ? (
                         <div className="flex-1 py-3 px-6 border border-success text-success font-semibold rounded-xl text-center bg-transparent">
                           Задание выполнено
                         </div>
@@ -384,7 +451,7 @@ export default function Tasks() {
                       )}
                     </div>
 
-                    {selectedTask?.attached_repo_name && (
+                    {selectedTask?.attached_repo_name && selectedTask.latest_attempt?.successful && (
                       <div className="text-center mt-6">
                         <p className="text-sm text-gray-500">
                           сейчас прикреплён{" "}

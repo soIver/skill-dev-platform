@@ -9,7 +9,7 @@ from .schemas import AnalyzeRepoRequest
 from ..auth.utils import TokenClaims, get_current_user
 from ..celery.tasks import analyze_repository_task
 from ..utils.database import get_db
-from ..models import UserRepo, GitHubRepo, SkillLevelTask, SkillLevel, Skill
+from ..models import UserRepo, GitHubRepo, SkillLevelTask, SkillLevel, Skill, TaskRequirement
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -68,7 +68,7 @@ async def analyze_repo(
 
         if repo:
             # защита от повторного анализа неизменённого кода
-            if repo.analyzed_at and commit_dt and repo.analyzed_at >= commit_dt:
+            if not request.task_id and repo.analyzed_at and commit_dt and repo.analyzed_at >= commit_dt:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Репозиторий уже проверен для текущей версии кода",
@@ -99,6 +99,7 @@ async def analyze_repo(
 
         skill_names: list[str] | None = None
         task_description: str | None = None
+        task_requirements: list[dict] | None = None
         if request.task_id:
             from ..models import Task
             task_query = select(Task).where(Task.id == request.task_id)
@@ -117,6 +118,16 @@ async def analyze_repo(
             skills_result = await db.execute(skills_query)
             skill_names = [row for row in skills_result.scalars()]
 
+            requirements_result = await db.execute(
+                select(TaskRequirement.id, TaskRequirement.description)
+                .where(TaskRequirement.task_id == request.task_id)
+                .order_by(TaskRequirement.id)
+            )
+            task_requirements = [
+                {"id": row.id, "description": row.description}
+                for row in requirements_result.all()
+            ]
+
         analyze_repository_task.delay(
             user_id=claims.user_id,
             repo_name=request.repo_name,
@@ -125,6 +136,7 @@ async def analyze_repo(
             task_id=request.task_id,
             skill_names=skill_names,
             task_description=task_description,
+            task_requirements=task_requirements,
         )
     except HTTPException:
         raise

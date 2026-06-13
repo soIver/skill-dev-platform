@@ -682,7 +682,7 @@ export default function ContentTests() {
                   value={editorData.description}
                   onChange={(e) => updateEditorData({ description: e.target.value })}
                   placeholder="Описание содержания теста"
-                  className="input-field resize-y mb-1"
+                  className="input-field resize-y mb-1 max-h-[260px]"
                   style={{ minHeight: "120px" }}
                 />
                 <div className="text-xs flex justify-between">
@@ -802,7 +802,7 @@ export default function ContentTests() {
                                 value={q.question_text}
                                 onChange={(e) => handleUpdateQuestion(q.id, "question_text", e.target.value)}
                                 placeholder="Описание вопроса"
-                                className="input-field resize-y mb-1"
+                                className="input-field resize-y mb-1 max-h-60"
                                 style={{ minHeight: "80px" }}
                               />
                               <div className="text-xs flex justify-between">
@@ -834,7 +834,7 @@ export default function ContentTests() {
                                         value={a.answer_text}
                                         onChange={(e) => handleUpdateAnswer(q.id, a.id, "answer_text", e.target.value)}
                                         placeholder="Описание варианта ответа"
-                                        className="input-field mt-0! resize-y mb-1"
+                                        className="input-field mt-0! resize-y mb-1 max-h-24"
                                         style={{ minHeight: "40px" }}
                                       />
                                       <div className="text-xs flex justify-between">

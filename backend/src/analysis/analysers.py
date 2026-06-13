@@ -21,6 +21,12 @@ class RepositoryPayload:
     tokens: int | None
 
 
+@dataclass(slots=True)
+class ExtractedAnalysis:
+    skills: List[Tuple[str, int]]
+    failed_requirement_ids: list[int]
+
+
 class RepositoryTooLargeError(ValueError):
     def __init__(self, actual_tokens: int | None, max_tokens: int):
         self.actual_tokens = actual_tokens
@@ -94,13 +100,25 @@ class RepoAnalyzer:
             and tokens > self.max_payload_tokens
         )
 
-    def _build_prompt(self, skill_names: List[str] | None = None, task_description: str | None = None) -> str:
+    def _build_prompt(
+        self,
+        skill_names: List[str] | None = None,
+        task_description: str | None = None,
+        task_requirements: list[dict] | None = None,
+    ) -> str:
         # сборка промпта из фрагментов, хранящихся в конфиге YAML
         prompts = self.config["prompts"]
         fragments = [prompts["role"]]
 
         if task_description:
             fragments.append(prompts["task_context"].format(description=task_description))
+
+        if task_requirements:
+            requirements = "\n".join(
+                f"- {item['id']}: {item['description']}"
+                for item in task_requirements
+            )
+            fragments.append(prompts["task_requirements"].format(requirements=requirements))
 
         if skill_names:
             task = prompts["task_with_skills"].format(skills=", ".join(skill_names))
@@ -129,16 +147,17 @@ class RepoAnalyzer:
         self, 
         payload: str, 
         skill_names: List[str] | None = None,
-        task_description: str | None = None
-    ) -> List[Tuple[str, int]]:
-        prompt = self._build_prompt(skill_names, task_description)
+        task_description: str | None = None,
+        task_requirements: list[dict] | None = None,
+    ) -> ExtractedAnalysis:
+        prompt = self._build_prompt(skill_names, task_description, task_requirements)
 
         model = self.config["models"]["llm"]["name"]
         
         logger.debug(f"Отправка запроса модели {model}")
         content = await get_completion(prompt=prompt, payload=payload)
         if not content:
-            return []
+            return ExtractedAnalysis(skills=[], failed_requirement_ids=[])
 
         try:
             # очистка от возможных markdown-тегов
@@ -158,14 +177,28 @@ class RepoAnalyzer:
                         logger.debug(f"Отсеян навык '{name}', так как он не был запрошен")
                         continue
                     skills.append((name, score))
+            requirement_ids = [
+                int(item["id"])
+                for item in task_requirements or []
+            ]
+            requirement_id_set = set(requirement_ids)
+            failed_requirement_ids = []
+            for requirement_id in data.get("failed_requirement_ids", []):
+                if isinstance(requirement_id, int) and requirement_id in requirement_id_set:
+                    failed_requirement_ids.append(requirement_id)
+            if task_requirements and not skills and not failed_requirement_ids:
+                failed_requirement_ids = requirement_ids
             
             logger.debug(f"Извлечено {len(skills)} навыков")
             logger.debug(skills)
-            return skills
+            return ExtractedAnalysis(
+                skills=skills,
+                failed_requirement_ids=list(dict.fromkeys(failed_requirement_ids)),
+            )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.error(f"Ошибка при парсинге JSON от LLM: {e}")
             logger.debug(f"Raw content: {content}")
-            return []
+            return ExtractedAnalysis(skills=[], failed_requirement_ids=[])
 
     async def match_skills(self, db: AsyncSession, extracted_skills: List[Tuple[str, int]], threshold: float) -> List[Dict]:
         matched = []
@@ -202,7 +235,8 @@ class RepoAnalyzer:
         repo_url: str, 
         db: AsyncSession, 
         skill_names: List[str] | None = None,
-        task_description: str | None = None
+        task_description: str | None = None,
+        task_requirements: list[dict] | None = None,
     ) -> List[Dict]:
         repository_payload = await self.ingest_repository(repo_url)
         if self.is_repository_too_large(repository_payload.tokens):
@@ -212,11 +246,12 @@ class RepoAnalyzer:
             repository_payload.payload,
             skill_names=skill_names,
             task_description=task_description,
+            task_requirements=task_requirements,
         )
         
-        if not extracted:
+        if not extracted.skills:
             return []
             
-        return await self.match_skills(db, extracted, self.DISTANCE_TRESHOLD)
+        return await self.match_skills(db, extracted.skills, self.DISTANCE_TRESHOLD)
 
 analyzer = RepoAnalyzer()

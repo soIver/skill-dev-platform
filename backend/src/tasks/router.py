@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, or_
+from sqlalchemy import select, func, delete, or_, exists
 from sqlalchemy.orm import selectinload
 
 from ..auth.utils import require_role, resolve_author_filter
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
 from ..models import (
-    Task, UserRepo, GitHubRepo, TaskHistory, UserRecommendation, TaskScore,
+    Task, UserRepo, GitHubRepo, TaskHistory, UserRecommendation,
     SkillLevelTask, SkillLevel, Skill, Level, TaskPsFunction, PsFunction,
+    TaskRequirement, TaskHistoryFailedRequirement,
 )
 from .schemas import (
     TaskSearchResponse,
@@ -19,35 +20,98 @@ from .schemas import (
     TaskPublicItem,
     TaskPublicSearchResponse,
     PsFunctionItem,
+    TaskRequirementItem,
+    TaskLatestAttemptItem,
+    TaskFailedRequirementItem,
 )
 
 router = APIRouter(tags=["tasks"])
 
 
-async def _load_successful_task_repos(
+async def _load_latest_task_attempts(
     db: AsyncSession,
     user_id: int,
     task_ids: list[int],
-) -> dict[int, str]:
+) -> dict[int, TaskLatestAttemptItem]:
+    if not task_ids:
+        return {}
+
+    latest_ids_subq = (
+        select(func.max(TaskHistory.id).label("history_id"))
+        .where(
+            TaskHistory.user_id == user_id,
+            TaskHistory.task_id.in_(task_ids),
+        )
+        .group_by(TaskHistory.task_id)
+        .subquery()
+    )
+    failed_count_sq = (
+        select(func.count(TaskHistoryFailedRequirement.id))
+        .where(TaskHistoryFailedRequirement.task_history_id == TaskHistory.id)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(
+            TaskHistory.id,
+            TaskHistory.task_id,
+            GitHubRepo.name.label("repo_name"),
+            TaskHistory.completed_at,
+            failed_count_sq.label("failed_count"),
+        )
+        .join(latest_ids_subq, latest_ids_subq.c.history_id == TaskHistory.id)
+        .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
+        .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
+    )
+
+    rows = result.all()
+    history_ids = [row.id for row in rows]
+    failed_map: dict[int, list[TaskFailedRequirementItem]] = {}
+    if history_ids:
+        failed_result = await db.execute(
+            select(
+                TaskHistoryFailedRequirement.task_history_id,
+                TaskHistoryFailedRequirement.task_requirement_id,
+                TaskRequirement.description,
+            )
+            .join(TaskRequirement, TaskHistoryFailedRequirement.task_requirement_id == TaskRequirement.id)
+            .where(TaskHistoryFailedRequirement.task_history_id.in_(history_ids))
+            .order_by(TaskHistoryFailedRequirement.id)
+        )
+        for row in failed_result.all():
+            failed_map.setdefault(row.task_history_id, []).append(
+                TaskFailedRequirementItem(
+                    id=row.task_requirement_id,
+                    description=row.description,
+                )
+            )
+
+    return {
+        row.task_id: TaskLatestAttemptItem(
+            repo_name=row.repo_name,
+            completed_at=row.completed_at,
+            successful=(row.failed_count or 0) == 0,
+            failed_requirements=failed_map.get(row.id, []),
+        )
+        for row in rows
+    }
+
+
+async def _load_task_requirements(db: AsyncSession, task_ids: list[int]) -> dict[int, list[TaskRequirementItem]]:
     if not task_ids:
         return {}
 
     result = await db.execute(
-        select(TaskHistory.task_id, GitHubRepo.name)
-        .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
-        .join(GitHubRepo, UserRepo.repo_id == GitHubRepo.id)
-        .where(
-            TaskHistory.user_id == user_id,
-            TaskHistory.task_id.in_(task_ids),
-            TaskHistory.successful == True,
-        )
-        .order_by(TaskHistory.completed_at.desc())
+        select(TaskRequirement.task_id, TaskRequirement.id, TaskRequirement.description)
+        .where(TaskRequirement.task_id.in_(task_ids))
+        .order_by(TaskRequirement.task_id, TaskRequirement.id)
     )
 
-    attached_map = {}
-    for task_id, repo_name in result.all():
-        attached_map.setdefault(task_id, repo_name)
-    return attached_map
+    requirements_map: dict[int, list[TaskRequirementItem]] = {}
+    for row in result.all():
+        requirements_map.setdefault(row.task_id, []).append(
+            TaskRequirementItem(id=row.id, description=row.description)
+        )
+    return requirements_map
 
 
 async def _load_task_ps_functions(db: AsyncSession, task_ids: list[int]) -> dict[int, list[PsFunctionItem]]:
@@ -71,6 +135,38 @@ async def _load_task_ps_functions(db: AsyncSession, task_ids: list[int]) -> dict
 
 def _unique_ids(ids: list[int]) -> list[int]:
     return list(dict.fromkeys(ids))
+
+
+def _normalize_requirements(data: TaskCreateUpdate) -> list[str]:
+    descriptions = [item.description.strip() for item in data.requirements]
+    if any(len(description) < 16 or len(description) > 64 for description in descriptions):
+        raise HTTPException(status_code=400, detail="Длина требования должна быть от 16 до 64 символов")
+    if len(descriptions) < 2 or len(descriptions) > 10:
+        raise HTTPException(status_code=400, detail="Количество требований должно быть от 2 до 10")
+    return descriptions
+
+
+async def _sync_task_requirements(db: AsyncSession, task_id: int, data: TaskCreateUpdate):
+    existing_result = await db.execute(
+        select(TaskRequirement).where(TaskRequirement.task_id == task_id)
+    )
+    existing_by_id = {
+        requirement.id: requirement
+        for requirement in existing_result.scalars().all()
+    }
+    received_ids = set()
+
+    for item in data.requirements:
+        description = item.description.strip()
+        if item.id and item.id in existing_by_id:
+            existing_by_id[item.id].description = description
+            received_ids.add(item.id)
+        else:
+            db.add(TaskRequirement(task_id=task_id, description=description))
+
+    stale_ids = set(existing_by_id) - received_ids
+    if stale_ids:
+        await db.execute(delete(TaskRequirement).where(TaskRequirement.id.in_(stale_ids)))
 
 @router.get("/tasks")
 async def search_tasks(
@@ -136,12 +232,22 @@ async def search_tasks(
     # расширенные подзапросы только для куратора/администратора
     if is_privileged:
         issued_count_sq = select(func.count(UserRecommendation.id)).where(UserRecommendation.task_id == Task.id).scalar_subquery()
-        average_rating_sq = select(func.avg(TaskScore.score)).where(TaskScore.task_id == Task.id).scalar_subquery()
+        failed_attempt_exists = exists().where(
+            TaskHistoryFailedRequirement.task_history_id == TaskHistory.id
+        )
+        completed_count_sq = (
+            select(func.count(TaskHistory.id))
+            .where(
+                TaskHistory.task_id == Task.id,
+                ~failed_attempt_exists,
+            )
+            .scalar_subquery()
+        )
 
         full_query = select(
             Task,
             issued_count_sq.label("issued_count"),
-            average_rating_sq.label("average_rating")
+            completed_count_sq.label("completed_count")
         )
         if keyword:
             full_query = full_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
@@ -163,25 +269,23 @@ async def search_tasks(
         rows = result.all()
         task_ids = [row[0].id for row in rows]
 
-        attached_map = await _load_successful_task_repos(db, claims.user_id, task_ids)
+        attempts_map = await _load_latest_task_attempts(db, claims.user_id, task_ids)
         ps_functions_map = await _load_task_ps_functions(db, task_ids)
 
         items = []
         for row in rows:
             task_obj = row[0]
             desc = task_obj.description or ""
-            avg_rating = row[2]
-            rating_str = "-" if avg_rating is None or avg_rating == 0 else str(round(avg_rating, 1))
             status = "Опубликовано" if task_obj.is_published else "Сохранено"
             
-            repo_name = attached_map.get(task_obj.id)
+            latest_attempt = attempts_map.get(task_obj.id)
             
             items.append(TaskItem(
                 id=task_obj.id,
                 title=task_obj.title,
                 description_preview=desc,
                 issued_count=row[1],
-                average_rating=rating_str,
+                completed_count=row[2] or 0,
                 status=status,
                 skills=[
                     SkillTaskItem(
@@ -191,7 +295,8 @@ async def search_tasks(
                     ) for slt in task_obj.skill_level_tasks
                 ],
                 ps_functions=ps_functions_map.get(task_obj.id, []),
-                attached_repo_name=repo_name
+                attached_repo_name=latest_attempt.repo_name if latest_attempt and latest_attempt.successful else None,
+                latest_attempt=latest_attempt
             ))
 
         return TaskSearchResponse(items=items, total_pages=total_pages, current_page=page)
@@ -207,7 +312,7 @@ async def search_tasks(
         tasks = result.scalars().all()
         
         task_ids = [t.id for t in tasks]
-        attached_map = await _load_successful_task_repos(db, claims.user_id, task_ids)
+        attempts_map = await _load_latest_task_attempts(db, claims.user_id, task_ids)
         ps_functions_map = await _load_task_ps_functions(db, task_ids)
 
         items = [
@@ -223,7 +328,8 @@ async def search_tasks(
                     ) for slt in task.skill_level_tasks
                 ],
                 ps_functions=ps_functions_map.get(task.id, []),
-                attached_repo_name=attached_map.get(task.id)
+                attached_repo_name=attempts_map[task.id].repo_name if task.id in attempts_map and attempts_map[task.id].successful else None,
+                latest_attempt=attempts_map.get(task.id)
             ) for task in tasks
         ]
         return TaskPublicSearchResponse(items=items, total_pages=total_pages, current_page=page)
@@ -268,8 +374,10 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
             level_name=lv.name
         ))
 
-    attached_map = await _load_successful_task_repos(db, claims.user_id, [rec_id])
+    requirements_map = await _load_task_requirements(db, [rec_id])
+    attempts_map = await _load_latest_task_attempts(db, claims.user_id, [rec_id])
     ps_functions_map = await _load_task_ps_functions(db, [rec_id])
+    latest_attempt = attempts_map.get(rec_id)
 
     return TaskDetail(
         id=rec.id,
@@ -277,8 +385,10 @@ async def get_task(rec_id: int, db: AsyncSession = Depends(get_db), claims: Toke
         description=rec.description,
         is_published=rec.is_published,
         skills=skills_items,
+        requirements=requirements_map.get(rec_id, []),
         ps_functions=ps_functions_map.get(rec_id, []),
-        attached_repo_name=attached_map.get(rec_id)
+        attached_repo_name=latest_attempt.repo_name if latest_attempt and latest_attempt.successful else None,
+        latest_attempt=latest_attempt
     )
 
 @router.get("/tasks/{task_id}/public", response_model=TaskDetail)
@@ -311,8 +421,10 @@ async def get_task_public(
             level_name=lv.name
         ))
 
-    attached_map = await _load_successful_task_repos(db, claims.user_id, [task_id])
+    requirements_map = await _load_task_requirements(db, [task_id])
+    attempts_map = await _load_latest_task_attempts(db, claims.user_id, [task_id])
     ps_functions_map = await _load_task_ps_functions(db, [task_id])
+    latest_attempt = attempts_map.get(task_id)
 
     return TaskDetail(
         id=task.id,
@@ -320,12 +432,15 @@ async def get_task_public(
         description=task.description,
         is_published=True,
         skills=skills_items,
+        requirements=requirements_map.get(task_id, []),
         ps_functions=ps_functions_map.get(task_id, []),
-        attached_repo_name=attached_map.get(task_id)
+        attached_repo_name=latest_attempt.repo_name if latest_attempt and latest_attempt.successful else None,
+        latest_attempt=latest_attempt
     )
 
 @router.post("/tasks", response_model=TaskDetail)
 async def create_task(data: TaskCreateUpdate, db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(require_role("curator", "admin"))):
+    _normalize_requirements(data)
     rec = Task(
         title=data.title,
         description=data.description,
@@ -346,6 +461,7 @@ async def create_task(data: TaskCreateUpdate, db: AsyncSession = Depends(get_db)
             task_id=rec.id,
             ps_function_id=ps_function_id
         ))
+    await _sync_task_requirements(db, rec.id, data)
 
     await db.commit()
     return await get_task(rec.id, db, claims)
@@ -357,6 +473,7 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("curator", "admin")),
 ):
+    _normalize_requirements(data)
     query = select(Task).where(Task.id == rec_id)
     result = await db.execute(query)
     rec = result.scalar_one_or_none()
@@ -384,6 +501,7 @@ async def update_task(
             task_id=rec.id,
             ps_function_id=ps_function_id
         ))
+    await _sync_task_requirements(db, rec.id, data)
 
     await db.commit()
     return await get_task(rec.id, db, claims)

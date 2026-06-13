@@ -19,6 +19,12 @@ export const TASK = {
     MIN_LENGTH: 64,
     MAX_LENGTH: 2048,
   },
+  REQUIREMENTS: {
+    MIN_LENGTH: 16,
+    MAX_LENGTH: 64,
+    MIN_COUNT: 2,
+    MAX_COUNT: 10,
+  },
   SEARCH_KEYWORDS: {
     MAX_LENGTH: 48,
   },

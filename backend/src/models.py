@@ -377,28 +377,22 @@ class Task(Base):
     author = relationship("User", lazy="select")
     skill_level_tasks = relationship("SkillLevelTask", back_populates="task", cascade="all, delete-orphan")
     ps_function_links = relationship("TaskPsFunction", back_populates="task", cascade="all, delete-orphan")
+    requirements = relationship("TaskRequirement", back_populates="task", cascade="all, delete-orphan")
 
 
-class TaskScore(Base):
-    __tablename__ = "task_scores"
+class TaskRequirement(Base):
+    __tablename__ = "task_requirements"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
     task_id = Column(
         Integer,
         ForeignKey("tasks.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
     )
-
-    score = Column(Integer, nullable=False)
+    description = Column(String(64), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    user = relationship("User", lazy="select")
-    task = relationship("Task", lazy="select")
+
+    task = relationship("Task", back_populates="requirements")
 
 
 class TaskHistory(Base):
@@ -421,11 +415,30 @@ class TaskHistory(Base):
         nullable=False,
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    successful = Column(Boolean, default=False, nullable=False)
 
     user = relationship("User", lazy="select")
     task = relationship("Task", lazy="select")
     repo = relationship("UserRepo", lazy="select")
+    failed_requirements = relationship("TaskHistoryFailedRequirement", back_populates="task_history", cascade="all, delete-orphan")
+
+
+class TaskHistoryFailedRequirement(Base):
+    __tablename__ = "task_history_failed_requirements"
+
+    id = Column(Integer, primary_key=True)
+    task_history_id = Column(
+        Integer,
+        ForeignKey("task_history.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_requirement_id = Column(
+        Integer,
+        ForeignKey("task_requirements.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    task_history = relationship("TaskHistory", back_populates="failed_requirements")
+    requirement = relationship("TaskRequirement", lazy="select")
 
 
 class SkillLevelTask(Base):

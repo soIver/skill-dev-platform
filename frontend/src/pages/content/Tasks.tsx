@@ -9,6 +9,7 @@ import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { useToast } from "../../components/ToastProvider";
+import { Plus, X } from "lucide-react";
 interface SearchResponse {
   items: TaskItem[];
   total_pages: number;
@@ -35,6 +36,7 @@ interface TaskDetailResponse {
   is_published: boolean;
   skills: SkillTaskItem[];
   ps_functions: PsFunctionItem[];
+  requirements: Array<{ id: number; description: string }>;
 }
 
 export default function ContentTasks() {
@@ -174,7 +176,8 @@ export default function ContentTasks() {
           description: response.description || "",
           is_published: response.is_published,
           skills: response.skills,
-          ps_functions: response.ps_functions ?? []
+          ps_functions: response.ps_functions ?? [],
+          requirements: response.requirements ?? []
         },
         hasUnsavedChanges: false,
         pendingSelectId: null
@@ -205,7 +208,17 @@ export default function ContentTasks() {
     } else {
       setTasksState({
         selectedId: "new",
-        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [], ps_functions: [] },
+        editorData: {
+          title: newTitleRef.current,
+          description: "",
+          is_published: false,
+          skills: [],
+          ps_functions: [],
+          requirements: [
+            { id: `temp-req-${Date.now()}-1`, description: "" },
+            { id: `temp-req-${Date.now()}-2`, description: "" },
+          ],
+        },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -224,6 +237,10 @@ export default function ContentTasks() {
         description: editorData.description,
         is_published: newPublishStatus,
         skill_level_ids: editorData.skills.map(s => s.skill_level_id),
+        requirements: editorData.requirements.map((item) => ({
+          id: typeof item.id === "number" ? item.id : undefined,
+          description: item.description.trim()
+        })),
         ps_function_ids: editorData.ps_functions.map((item) => item.id)
       };
 
@@ -240,7 +257,8 @@ export default function ContentTasks() {
           description: response.description || "",
           is_published: response.is_published,
           skills: response.skills,
-          ps_functions: response.ps_functions ?? []
+          ps_functions: response.ps_functions ?? [],
+          requirements: response.requirements ?? []
         },
         hasUnsavedChanges: false
       });
@@ -275,7 +293,17 @@ export default function ContentTasks() {
     if (pendingSelectId === "new") {
       setTasksState({
         selectedId: "new",
-        editorData: { title: newTitleRef.current, description: "", is_published: false, skills: [], ps_functions: [] },
+        editorData: {
+          title: newTitleRef.current,
+          description: "",
+          is_published: false,
+          skills: [],
+          ps_functions: [],
+          requirements: [
+            { id: `temp-req-${Date.now()}-1`, description: "" },
+            { id: `temp-req-${Date.now()}-2`, description: "" },
+          ],
+        },
         hasUnsavedChanges: true,
         pendingSelectId: null
       });
@@ -311,10 +339,48 @@ export default function ContentTasks() {
     });
   };
 
+  const handleAddRequirement = () => {
+    if (editorData.requirements.length >= TASK.REQUIREMENTS.MAX_COUNT) return;
+    updateEditorData({
+      requirements: [
+        ...editorData.requirements,
+        { id: `temp-req-${Date.now()}-${Math.random()}`, description: "" },
+      ]
+    });
+  };
+
+  const handleRemoveRequirement = (requirementId: string | number) => {
+    updateEditorData({
+      requirements: editorData.requirements.filter((item) => item.id !== requirementId)
+    });
+  };
+
+  const handleUpdateRequirement = (requirementId: string | number, description: string) => {
+    updateEditorData({
+      requirements: editorData.requirements.map((item) =>
+        item.id === requirementId ? { ...item, description } : item
+      )
+    });
+  };
+
   const isDescriptionValid = editorData.description.length >= TASK.DESCRIPTION.MIN_LENGTH && editorData.description.length <= TASK.DESCRIPTION.MAX_LENGTH;
   const isTitleValid = editorData.title.trim().length >= TASK.TITLE.MIN_LENGTH && editorData.title.length <= TASK.TITLE.MAX_LENGTH && !isTitleTaken;
-  const canSave = hasUnsavedChanges && isDescriptionValid && isTitleValid;
-  const canTogglePublish = isDescriptionValid && isTitleValid;
+  const isRequirementsCountValid = editorData.requirements.length >= TASK.REQUIREMENTS.MIN_COUNT && editorData.requirements.length <= TASK.REQUIREMENTS.MAX_COUNT;
+  const invalidRequirementNumbers = editorData.requirements.reduce<number[]>((acc, item, index) => {
+    const length = item.description.trim().length;
+    if (length < TASK.REQUIREMENTS.MIN_LENGTH || length > TASK.REQUIREMENTS.MAX_LENGTH) {
+      acc.push(index + 1);
+    }
+    return acc;
+  }, []);
+  const requirementsError = !isRequirementsCountValid
+    ? `Количество требований должно быть от ${TASK.REQUIREMENTS.MIN_COUNT} до ${TASK.REQUIREMENTS.MAX_COUNT}`
+    : invalidRequirementNumbers.length > 0
+      ? `Проверьте длину требований: ${invalidRequirementNumbers.join(", ")}`
+      : "";
+  const isRequirementsValid = isRequirementsCountValid && invalidRequirementNumbers.length === 0;
+  const canSave = hasUnsavedChanges && isDescriptionValid && isTitleValid && isRequirementsValid;
+  const canTogglePublish = isDescriptionValid && isTitleValid && isRequirementsValid;
 
   const columns: Column<TaskItem>[] = [
     {
@@ -335,17 +401,17 @@ export default function ContentTasks() {
     },
     {
       key: "issued_count",
-      header: "Выполнено",
+      header: "Попыток",
       align: "center",
       width: "w-1/5",
       render: (item) => <span className="text-gray-900">{item.issued_count}</span>,
     },
     {
-      key: "average_rating",
-      header: "Оценка",
+      key: "completed_count",
+      header: "Выполнили",
       align: "center",
       width: "w-1/5",
-      render: (item) => <span className="text-gray-500">{item.average_rating}</span>,
+      render: (item) => <span className="text-gray-500">{item.completed_count}</span>,
     },
     {
       key: "status",
@@ -527,8 +593,8 @@ export default function ContentTasks() {
 
             <div className="w-full">
               <textarea
-                className="input-field min-h-[150px] resize-y mb-1 relative"
-                style={{ font: 'inherit' }}
+                className="input-field min-h-[150px] max-h-[360px] resize-y mb-1 relative"
+                style={{ font: "inherit" }}
                 placeholder="Описание задания"
                 value={editorData.description}
                 onChange={(e) => updateEditorData({ description: e.target.value })}
@@ -545,6 +611,68 @@ export default function ContentTasks() {
                 <span className={editorData.description.length > TASK.DESCRIPTION.MAX_LENGTH ? "text-danger" : ""}>
                   {editorData.description.length}/{TASK.DESCRIPTION.MAX_LENGTH}
                 </span>
+              </div>
+            </div>
+
+            <div className="mb-4 max-w-150">
+              <div className="flex justify-between items-center ml-1 mb-3">
+                <h3 className="text-xl font-medium text-gray-900">Список требований</h3>
+                <span className="text-sm font-medium text-gray-500 bg-gray-100 py-1 px-2.5 rounded-lg">
+                  Всего требований: {editorData.requirements.length}
+                </span>
+              </div>
+
+              {requirementsError && (
+                <span className="text-xs whitespace-pre-wrap text-danger font-medium bg-red-50 border border-red-100 rounded-lg p-2.5 block mb-3">
+                  {requirementsError}
+                </span>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {editorData.requirements.map((requirement, index) => (
+                  <div key={requirement.id} className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <textarea
+                        value={requirement.description}
+                        onChange={(e) => handleUpdateRequirement(requirement.id, e.target.value)}
+                        placeholder={`Требование №${index + 1}`}
+                        className="input-field mt-0! resize-y mb-1 max-h-24"
+                        style={{ minHeight: "40px" }}
+                        maxLength={TASK.REQUIREMENTS.MAX_LENGTH}
+                      />
+                      <div className="text-xs flex justify-between">
+                        <span className="text-gray-500">
+                          {requirement.description.trim().length > 0 && requirement.description.trim().length < TASK.REQUIREMENTS.MIN_LENGTH
+                            ? "Слишком короткое требование"
+                            : ""}
+                        </span>
+                        <span className={requirement.description.length > TASK.REQUIREMENTS.MAX_LENGTH ? "text-danger" : "text-gray-500"}>
+                          {requirement.description.length}/{TASK.REQUIREMENTS.MAX_LENGTH}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRequirement(requirement.id)}
+                      className="p-1.5 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors text-gray-500 shrink-0 mt-2"
+                      title="Удалить требование"
+                    >
+                      <X className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    onClick={handleAddRequirement}
+                    disabled={editorData.requirements.length >= TASK.REQUIREMENTS.MAX_COUNT}
+                    className="text-sm font-semibold text-primary hover:text-primary-hover disabled:text-gray-400 flex items-center gap-1 p-2 rounded-lg hover:bg-blue-50 disabled:hover:bg-transparent transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Добавить требование
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -72,12 +72,17 @@ export interface PsFunctionItem {
   name: string;
 }
 
+export interface TaskRequirementItem {
+  id: string | number;
+  description: string;
+}
+
 export interface TaskItem {
   id: number;
   title: string;
   description_preview: string;
   issued_count: number;
-  average_rating: string;
+  completed_count: number;
   status: string;
 }
 
@@ -87,6 +92,7 @@ export interface TaskEditorData {
   is_published: boolean;
   skills: SkillTaskItem[];
   ps_functions: PsFunctionItem[];
+  requirements: TaskRequirementItem[];
 }
 
 interface TasksState {
@@ -257,7 +263,7 @@ const initialTasksState: TasksState = {
   totalPages: 1,
   lastSearch: { keyword: "", skill: "", ownerId: null, page: 1 },
   selectedId: null,
-  editorData: { title: "", description: "", is_published: false, skills: [], ps_functions: [] },
+  editorData: { title: "", description: "", is_published: false, skills: [], ps_functions: [], requirements: [] },
   hasUnsavedChanges: false,
   pendingSelectId: null,
 };

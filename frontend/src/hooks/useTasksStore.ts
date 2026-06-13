@@ -12,6 +12,24 @@ export interface TaskPublicItem {
   description_preview: string;
   skills: TaskPublicSkillItem[];
   attached_repo_name?: string | null;
+  latest_attempt?: TaskLatestAttempt | null;
+}
+
+export interface TaskRequirementItem {
+  id: number;
+  description: string;
+}
+
+export interface TaskFailedRequirementItem {
+  id: number | null;
+  description: string;
+}
+
+export interface TaskLatestAttempt {
+  repo_name: string;
+  completed_at: string | null;
+  successful: boolean;
+  failed_requirements: TaskFailedRequirementItem[];
 }
 
 export interface SkillLevelItem {

@@ -10,7 +10,13 @@ from sqlalchemy.orm import selectinload
 
 from .app import celery_app
 from ..analysis.analysers import RepositoryTooLargeError, analyzer
-from ..models import UserRepo, GitHubRepo, RepoSkill, SkillLevel, TaskHistory
+from ..models import (
+    UserRepo,
+    GitHubRepo,
+    RepoSkill,
+    TaskHistory,
+    TaskHistoryFailedRequirement,
+)
 from ..config import global_config
 from ..utils.logger import get_logger
 
@@ -42,6 +48,7 @@ async def _process_repository(
     task_id: int | None = None,
     skill_names: list[str] | None = None,
     task_description: str | None = None,
+    task_requirements: list[dict] | None = None,
 ):
     # изолированный engine для celery-задачи, чтобы не конфликтовать с event loop FastAPI
     task_engine = create_async_engine(
@@ -97,8 +104,24 @@ async def _process_repository(
                 repository_payload.payload,
                 skill_names=skill_names,
                 task_description=task_description,
+                task_requirements=task_requirements,
             )
-            extracted_skills = await analyzer.match_skills(db, extracted, analyzer.DISTANCE_TRESHOLD)
+            if extracted.failed_requirement_ids:
+                extracted_skills = []
+            else:
+                extracted_skills = await analyzer.match_skills(db, extracted.skills, analyzer.DISTANCE_TRESHOLD)
+
+            repo.analyzed_at = datetime.now(timezone.utc)
+            task_history = None
+            if task_id:
+                task_history = TaskHistory(
+                    user_id=user_id,
+                    task_id=task_id,
+                    repo_id=repo.id,
+                    completed_at=repo.analyzed_at,
+                )
+                db.add(task_history)
+                await db.flush()
 
             for match in extracted_skills:
                 skill_id = match["skill_id"]
@@ -112,17 +135,20 @@ async def _process_repository(
                     repo_id=repo.id, skill_id=skill_id, score=raw_score
                 )
                 db.add(repo_skill)
-                await db.commit()
 
-            repo.analyzed_at = datetime.now(timezone.utc)
-            if task_id:
-                db.add(TaskHistory(
-                    user_id=user_id,
-                    task_id=task_id,
-                    repo_id=repo.id,
-                    completed_at=repo.analyzed_at,
-                    successful=True,
-                ))
+            if task_history:
+                requirements_by_id = {
+                    int(item["id"]): item["description"]
+                    for item in task_requirements or []
+                }
+                failed_requirement_ids = extracted.failed_requirement_ids
+                if not extracted_skills and requirements_by_id and not failed_requirement_ids:
+                    failed_requirement_ids = list(requirements_by_id.keys())
+                for requirement_id in failed_requirement_ids:
+                    db.add(TaskHistoryFailedRequirement(
+                        task_history_id=task_history.id,
+                        task_requirement_id=requirement_id,
+                    ))
             await db.commit()
 
         # уведомление об успехе
@@ -235,10 +261,20 @@ def analyze_repository_task(
     task_id: int | None = None,
     skill_names: list[str] | None = None,
     task_description: str | None = None,
+    task_requirements: list[dict] | None = None,
 ):
     logger.debug(f"Начат процесс анализа репозитория {repo_name} (инициатор: {user_id})")
     try:
-        asyncio.run(_process_repository(user_id, repo_name, repo_url, previous_analyzed_at, task_id, skill_names, task_description))
+        asyncio.run(_process_repository(
+            user_id,
+            repo_name,
+            repo_url,
+            previous_analyzed_at,
+            task_id,
+            skill_names,
+            task_description,
+            task_requirements,
+        ))
         logger.debug(f"Процесс анализа репозитория {repo_name} завершён")
     except Exception as e:
         logger.error(f"Критическая ошибка в Celery-задаче для {repo_name}: {e}")

@@ -48,6 +48,16 @@ prompts:
     Context: This analysis is for a specific task described as follows: "{description}". 
     Use this context to better understand the purpose of the code and the relevance of the skills found.
 
+  task_requirements: |
+    The task has the following numbered requirements:
+    {requirements}
+
+    If the repository does not solve the requested task, solves a different problem, does not contain meaningful code,
+    does not use the requested technologies, or violates any listed requirement, treat the task as not completed.
+    For a not completed task, output an empty "skills" array and put the ids of all unmet listed requirements
+    into "failed_requirement_ids". If the task is completed and every requirement is met, use an empty
+    "failed_requirement_ids" array.
+
   scoring: |
     For each skill, provide an estimated proficiency score from 0 to 100, where:
       0 = complete novice, never used before
@@ -64,8 +74,9 @@ prompts:
     {{
       "skills": [
         {{"name": "SkillName", "score": 55}}
-      ]
+      ],
+      "failed_requirement_ids": [1, 2]
     }}
     
     If no skills found or repository is empty, output:
-    {{"skills": []}}
+    {{"skills": [], "failed_requirement_ids": []}}
