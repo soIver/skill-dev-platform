@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { LoadingText } from "./LoadingText";
 import type {
@@ -25,6 +25,21 @@ interface ClassifierTreeProps {
   onCreateProfStandard: () => void;
   onCreateGroup: (standard: ClassifierProfStandardTreeItem) => void;
   onCreateFunction: (standard: ClassifierProfStandardTreeItem, group: ClassifierGroupTreeItem) => void;
+  renderProfStandardMeta?: (item: ClassifierProfStandardTreeItem) => ReactNode;
+  renderGroupMeta?: (
+    standard: ClassifierProfStandardTreeItem,
+    group: ClassifierGroupTreeItem,
+  ) => ReactNode;
+  renderProfStandardActions?: (item: ClassifierProfStandardTreeItem) => ReactNode;
+  renderGroupActions?: (
+    standard: ClassifierProfStandardTreeItem,
+    group: ClassifierGroupTreeItem,
+  ) => ReactNode;
+  renderFunctionActions?: (
+    standard: ClassifierProfStandardTreeItem,
+    group: ClassifierGroupTreeItem,
+    item: ClassifierFunctionTreeItem,
+  ) => ReactNode;
 }
 
 export function ClassifierTree({
@@ -40,6 +55,11 @@ export function ClassifierTree({
   onCreateProfStandard,
   onCreateGroup,
   onCreateFunction,
+  renderProfStandardMeta,
+  renderGroupMeta,
+  renderProfStandardActions,
+  renderGroupActions,
+  renderFunctionActions,
 }: ClassifierTreeProps) {
   const defaultExpanded = useMemo(() => {
     const keys = new Set<string>();
@@ -118,9 +138,17 @@ export function ClassifierTree({
                       onClick={() => onSelectProfStandard(standard)}
                       className="flex-1 min-w-0 text-left"
                     >
-                      <span className="font-semibold mr-2">{formatPsCode(standard.code)}</span>
-                      <span className="align-bottom whitespace-normal wrap-break-word">{standard.name}</span>
+                      <span className="block">
+                        <span className="font-semibold mr-2">{formatPsCode(standard.code)}</span>
+                        <span className="align-bottom whitespace-normal wrap-break-word">{standard.name}</span>
+                      </span>
+                      {renderProfStandardMeta && (
+                        <span className="mt-0.5 block text-xs font-medium opacity-70">
+                          {renderProfStandardMeta(standard)}
+                        </span>
+                      )}
                     </button>
+                    {renderProfStandardActions?.(standard)}
                     {canEdit && (
                       <button
                         type="button"
@@ -154,9 +182,17 @@ export function ClassifierTree({
                                 onClick={() => onSelectGroup(standard, group)}
                                 className="flex-1 min-w-0 text-left"
                               >
-                                <span className="font-semibold mr-2">{group.code}</span>
-                                <span className="align-bottom whitespace-normal wrap-break-word">{group.name}</span>
+                                <span className="block">
+                                  <span className="font-semibold mr-2">{group.code}</span>
+                                  <span className="align-bottom whitespace-normal wrap-break-word">{group.name}</span>
+                                </span>
+                                {renderGroupMeta && (
+                                  <span className="mt-0.5 block text-xs font-medium opacity-70">
+                                    {renderGroupMeta(standard, group)}
+                                  </span>
+                                )}
                               </button>
+                              {renderGroupActions?.(standard, group)}
                               {canEdit && (
                                 <button
                                   type="button"
@@ -174,17 +210,22 @@ export function ClassifierTree({
                                 {group.functions.map((item) => {
                                   const functionKey = `function:${item.id}`;
                                   return (
-                                    <button
+                                    <div
                                       key={functionKey}
-                                      type="button"
-                                      onClick={() => onSelectFunction(standard, group, item)}
                                       className={rowClass(functionKey)}
                                     >
-                                      <span className="font-semibold shrink-0">
-                                        {formatTfCode(item.code, group.qualification_level)}
-                                      </span>
-                                      <span className="whitespace-normal wrap-break-word">{item.name}</span>
-                                    </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onSelectFunction(standard, group, item)}
+                                        className="flex flex-1 items-start gap-2 min-w-0 text-left"
+                                      >
+                                        <span className="font-semibold shrink-0">
+                                          {formatTfCode(item.code, group.qualification_level)}
+                                        </span>
+                                        <span className="whitespace-normal wrap-break-word">{item.name}</span>
+                                      </button>
+                                      {renderFunctionActions?.(standard, group, item)}
+                                    </div>
                                   );
                                 })}
                               </div>

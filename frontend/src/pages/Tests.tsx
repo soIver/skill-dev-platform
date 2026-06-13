@@ -44,15 +44,18 @@ export default function Tests() {
   const refreshedAfterAttemptRef = useRef(false);
   const {
     keywordInput,
+    onlyUnpassed,
     selectedPsFunctions,
     results,
     currentPage,
     totalPages,
     hasSearched,
     lastSearchKeyword,
+    lastSearchOnlyUnpassed,
     lastSearchSkillIds,
     lastSearchPsFunctionIds,
     setKeywordInput,
+    setOnlyUnpassed,
     setSelectedPsFunctions,
     setSearchState,
   } = useTestsStore();
@@ -63,7 +66,12 @@ export default function Tests() {
   const [selectedTest, setSelectedTest] = useState<TestPublicItem | null>(null);
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
 
-  const doSearch = useCallback(async (page: number, keyword: string, psFunctions = selectedPsFunctions) => {
+  const doSearch = useCallback(async (
+    page: number,
+    keyword: string,
+    psFunctions = selectedPsFunctions,
+    onlyUnpassedValue = onlyUnpassed,
+  ) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -71,6 +79,7 @@ export default function Tests() {
         limit: ITEMS_PER_PAGE.TESTS.toString(),
       });
       if (keyword.trim()) params.append("keyword", keyword.trim());
+      if (onlyUnpassedValue) params.append("only_unpassed", "true");
       for (const item of psFunctions) {
         params.append("ps_function_ids", String(item.id));
       }
@@ -81,6 +90,7 @@ export default function Tests() {
         totalPages: data.total_pages,
         hasSearched: true,
         lastSearchKeyword: keyword.trim(),
+        lastSearchOnlyUnpassed: onlyUnpassedValue,
         lastSearchSkillIds: [],
         lastSearchPsFunctionIds: psFunctions.map((item) => item.id),
       });
@@ -89,27 +99,28 @@ export default function Tests() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPsFunctions, setSearchState]);
+  }, [onlyUnpassed, selectedPsFunctions, setSearchState]);
 
   useEffect(() => {
     if (initialRefreshRef.current) return;
     initialRefreshRef.current = true;
     if (!hasSearched || lastSearchSkillIds.length > 0 || lastSearchPsFunctionIds.length > 0) {
-      doSearch(1, keywordInput, selectedPsFunctions);
+      doSearch(1, keywordInput, selectedPsFunctions, onlyUnpassed);
       return;
     }
-    doSearch(currentPage, lastSearchKeyword, selectedPsFunctions);
-  }, [currentPage, doSearch, hasSearched, keywordInput, lastSearchKeyword, lastSearchSkillIds.length, lastSearchPsFunctionIds.length, selectedPsFunctions]);
+    doSearch(currentPage, lastSearchKeyword, selectedPsFunctions, onlyUnpassed);
+  }, [currentPage, doSearch, hasSearched, keywordInput, lastSearchKeyword, lastSearchSkillIds.length, lastSearchPsFunctionIds.length, onlyUnpassed, selectedPsFunctions]);
 
-  const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions);
+  const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions, onlyUnpassed);
 
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedPsFunctions);
+    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedPsFunctions, onlyUnpassed);
   };
 
   const selectedPsFunctionIds = selectedPsFunctions.map((item) => item.id);
   const isSearchChanged =
     keywordInput.trim() !== lastSearchKeyword ||
+    onlyUnpassed !== lastSearchOnlyUnpassed ||
     lastSearchSkillIds.length > 0 ||
     selectedPsFunctionIds.length !== lastSearchPsFunctionIds.length ||
     !selectedPsFunctionIds.every((id) => lastSearchPsFunctionIds.includes(id));
@@ -143,8 +154,8 @@ export default function Tests() {
   useEffect(() => {
     if ((!attemptState?.forceRefresh && !attemptState?.skillLevelId) || refreshedAfterAttemptRef.current) return;
     refreshedAfterAttemptRef.current = true;
-    doSearch(currentPage, lastSearchKeyword || keywordInput, selectedPsFunctions);
-  }, [attemptState?.forceRefresh, attemptState?.skillLevelId, currentPage, doSearch, keywordInput, lastSearchKeyword, selectedPsFunctions]);
+    doSearch(currentPage, lastSearchKeyword || keywordInput, selectedPsFunctions, onlyUnpassed);
+  }, [attemptState?.forceRefresh, attemptState?.skillLevelId, currentPage, doSearch, keywordInput, lastSearchKeyword, onlyUnpassed, selectedPsFunctions]);
 
   useEffect(() => {
     if (restoredSelectionRef.current || !attemptState?.skillLevelId || results.length === 0) {
@@ -171,7 +182,7 @@ export default function Tests() {
         method: "POST",
       });
       if (!response.ok) {
-        await doSearch(currentPage, lastSearchKeyword || keywordInput);
+        await doSearch(currentPage, lastSearchKeyword || keywordInput, selectedPsFunctions, onlyUnpassed);
         return;
       }
       const attempt = await response.json() as { attempt_id: string };
@@ -218,6 +229,15 @@ export default function Tests() {
         <h1 className="text-3xl font-extrabold text-gray-800">Банк тестов</h1>
         <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для проверки теоретических основ</h2>
 
+        <label className="mb-3 ml-1 flex w-fit items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            checked={onlyUnpassed}
+            onChange={(event) => setOnlyUnpassed(event.target.checked)}
+            className="checkbox-field"
+          />
+          Искать только среди непройденных тестов
+        </label>
         <div className="flex gap-3 items-center mb-4 w-1/2 min-w-md">
           <input
             type="text"

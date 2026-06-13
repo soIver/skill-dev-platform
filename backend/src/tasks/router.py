@@ -235,6 +235,7 @@ async def search_tasks(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     only_published: bool = Query(False),
+    only_uncompleted: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
 ):
@@ -249,6 +250,15 @@ async def search_tasks(
     rank_expr = keyword_rank
     if ps_function_rank is not None:
         rank_expr = ps_function_rank if rank_expr is None else rank_expr + ps_function_rank
+    failed_requirements_exists = exists().where(
+        TaskHistoryFailedRequirement.task_history_id == TaskHistory.id
+    ).correlate(TaskHistory)
+    successful_task_attempt_exists = exists().where(
+        TaskHistory.task_id == Task.id,
+        TaskHistory.user_id == claims.user_id,
+        TaskHistory.completed_at.isnot(None),
+        ~failed_requirements_exists,
+    ).correlate(Task)
 
     # базовые условия
     if is_privileged and not only_published:
@@ -261,6 +271,8 @@ async def search_tasks(
         base_query = base_query.where(or_(*keyword_matches))
     if ps_function_rank is not None:
         base_query = base_query.where(ps_function_rank > 0)
+    if only_uncompleted:
+        base_query = base_query.where(~successful_task_attempt_exists)
     if resolved_author_id is not None:
         base_query = base_query.where(Task.author_id == resolved_author_id)
 
@@ -320,6 +332,8 @@ async def search_tasks(
             full_query = full_query.where(or_(*keyword_matches))
         if ps_function_rank is not None:
             full_query = full_query.where(ps_function_rank > 0)
+        if only_uncompleted:
+            full_query = full_query.where(~successful_task_attempt_exists)
         if resolved_author_id is not None:
             full_query = full_query.where(Task.author_id == resolved_author_id)
         if skill_sq is not None:

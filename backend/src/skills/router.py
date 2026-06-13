@@ -7,6 +7,7 @@ from .schemas import (
     SkillLevelDetail,
     SkillLevelUpdateRequest,
     UserSkillResponse,
+    UserPsFunctionsResponse,
 )
 from .service import SkillService
 from ..auth.utils import require_role, get_current_user
@@ -81,3 +82,12 @@ async def get_my_skills(
 ):
     """список навыков текущего пользователя"""
     return await SkillService(db).get_my_skills(user.user_id, page, limit)
+
+
+@router.get("/my-functions", response_model=UserPsFunctionsResponse)
+async def get_my_ps_functions(
+    db: AsyncSession = Depends(get_db),
+    user: TokenClaims = Depends(get_current_user),
+):
+    """дерево трудовых функций текущего пользователя"""
+    return await SkillService(db).get_my_ps_functions(user.user_id)

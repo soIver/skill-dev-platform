@@ -23,7 +23,7 @@ router = APIRouter(prefix="/classifier", tags=["Classifier"])
 async def get_classifier_tree(
     query: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    claims: TokenClaims = Depends(require_role("curator", "admin")),
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
 ):
     return await ClassifierService(db).get_tree(query)
 

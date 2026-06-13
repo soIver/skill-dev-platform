@@ -45,14 +45,17 @@ interface TaskDetail {
 export default function Tasks() {
   const {
     keywordInput,
+    onlyUncompleted,
     selectedPsFunctions,
     results,
     currentPage,
     totalPages,
     hasSearched,
     lastSearchKeyword,
+    lastSearchOnlyUncompleted,
     lastSearchPsFunctionIds,
     setKeywordInput,
+    setOnlyUncompleted,
     setSelectedPsFunctions,
     setSearchState,
     setTaskAnalysisStatus,
@@ -77,7 +80,12 @@ export default function Tasks() {
   const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
 
   // функция поиска только по кнопке или при смене страницы
-  const doSearch = useCallback(async (page: number, keyword: string, psFunctions = selectedPsFunctions) => {
+  const doSearch = useCallback(async (
+    page: number,
+    keyword: string,
+    psFunctions = selectedPsFunctions,
+    onlyUncompletedValue = onlyUncompleted,
+  ) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -86,6 +94,7 @@ export default function Tasks() {
         only_published: "true"
       });
       if (keyword.trim()) params.append("keyword", keyword.trim());
+      if (onlyUncompletedValue) params.append("only_uncompleted", "true");
       for (const item of psFunctions) {
         params.append("ps_function_ids", String(item.id));
       }
@@ -96,6 +105,7 @@ export default function Tasks() {
         totalPages: data.total_pages,
         hasSearched: true,
         lastSearchKeyword: keyword.trim(),
+        lastSearchOnlyUncompleted: onlyUncompletedValue,
         lastSearchPsFunctionIds: psFunctions.map((item) => item.id),
       });
     } catch (e) {
@@ -103,25 +113,26 @@ export default function Tasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPsFunctions, setSearchState]);
+  }, [onlyUncompleted, selectedPsFunctions, setSearchState]);
 
   // начальная загрузка первой страницы при монтировании
   useEffect(() => {
     if (!hasSearched) {
-      doSearch(1, keywordInput, selectedPsFunctions);
+      doSearch(1, keywordInput, selectedPsFunctions, onlyUncompleted);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions);
+  const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions, onlyUncompleted);
 
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedPsFunctions);
+    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedPsFunctions, onlyUncompleted);
   };
 
   const selectedPsFunctionIds = selectedPsFunctions.map((item) => item.id);
   const isSearchChanged =
     keywordInput.trim() !== lastSearchKeyword ||
+    onlyUncompleted !== lastSearchOnlyUncompleted ||
     selectedPsFunctionIds.length !== lastSearchPsFunctionIds.length ||
     !selectedPsFunctionIds.every((id) => lastSearchPsFunctionIds.includes(id));
 
@@ -305,11 +316,18 @@ export default function Tasks() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* sticky панель поиска — bg совпадает с фоном, без рамок */}
       <div className="sticky top-0 z-20 bg-gray-50 px-8 pt-6">
         <h1 className="text-3xl font-extrabold text-gray-800">Банк заданий</h1>
         <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для закрепления навыков на практике</h2>
-        {/* поле по названию/описанию + кнопка — занимают половину ширины, соотношение 3:1 */}
+        <label className="mb-3 ml-1 flex w-fit items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            checked={onlyUncompleted}
+            onChange={(event) => setOnlyUncompleted(event.target.checked)}
+            className="checkbox-field"
+          />
+          Искать только среди невыполненных заданий
+        </label>
         <div className="flex gap-3 items-center mb-4 w-1/2 min-w-md">
           <input
             type="text"

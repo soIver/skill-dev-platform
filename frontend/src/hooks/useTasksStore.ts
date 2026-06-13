@@ -41,14 +41,17 @@ export type TaskAnalysisStatus = "preparing" | "processing";
 
 interface TasksSearchStore {
   keywordInput: string;
+  onlyUncompleted: boolean;
   selectedPsFunctions: PsFunctionItem[];
   results: TaskPublicItem[];
   currentPage: number;
   totalPages: number;
   hasSearched: boolean;
   lastSearchKeyword: string;
+  lastSearchOnlyUncompleted: boolean;
   lastSearchPsFunctionIds: number[];
   setKeywordInput: (keywordInput: string) => void;
+  setOnlyUncompleted: (onlyUncompleted: boolean) => void;
   setSelectedPsFunctions: (selectedPsFunctions: PsFunctionItem[]) => void;
   setSearchState: (state: {
     results: TaskPublicItem[];
@@ -56,6 +59,7 @@ interface TasksSearchStore {
     totalPages: number;
     hasSearched: boolean;
     lastSearchKeyword: string;
+    lastSearchOnlyUncompleted: boolean;
     lastSearchPsFunctionIds: number[];
   }) => void;
   setTaskAnalysisStatus: (
@@ -69,12 +73,14 @@ interface TasksSearchStore {
 
 const initialState = {
   keywordInput: "",
+  onlyUncompleted: false,
   selectedPsFunctions: [],
   results: [],
   currentPage: 1,
   totalPages: 1,
   hasSearched: false,
   lastSearchKeyword: "",
+  lastSearchOnlyUncompleted: false,
   lastSearchPsFunctionIds: [] as number[],
 };
 
@@ -85,6 +91,7 @@ if (typeof window !== "undefined") {
 export const useTasksStore = create<TasksSearchStore>()((set) => ({
   ...initialState,
   setKeywordInput: (keywordInput) => set({ keywordInput }),
+  setOnlyUncompleted: (onlyUncompleted) => set({ onlyUncompleted }),
   setSelectedPsFunctions: (selectedPsFunctions) => set({ selectedPsFunctions }),
   setSearchState: (newState) => set((state) => {
     const currentTasksById = new Map(state.results.map((task) => [task.id, task]));

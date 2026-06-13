@@ -51,7 +51,7 @@ export function ActionMenu({ items, title = "Доступные действия
                  return (
                     <span
                       key={index}
-                      className="block px-4 py-2 text-sm text-gray-400 text-left cursor-not-allowed"
+                      className="block px-4 py-2 text-sm text-gray-400 text-left cursor-not-allowed whitespace-normal break-words leading-snug"
                       role="menuitem"
                     >
                       {item.label}
@@ -65,7 +65,7 @@ export function ActionMenu({ items, title = "Доступные действия
                     key={index}
                     to={item.to}
                     onClick={() => setIsOpen(false)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left whitespace-normal break-words leading-snug"
                     role="menuitem"
                   >
                     {item.label}
@@ -81,7 +81,7 @@ export function ActionMenu({ items, title = "Доступные действия
                     setIsOpen(false);
                     item.onClick?.();
                   }}
-                  className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
+                  className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left whitespace-normal break-words leading-snug"
                   role="menuitem"
                 >
                   {item.label}

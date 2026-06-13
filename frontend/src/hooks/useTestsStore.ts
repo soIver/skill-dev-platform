@@ -35,6 +35,7 @@ export interface TestPublicItem {
 
 interface TestsSearchStore {
   keywordInput: string;
+  onlyUnpassed: boolean;
   selectedSkills: SkillLevelItem[];
   selectedPsFunctions: PsFunctionItem[];
   results: TestPublicItem[];
@@ -42,9 +43,11 @@ interface TestsSearchStore {
   totalPages: number;
   hasSearched: boolean;
   lastSearchKeyword: string;
+  lastSearchOnlyUnpassed: boolean;
   lastSearchSkillIds: number[];
   lastSearchPsFunctionIds: number[];
   setKeywordInput: (keywordInput: string) => void;
+  setOnlyUnpassed: (onlyUnpassed: boolean) => void;
   setSelectedSkills: (selectedSkills: SkillLevelItem[]) => void;
   setSelectedPsFunctions: (selectedPsFunctions: PsFunctionItem[]) => void;
   setSearchState: (state: {
@@ -53,6 +56,7 @@ interface TestsSearchStore {
     totalPages: number;
     hasSearched: boolean;
     lastSearchKeyword: string;
+    lastSearchOnlyUnpassed: boolean;
     lastSearchSkillIds: number[];
     lastSearchPsFunctionIds: number[];
   }) => void;
@@ -61,6 +65,7 @@ interface TestsSearchStore {
 
 const initialState = {
   keywordInput: "",
+  onlyUnpassed: false,
   selectedSkills: [],
   selectedPsFunctions: [],
   results: [],
@@ -68,6 +73,7 @@ const initialState = {
   totalPages: 1,
   hasSearched: false,
   lastSearchKeyword: "",
+  lastSearchOnlyUnpassed: false,
   lastSearchSkillIds: [] as number[],
   lastSearchPsFunctionIds: [] as number[],
 };
@@ -75,6 +81,7 @@ const initialState = {
 export const useTestsStore = create<TestsSearchStore>()((set) => ({
   ...initialState,
   setKeywordInput: (keywordInput) => set({ keywordInput }),
+  setOnlyUnpassed: (onlyUnpassed) => set({ onlyUnpassed }),
   setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
   setSelectedPsFunctions: (selectedPsFunctions) => set({ selectedPsFunctions }),
   setSearchState: (state) => set(state),

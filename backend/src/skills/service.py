@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, func, and_, delete, update
+from sqlalchemy import select, func, and_, delete, update, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schemas import (
@@ -10,6 +10,8 @@ from .schemas import (
     SkillLevelDetail, LevelItem, SkillRelationItem,
     SkillLevelUpdateRequest,
     UserSkillResponse, UserSkillItem,
+    UserPsFunctionsResponse, UserPsFunctionItem,
+    UserPsFunctionsGroupItem, UserProfStandardItem,
 )
 from .utils import (
     get_level_index_normal, calculate_adjusted_score,
@@ -17,7 +19,9 @@ from .utils import (
 )
 from ..models import (
     Skill, Level, SkillLevel, RepoSkill, UserRepo, Test,
-    TestAttempt, SkillRelation, TestGroup,
+    TestAttempt, SkillRelation, TestGroup, TestPsFunction,
+    TaskHistory, TaskHistoryFailedRequirement, TaskPsFunction,
+    PsFunction, PsFunctionsGroup, ProfStandard,
 )
 from ..analysis.utils import get_embedding
 from ..auth.service import TokenClaims
@@ -689,3 +693,88 @@ class SkillService:
             level_name=level_name,
             confidence=round(confidence, 2),
         )
+
+    async def get_my_ps_functions(self, user_id: int) -> UserPsFunctionsResponse:
+        passed_test_function_ids_query = (
+            select(TestPsFunction.ps_function_id)
+            .join(TestGroup, TestPsFunction.test_group_id == TestGroup.id)
+            .join(Test, Test.test_group_id == TestGroup.id)
+            .join(TestAttempt, TestAttempt.test_id == Test.id)
+            .where(
+                TestAttempt.user_id == user_id,
+                Test.threshold_score.isnot(None),
+                TestAttempt.score >= Test.threshold_score,
+            )
+        )
+
+        failed_requirements_exist = exists().where(
+            TaskHistoryFailedRequirement.task_history_id == TaskHistory.id
+        )
+        completed_task_function_ids_query = (
+            select(TaskPsFunction.ps_function_id)
+            .join(TaskHistory, TaskPsFunction.task_id == TaskHistory.task_id)
+            .where(
+                TaskHistory.user_id == user_id,
+                TaskHistory.completed_at.isnot(None),
+                ~failed_requirements_exist,
+            )
+        )
+
+        function_ids_result = await self.db.execute(
+            passed_test_function_ids_query.union(completed_task_function_ids_query)
+        )
+        function_ids = [row[0] for row in function_ids_result.all()]
+        if not function_ids:
+            return UserPsFunctionsResponse(items=[])
+
+        result = await self.db.execute(
+            select(
+                ProfStandard.id.label("ps_id"),
+                ProfStandard.code.label("ps_code"),
+                ProfStandard.name.label("ps_name"),
+                PsFunctionsGroup.id.label("group_id"),
+                PsFunctionsGroup.code.label("group_code"),
+                PsFunctionsGroup.name.label("group_name"),
+                PsFunctionsGroup.qualification_level,
+                PsFunction.id.label("function_id"),
+                PsFunction.code.label("function_code"),
+                PsFunction.name.label("function_name"),
+            )
+            .join(PsFunctionsGroup, PsFunctionsGroup.ps_id == ProfStandard.id)
+            .join(PsFunction, PsFunction.ps_functions_group_id == PsFunctionsGroup.id)
+            .where(PsFunction.id.in_(function_ids))
+            .order_by(ProfStandard.code, PsFunctionsGroup.code, PsFunction.code)
+        )
+
+        standards: dict[int, UserProfStandardItem] = {}
+        groups_by_id: dict[int, UserPsFunctionsGroupItem] = {}
+        for row in result.all():
+            standard = standards.get(row.ps_id)
+            if standard is None:
+                standard = UserProfStandardItem(
+                    id=row.ps_id,
+                    code=row.ps_code,
+                    name=row.ps_name,
+                    groups=[],
+                )
+                standards[row.ps_id] = standard
+
+            group = groups_by_id.get(row.group_id)
+            if group is None:
+                group = UserPsFunctionsGroupItem(
+                    id=row.group_id,
+                    code=row.group_code,
+                    name=row.group_name,
+                    qualification_level=row.qualification_level,
+                    functions=[],
+                )
+                groups_by_id[row.group_id] = group
+                standard.groups.append(group)
+
+            group.functions.append(UserPsFunctionItem(
+                id=row.function_id,
+                code=row.function_code,
+                name=row.function_name,
+            ))
+
+        return UserPsFunctionsResponse(items=list(standards.values()))

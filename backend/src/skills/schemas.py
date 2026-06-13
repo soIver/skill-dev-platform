@@ -92,3 +92,28 @@ class UserSkillResponse(BaseModel):
     items: list[UserSkillItem]
     total_pages: int
     current_page: int
+
+
+class UserPsFunctionItem(BaseModel):
+    id: int
+    code: int
+    name: str
+
+
+class UserPsFunctionsGroupItem(BaseModel):
+    id: int
+    code: str
+    name: str
+    qualification_level: int
+    functions: list[UserPsFunctionItem]
+
+
+class UserProfStandardItem(BaseModel):
+    id: int
+    code: int
+    name: str
+    groups: list[UserPsFunctionsGroupItem]
+
+
+class UserPsFunctionsResponse(BaseModel):
+    items: list[UserProfStandardItem]

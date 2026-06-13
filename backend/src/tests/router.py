@@ -262,6 +262,7 @@ async def search_public_tests(
     keyword: str = Query(None),
     skill_level_ids: list[int] = Query(default=[]),
     ps_function_ids: list[int] = Query(default=[]),
+    only_unpassed: bool = Query(False),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -283,11 +284,27 @@ async def search_public_tests(
     rank_expr = keyword_rank
     if ps_function_rank is not None:
         rank_expr = ps_function_rank if rank_expr is None else rank_expr + ps_function_rank
+    passed_test_alias = aliased(Test)
+    passed_group_alias = aliased(TestGroup)
+    passed_skill_level_exists = (
+        select(passed_test_alias.id)
+        .join(passed_group_alias, passed_test_alias.test_group_id == passed_group_alias.id)
+        .join(TestAttempt, TestAttempt.test_id == passed_test_alias.id)
+        .where(
+            TestAttempt.user_id == claims.user_id,
+            passed_group_alias.skill_level_id == SkillLevel.id,
+            passed_test_alias.threshold_score.isnot(None),
+            TestAttempt.score >= passed_test_alias.threshold_score,
+        )
+        .exists()
+    )
 
     if keyword_matches:
         filters.append(or_(*keyword_matches))
     if ps_function_rank is not None:
         filters.append(ps_function_rank > 0)
+    if only_unpassed:
+        filters.append(~passed_skill_level_exists)
     if skill_level_ids:
         filters.append(SkillLevel.id.in_(skill_level_ids))
 
