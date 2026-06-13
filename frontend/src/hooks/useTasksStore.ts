@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { PsFunctionItem } from "./useContentStore";
 
 export interface TaskPublicSkillItem {
   skill_level_id: number;
@@ -38,30 +39,24 @@ export interface TaskLatestAttempt {
 
 export type TaskAnalysisStatus = "preparing" | "processing";
 
-export interface SkillLevelItem {
-  id: number;
-  skill_name: string;
-  level_name: string;
-}
-
 interface TasksSearchStore {
   keywordInput: string;
-  selectedSkills: SkillLevelItem[];
+  selectedPsFunctions: PsFunctionItem[];
   results: TaskPublicItem[];
   currentPage: number;
   totalPages: number;
   hasSearched: boolean;
   lastSearchKeyword: string;
-  lastSearchSkillIds: number[];
+  lastSearchPsFunctionIds: number[];
   setKeywordInput: (keywordInput: string) => void;
-  setSelectedSkills: (selectedSkills: SkillLevelItem[]) => void;
+  setSelectedPsFunctions: (selectedPsFunctions: PsFunctionItem[]) => void;
   setSearchState: (state: {
     results: TaskPublicItem[];
     currentPage: number;
     totalPages: number;
     hasSearched: boolean;
     lastSearchKeyword: string;
-    lastSearchSkillIds: number[];
+    lastSearchPsFunctionIds: number[];
   }) => void;
   setTaskAnalysisStatus: (
     taskId: number,
@@ -74,13 +69,13 @@ interface TasksSearchStore {
 
 const initialState = {
   keywordInput: "",
-  selectedSkills: [],
+  selectedPsFunctions: [],
   results: [],
   currentPage: 1,
   totalPages: 1,
   hasSearched: false,
   lastSearchKeyword: "",
-  lastSearchSkillIds: [] as number[],
+  lastSearchPsFunctionIds: [] as number[],
 };
 
 if (typeof window !== "undefined") {
@@ -90,7 +85,7 @@ if (typeof window !== "undefined") {
 export const useTasksStore = create<TasksSearchStore>()((set) => ({
   ...initialState,
   setKeywordInput: (keywordInput) => set({ keywordInput }),
-  setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
+  setSelectedPsFunctions: (selectedPsFunctions) => set({ selectedPsFunctions }),
   setSearchState: (newState) => set((state) => {
     const currentTasksById = new Map(state.results.map((task) => [task.id, task]));
     return {

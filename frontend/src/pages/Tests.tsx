@@ -7,7 +7,9 @@ import { config, ITEMS_PER_PAGE, TEST } from "../config";
 import { BentoSearch } from "../components/BentoSearch";
 import { LoadingText } from "../components/LoadingText";
 import { Pagination } from "../components/Pagination";
+import { PsFunctionSelectorField } from "../components/PsFunctionSelectorField";
 import { TestCard } from "../components/TestCard";
+import { useClassifierTree } from "../hooks/useClassifierTree";
 import { useTestsStore, type TestPublicItem, type TestPublicLevelItem } from "../hooks/useTestsStore";
 
 interface TestPublicSearchResponse {
@@ -42,22 +44,26 @@ export default function Tests() {
   const refreshedAfterAttemptRef = useRef(false);
   const {
     keywordInput,
+    selectedPsFunctions,
     results,
     currentPage,
     totalPages,
     hasSearched,
     lastSearchKeyword,
     lastSearchSkillIds,
+    lastSearchPsFunctionIds,
     setKeywordInput,
+    setSelectedPsFunctions,
     setSearchState,
   } = useTestsStore();
 
+  const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
   const [isLoading, setIsLoading] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedTest, setSelectedTest] = useState<TestPublicItem | null>(null);
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
 
-  const doSearch = useCallback(async (page: number, keyword: string) => {
+  const doSearch = useCallback(async (page: number, keyword: string, psFunctions = selectedPsFunctions) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -65,6 +71,9 @@ export default function Tests() {
         limit: ITEMS_PER_PAGE.TESTS.toString(),
       });
       if (keyword.trim()) params.append("keyword", keyword.trim());
+      for (const item of psFunctions) {
+        params.append("ps_function_ids", String(item.id));
+      }
       const data = await authJson<TestPublicSearchResponse>(`/tests/public?${params.toString()}`);
       setSearchState({
         results: data.items,
@@ -73,31 +82,37 @@ export default function Tests() {
         hasSearched: true,
         lastSearchKeyword: keyword.trim(),
         lastSearchSkillIds: [],
+        lastSearchPsFunctionIds: psFunctions.map((item) => item.id),
       });
     } catch (error) {
       console.error("Failed to search tests", error);
     } finally {
       setIsLoading(false);
     }
-  }, [setSearchState]);
+  }, [selectedPsFunctions, setSearchState]);
 
   useEffect(() => {
     if (initialRefreshRef.current) return;
     initialRefreshRef.current = true;
-    if (!hasSearched || lastSearchSkillIds.length > 0) {
-      doSearch(1, keywordInput);
+    if (!hasSearched || lastSearchSkillIds.length > 0 || lastSearchPsFunctionIds.length > 0) {
+      doSearch(1, keywordInput, selectedPsFunctions);
       return;
     }
-    doSearch(currentPage, lastSearchKeyword);
-  }, [currentPage, doSearch, hasSearched, keywordInput, lastSearchKeyword, lastSearchSkillIds.length]);
+    doSearch(currentPage, lastSearchKeyword, selectedPsFunctions);
+  }, [currentPage, doSearch, hasSearched, keywordInput, lastSearchKeyword, lastSearchSkillIds.length, lastSearchPsFunctionIds.length, selectedPsFunctions]);
 
-  const handleSearch = () => doSearch(1, keywordInput);
+  const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions);
 
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput);
+    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedPsFunctions);
   };
 
-  const isSearchChanged = keywordInput.trim() !== lastSearchKeyword || lastSearchSkillIds.length > 0;
+  const selectedPsFunctionIds = selectedPsFunctions.map((item) => item.id);
+  const isSearchChanged =
+    keywordInput.trim() !== lastSearchKeyword ||
+    lastSearchSkillIds.length > 0 ||
+    selectedPsFunctionIds.length !== lastSearchPsFunctionIds.length ||
+    !selectedPsFunctionIds.every((id) => lastSearchPsFunctionIds.includes(id));
 
   const openTestDetails = (test: TestPublicItem, level: TestPublicLevelItem) => {
     setSelectedTest(test);
@@ -128,8 +143,8 @@ export default function Tests() {
   useEffect(() => {
     if ((!attemptState?.forceRefresh && !attemptState?.skillLevelId) || refreshedAfterAttemptRef.current) return;
     refreshedAfterAttemptRef.current = true;
-    doSearch(currentPage, lastSearchKeyword || keywordInput);
-  }, [attemptState?.forceRefresh, attemptState?.skillLevelId, currentPage, doSearch, keywordInput, lastSearchKeyword]);
+    doSearch(currentPage, lastSearchKeyword || keywordInput, selectedPsFunctions);
+  }, [attemptState?.forceRefresh, attemptState?.skillLevelId, currentPage, doSearch, keywordInput, lastSearchKeyword, selectedPsFunctions]);
 
   useEffect(() => {
     if (restoredSelectionRef.current || !attemptState?.skillLevelId || results.length === 0) {
@@ -221,6 +236,14 @@ export default function Tests() {
             {isLoading ? <LoadingText text="Поиск..." /> : "Найти"}
           </button>
         </div>
+
+        <PsFunctionSelectorField
+          items={classifierTree}
+          selectedFunctions={selectedPsFunctions}
+          isLoading={isClassifierLoading}
+          maxSelected={null}
+          onChange={setSelectedPsFunctions}
+        />
 
         <div className="h-6 pointer-events-none bg-linear-to-b from-gray-50 to-transparent" />
       </div>

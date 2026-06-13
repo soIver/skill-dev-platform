@@ -36,6 +36,48 @@ def _unique_ids(ids: list[int]) -> list[int]:
     return list(dict.fromkeys(ids))
 
 
+def _split_search_terms(keyword: str | None) -> list[str]:
+    if not keyword:
+        return []
+    return list(dict.fromkeys(
+        term.strip()
+        for term in keyword.split(",")
+        if term.strip()
+    ))
+
+
+def _sum_rank(expressions: list):
+    rank = None
+    for expression in expressions:
+        value = case((expression, 1), else_=0)
+        rank = value if rank is None else rank + value
+    return rank
+
+
+def _public_test_keyword_match(term: str):
+    pattern = f"%{term}%"
+    return or_(
+        Skill.name.ilike(pattern),
+        Level.name.ilike(pattern),
+        TestGroup.description.ilike(pattern),
+        func.concat(Skill.name, " - ", Level.name).ilike(pattern),
+    )
+
+
+def _test_group_ps_function_rank(ps_function_ids: list[int]):
+    if not ps_function_ids:
+        return None
+    return (
+        select(func.count(func.distinct(TestPsFunction.ps_function_id)))
+        .where(
+            TestPsFunction.test_group_id == TestGroup.id,
+            TestPsFunction.ps_function_id.in_(ps_function_ids),
+        )
+        .correlate(TestGroup)
+        .scalar_subquery()
+    )
+
+
 async def _load_test_group_ps_functions(db: AsyncSession, group_ids: list[int]) -> dict[int, list[PsFunctionItem]]:
     if not group_ids:
         return {}
@@ -219,6 +261,7 @@ async def search_tests(
 async def search_public_tests(
     keyword: str = Query(None),
     skill_level_ids: list[int] = Query(default=[]),
+    ps_function_ids: list[int] = Query(default=[]),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -234,19 +277,25 @@ async def search_public_tests(
     )
 
     filters = []
-    if keyword:
-        trimmed_keyword = keyword.strip()
-        if trimmed_keyword:
-            filters.append(or_(
-                Skill.name.ilike(f"%{trimmed_keyword}%"),
-                Level.name.ilike(f"%{trimmed_keyword}%"),
-                TestGroup.description.ilike(f"%{trimmed_keyword}%"),
-            ))
+    keyword_matches = [_public_test_keyword_match(term) for term in _split_search_terms(keyword)]
+    keyword_rank = _sum_rank(keyword_matches)
+    ps_function_rank = _test_group_ps_function_rank(_unique_ids(ps_function_ids))
+    rank_expr = keyword_rank
+    if ps_function_rank is not None:
+        rank_expr = ps_function_rank if rank_expr is None else rank_expr + ps_function_rank
+
+    if keyword_matches:
+        filters.append(or_(*keyword_matches))
+    if ps_function_rank is not None:
+        filters.append(ps_function_rank > 0)
     if skill_level_ids:
         filters.append(SkillLevel.id.in_(skill_level_ids))
 
     matching_skill_ids = (
-        select(Skill.id)
+        select(
+            Skill.id,
+            func.sum(rank_expr if rank_expr is not None else 0).label("rank"),
+        )
         .join(SkillLevel, SkillLevel.skill_id == Skill.id)
         .join(latest_published_tests, latest_published_tests.c.skill_level_id == SkillLevel.id)
         .join(Test, Test.id == latest_published_tests.c.test_id)
@@ -261,12 +310,15 @@ async def search_public_tests(
     total_pages = (total_count + limit - 1) // limit if total_count else 1
 
     skills_query = (
-        select(Skill.id, Skill.name)
-        .where(Skill.id.in_(select(matching_skill_ids.c.id)))
-        .order_by(Skill.name)
+        select(Skill.id, Skill.name, matching_skill_ids.c.rank)
+        .join(matching_skill_ids, matching_skill_ids.c.id == Skill.id)
         .offset((page - 1) * limit)
         .limit(limit)
     )
+    if filters:
+        skills_query = skills_query.order_by(matching_skill_ids.c.rank.desc(), Skill.name)
+    else:
+        skills_query = skills_query.order_by(Skill.name)
     skills_result = await db.execute(skills_query)
     skill_rows = skills_result.all()
     skill_ids = [row.id for row in skill_rows]
@@ -307,6 +359,8 @@ async def search_public_tests(
         .where(Skill.id.in_(skill_ids))
         .order_by(Skill.name, SkillLevel.order_index, Level.name)
     )
+    if filters:
+        levels_query = levels_query.where(*filters)
     levels_result = await db.execute(levels_query)
     level_rows = levels_result.all()
     latest_attempts = await get_latest_attempts_by_skill_level(

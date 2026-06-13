@@ -7,11 +7,12 @@ import { AutocompleteSearch } from "../components/AutocompleteSearch";
 import { Pagination } from "../components/Pagination";
 import { LoadingText } from "../components/LoadingText";
 import { TaskCard } from "../components/TaskCard";
+import { PsFunctionSelectorField } from "../components/PsFunctionSelectorField";
 import { useToast } from "../components/ToastProvider";
 import { useRepositoriesStore, type RepoItem } from "../hooks/useRepositoriesStore";
+import { useClassifierTree } from "../hooks/useClassifierTree";
 import {
   useTasksStore,
-  type SkillLevelItem,
   type TaskLatestAttempt,
   type TaskPublicItem,
   type TaskPublicSkillItem,
@@ -26,11 +27,6 @@ interface TaskPublicSearchResponse {
   items: TaskPublicItem[];
   total_pages: number;
   current_page: number;
-}
-
-interface SkillLevelSearchResponse {
-  items: SkillLevelItem[];
-  total_pages: number;
 }
 
 interface TaskDetail {
@@ -49,15 +45,15 @@ interface TaskDetail {
 export default function Tasks() {
   const {
     keywordInput,
-    selectedSkills,
+    selectedPsFunctions,
     results,
     currentPage,
     totalPages,
     hasSearched,
     lastSearchKeyword,
-    lastSearchSkillIds,
+    lastSearchPsFunctionIds,
     setKeywordInput,
-    setSelectedSkills,
+    setSelectedPsFunctions,
     setSearchState,
     setTaskAnalysisStatus,
   } = useTasksStore();
@@ -78,9 +74,10 @@ export default function Tasks() {
     updateRepoStatus,
   } = useRepositoriesStore();
   const githubProfile = useUserStore((state) => state.githubProfile);
+  const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
 
   // функция поиска только по кнопке или при смене страницы
-  const doSearch = useCallback(async (page: number, keyword: string, skills: SkillLevelItem[]) => {
+  const doSearch = useCallback(async (page: number, keyword: string, psFunctions = selectedPsFunctions) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -89,8 +86,8 @@ export default function Tasks() {
         only_published: "true"
       });
       if (keyword.trim()) params.append("keyword", keyword.trim());
-      for (const s of skills) {
-        params.append("skill_level_ids", String(s.id));
+      for (const item of psFunctions) {
+        params.append("ps_function_ids", String(item.id));
       }
       const data = await authJson<TaskPublicSearchResponse>(`/tasks?${params.toString()}`);
       setSearchState({
@@ -99,61 +96,34 @@ export default function Tasks() {
         totalPages: data.total_pages,
         hasSearched: true,
         lastSearchKeyword: keyword.trim(),
-        lastSearchSkillIds: skills.map((skill) => skill.id),
+        lastSearchPsFunctionIds: psFunctions.map((item) => item.id),
       });
     } catch (e) {
       console.error("Failed to search tasks", e);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedPsFunctions, setSearchState]);
 
   // начальная загрузка первой страницы при монтировании
   useEffect(() => {
     if (!hasSearched) {
-      doSearch(1, keywordInput, selectedSkills);
+      doSearch(1, keywordInput, selectedPsFunctions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSearch = () => doSearch(1, keywordInput, selectedSkills);
+  const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions);
 
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedSkills);
+    if (page >= 1 && page <= totalPages) doSearch(page, keywordInput, selectedPsFunctions);
   };
 
+  const selectedPsFunctionIds = selectedPsFunctions.map((item) => item.id);
   const isSearchChanged =
     keywordInput.trim() !== lastSearchKeyword ||
-    selectedSkills.length !== lastSearchSkillIds.length ||
-    !selectedSkills.every(s => lastSearchSkillIds.includes(s.id));
-
-  // поиск навыков для BentoSearch
-  const fetchSkillLevels = useCallback(async (query: string): Promise<SkillLevelItem[]> => {
-    const params = new URLSearchParams();
-    if (query.includes(" - ")) {
-      const [skill, level] = query.split(" - ", 2);
-      if (skill) params.append("skill", skill.trim());
-      if (level) params.append("level", level.trim());
-    } else {
-      if (query) params.append("skill", query.trim());
-    }
-    const data = await authJson<SkillLevelSearchResponse>(`/skills/skill_levels?${params.toString()}`);
-    return data.items;
-  }, []);
-
-  // фильтрация: не добавляем только точные дубликаты одного и того же уровня
-  const fetchSkillsForSearch = useCallback(async (query: string): Promise<SkillLevelItem[]> => {
-    const items = await fetchSkillLevels(query);
-    return items.filter(item => !selectedSkills.some(s => s.id === item.id));
-  }, [fetchSkillLevels, selectedSkills]);
-
-  const handleAddSkill = (item: SkillLevelItem) => {
-    setSelectedSkills([...selectedSkills, item]);
-  };
-
-  const handleRemoveSkill = (item: SkillLevelItem) => {
-    setSelectedSkills(selectedSkills.filter((skill) => skill.id !== item.id));
-  };
+    selectedPsFunctionIds.length !== lastSearchPsFunctionIds.length ||
+    !selectedPsFunctionIds.every((id) => lastSearchPsFunctionIds.includes(id));
 
   const openTaskDetails = async (taskId: number) => {
     setIsTaskLoading(true);
@@ -348,7 +318,7 @@ export default function Tasks() {
             onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
             maxLength={TASK.SEARCH_KEYWORDS.MAX_LENGTH}
             className="input-field mt-0! flex-3"
-            placeholder="Поиск по названию и описанию"
+            placeholder="Поиск по названию, описанию или навыку"
           />
           <button
             onClick={handleSearch}
@@ -359,35 +329,13 @@ export default function Tasks() {
           </button>
         </div>
 
-        {/* бенто поиск по навыкам — overflow-visible чтобы дропдаун не обрезался */}
-        <div className="pb-4 overflow-visible">
-          <BentoSearch<SkillLevelItem, SkillLevelItem>
-            items={selectedSkills}
-            itemToString={(s) => `${s.skill_name} - ${s.level_name}`}
-            itemToId={(s) => s.id}
-            renderItem={(s) => (
-              <>
-                {s.skill_name} - <span className="opacity-70">{s.level_name}</span>
-              </>
-            )}
-            prefixTitle="Навыки"
-            reorderEnabled={false}
-            closeable={true}
-            customSelectLogic={false}
-            onRemove={handleRemoveSkill}
-            onSearch={fetchSkillsForSearch}
-            onAdd={handleAddSkill}
-            searchItemToString={(s) => `${s.skill_name} - ${s.level_name}`}
-            renderSearchItem={(s) => (
-              <>
-                {s.skill_name} - <span className="text-gray-500">{s.level_name}</span>
-              </>
-            )}
-            placeholder="Название навыка"
-            buttonText="Добавить"
-            debounceMs={SEARCH_DEBOUNCE_MS}
-          />
-        </div>
+        <PsFunctionSelectorField
+          items={classifierTree}
+          selectedFunctions={selectedPsFunctions}
+          isLoading={isClassifierLoading}
+          maxSelected={null}
+          onChange={setSelectedPsFunctions}
+        />
 
         {/* градиент начинается ровно там, где кончается панель поиска */}
         <div className="h-6 pointer-events-none bg-linear-to-b from-gray-50 to-transparent" />
@@ -480,7 +428,7 @@ export default function Tasks() {
                         <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">
                           Навыки
                         </h4>
-                        <BentoSearch<TaskPublicSkillItem, SkillLevelItem>
+                        <BentoSearch<TaskPublicSkillItem, { id: number; skill_name: string; level_name: string }>
                           items={selectedTask.skills}
                           itemToString={(skill) => `${skill.skill_name} - ${skill.level_name}`}
                           itemToId={(skill) => skill.skill_level_id}
@@ -492,7 +440,7 @@ export default function Tasks() {
                           reorderEnabled={false}
                           closeable={false}
                           customSelectLogic={false}
-                          onSearch={async () => [] as SkillLevelItem[]}
+                          onSearch={async () => []}
                           onAdd={() => undefined}
                           searchItemToString={(skill) => `${skill.skill_name} - ${skill.level_name}`}
                           hideSearch={true}

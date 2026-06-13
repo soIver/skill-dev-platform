@@ -1,6 +1,11 @@
 import { create } from "zustand";
+import type { PsFunctionItem } from "./useContentStore";
 
-import type { SkillLevelItem } from "./useTasksStore";
+export interface SkillLevelItem {
+  id: number;
+  skill_name: string;
+  level_name: string;
+}
 
 export interface TestPublicLevelItem {
   id: number;
@@ -31,14 +36,17 @@ export interface TestPublicItem {
 interface TestsSearchStore {
   keywordInput: string;
   selectedSkills: SkillLevelItem[];
+  selectedPsFunctions: PsFunctionItem[];
   results: TestPublicItem[];
   currentPage: number;
   totalPages: number;
   hasSearched: boolean;
   lastSearchKeyword: string;
   lastSearchSkillIds: number[];
+  lastSearchPsFunctionIds: number[];
   setKeywordInput: (keywordInput: string) => void;
   setSelectedSkills: (selectedSkills: SkillLevelItem[]) => void;
+  setSelectedPsFunctions: (selectedPsFunctions: PsFunctionItem[]) => void;
   setSearchState: (state: {
     results: TestPublicItem[];
     currentPage: number;
@@ -46,6 +54,7 @@ interface TestsSearchStore {
     hasSearched: boolean;
     lastSearchKeyword: string;
     lastSearchSkillIds: number[];
+    lastSearchPsFunctionIds: number[];
   }) => void;
   resetSearchState: () => void;
 }
@@ -53,18 +62,21 @@ interface TestsSearchStore {
 const initialState = {
   keywordInput: "",
   selectedSkills: [],
+  selectedPsFunctions: [],
   results: [],
   currentPage: 1,
   totalPages: 1,
   hasSearched: false,
   lastSearchKeyword: "",
   lastSearchSkillIds: [] as number[],
+  lastSearchPsFunctionIds: [] as number[],
 };
 
 export const useTestsStore = create<TestsSearchStore>()((set) => ({
   ...initialState,
   setKeywordInput: (keywordInput) => set({ keywordInput }),
   setSelectedSkills: (selectedSkills) => set({ selectedSkills }),
+  setSelectedPsFunctions: (selectedPsFunctions) => set({ selectedPsFunctions }),
   setSearchState: (state) => set(state),
   resetSearchState: () => set(initialState),
 }));

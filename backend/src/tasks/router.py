@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, or_, exists
+from sqlalchemy import select, func, delete, or_, exists, case
 from sqlalchemy.orm import selectinload
 
 from ..auth.utils import require_role, resolve_author_filter
@@ -170,11 +170,67 @@ async def _sync_task_requirements(db: AsyncSession, task_id: int, data: TaskCrea
     if stale_ids:
         await db.execute(delete(TaskRequirement).where(TaskRequirement.id.in_(stale_ids)))
 
+
+def _split_search_terms(keyword: str | None) -> list[str]:
+    if not keyword:
+        return []
+    return list(dict.fromkeys(
+        term.strip()
+        for term in keyword.split(",")
+        if term.strip()
+    ))
+
+
+def _task_keyword_match(term: str):
+    pattern = f"%{term}%"
+    skill_level_match = (
+        select(SkillLevelTask.task_id)
+        .join(SkillLevel, SkillLevelTask.skill_level_id == SkillLevel.id)
+        .join(Skill, SkillLevel.skill_id == Skill.id)
+        .join(Level, SkillLevel.level_id == Level.id)
+        .where(SkillLevelTask.task_id == Task.id)
+        .where(or_(
+            Skill.name.ilike(pattern),
+            Level.name.ilike(pattern),
+            func.concat(Skill.name, " - ", Level.name).ilike(pattern),
+        ))
+        .exists()
+    )
+    return or_(
+        Task.title.ilike(pattern),
+        Task.description.ilike(pattern),
+        skill_level_match,
+    )
+
+
+def _sum_rank(expressions: list):
+    rank = None
+    for expression in expressions:
+        value = case((expression, 1), else_=0)
+        rank = value if rank is None else rank + value
+    return rank
+
+
+def _task_ps_function_rank(ps_function_ids: list[int]):
+    if not ps_function_ids:
+        return None
+    return (
+        select(func.count(func.distinct(TaskPsFunction.ps_function_id)))
+        .where(
+            TaskPsFunction.task_id == Task.id,
+            TaskPsFunction.ps_function_id.in_(ps_function_ids),
+        )
+        .correlate(Task)
+        .scalar_subquery()
+    )
+
+
 @router.get("/tasks")
 async def search_tasks(
     keyword: str = Query(None),
     skill_query: str = Query(None),
     skill_level_ids: list[int] = Query(default=[]),
+    ps_function_ids: list[int] = Query(default=[]),
     author_id: int | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -186,6 +242,13 @@ async def search_tasks(
     is_privileged = claims.role in ("curator", "admin")
     resolved_author_id = resolve_author_filter(claims, author_id) if is_privileged else None
     skill_level_sq = None
+    unique_ps_function_ids = _unique_ids(ps_function_ids)
+    keyword_matches = [_task_keyword_match(term) for term in _split_search_terms(keyword)]
+    keyword_rank = _sum_rank(keyword_matches)
+    ps_function_rank = _task_ps_function_rank(unique_ps_function_ids)
+    rank_expr = keyword_rank
+    if ps_function_rank is not None:
+        rank_expr = ps_function_rank if rank_expr is None else rank_expr + ps_function_rank
 
     # базовые условия
     if is_privileged and not only_published:
@@ -194,8 +257,10 @@ async def search_tasks(
         # пользователи (или принудительно) видят только опубликованные задания
         base_query = select(Task).where(Task.is_published == True)
 
-    if keyword:
-        base_query = base_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
+    if keyword_matches:
+        base_query = base_query.where(or_(*keyword_matches))
+    if ps_function_rank is not None:
+        base_query = base_query.where(ps_function_rank > 0)
     if resolved_author_id is not None:
         base_query = base_query.where(Task.author_id == resolved_author_id)
 
@@ -251,8 +316,10 @@ async def search_tasks(
             issued_count_sq.label("issued_count"),
             completed_count_sq.label("completed_count")
         )
-        if keyword:
-            full_query = full_query.where(or_(Task.title.ilike(f"%{keyword}%"), Task.description.ilike(f"%{keyword}%")))
+        if keyword_matches:
+            full_query = full_query.where(or_(*keyword_matches))
+        if ps_function_rank is not None:
+            full_query = full_query.where(ps_function_rank > 0)
         if resolved_author_id is not None:
             full_query = full_query.where(Task.author_id == resolved_author_id)
         if skill_sq is not None:
@@ -262,10 +329,15 @@ async def search_tasks(
         if not is_privileged or only_published:
             full_query = full_query.where(Task.is_published == True)
 
+        order_by = []
+        if rank_expr is not None:
+            order_by.append(rank_expr.desc())
+        order_by.extend([issued_count_sq.desc(), Task.id])
+
         full_query = full_query.options(
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.skill),
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.level)
-        ).order_by(issued_count_sq.desc(), Task.id)
+        ).order_by(*order_by)
         full_query = full_query.offset((page - 1) * limit).limit(limit)
         result = await db.execute(full_query)
         rows = result.all()
@@ -305,10 +377,15 @@ async def search_tasks(
 
     else:
         # публичный ответ
+        order_by = []
+        if rank_expr is not None:
+            order_by.append(rank_expr.desc())
+        order_by.append(Task.id)
+
         base_query = base_query.options(
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.skill),
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.level)
-        ).order_by(Task.id).offset((page - 1) * limit).limit(limit)
+        ).order_by(*order_by).offset((page - 1) * limit).limit(limit)
 
         result = await db.execute(base_query)
         tasks = result.scalars().all()

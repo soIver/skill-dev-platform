@@ -12,7 +12,7 @@ interface PsFunctionSelectorFieldProps {
   onChange: (items: PsFunctionItem[]) => void;
   isLoading?: boolean;
   error?: string;
-  maxSelected?: number;
+  maxSelected?: number | null;
 }
 
 export function PsFunctionSelectorField({

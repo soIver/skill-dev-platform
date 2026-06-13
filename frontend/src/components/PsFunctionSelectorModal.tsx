@@ -15,7 +15,7 @@ interface PsFunctionSelectorModalProps {
   items: ClassifierProfStandardTreeItem[];
   selectedIds: number[];
   isLoading?: boolean;
-  maxSelected?: number;
+  maxSelected?: number | null;
   onConfirm: (ids: number[]) => void;
   onCancel: () => void;
 }
@@ -73,7 +73,7 @@ export function PsFunctionSelectorModal({
   const defaultExpanded = useMemo(() => getDefaultExpanded(filteredItems), [filteredItems]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => getDefaultExpanded(filteredItems));
   const selectedCount = draftIds.size;
-  const error = selectedCount > maxSelected ? `Можно выбрать не более ${maxSelected} трудовых функций` : "";
+  const error = maxSelected !== null && selectedCount > maxSelected ? `Можно выбрать не более ${maxSelected} трудовых функций` : "";
 
   useEffect(() => {
     setExpandedKeys(defaultExpanded);
@@ -290,7 +290,7 @@ export function PsFunctionSelectorModal({
 
         <div className="mt-4 flex items-center justify-between gap-3 shrink-0">
           <span className={`text-sm ${error ? "text-danger" : "text-gray-500"}`}>
-            Выбрано {selectedCount}/{maxSelected}
+            {maxSelected === null ? `Выбрано ${selectedCount}` : `Выбрано ${selectedCount}/${maxSelected}`}
           </span>
           <div className="flex gap-3">
             <button
