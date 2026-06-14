@@ -17,6 +17,7 @@ from ..models import (
     TaskHistory,
     TaskHistoryFailedRequirement,
 )
+from ..recommendations.service import RecommendationService
 from ..config import global_config
 from ..utils.logger import get_logger
 
@@ -35,6 +36,21 @@ async def _publish_notification(user_id: int, payload: dict):
     )
     try:
         await redis.publish(f"notifications:{user_id}", json.dumps(payload))
+    finally:
+        await redis.aclose()
+
+
+async def _complete_task_recommendation(db: AsyncSession, user_id: int, task_id: int):
+    if not global_config.REDIS_URL:
+        return
+    redis = redis_from_url(
+        global_config.REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+    )
+    try:
+        await RecommendationService(db, redis).complete_task_recommendation(user_id, task_id)
     finally:
         await redis.aclose()
 
@@ -161,6 +177,8 @@ async def _process_repository(
                         task_requirement_id=requirement_id,
                     ))
             await db.commit()
+            if task_id:
+                await _complete_task_recommendation(db, user_id, task_id)
 
         # уведомление об успехе
         analyzed_payload = {
@@ -312,3 +330,60 @@ def analyze_repository_task(
         # принудительная очистка, если asyncio.run упал или произошла иная ошибка уровня задачи
         asyncio.run(_cleanup_repository_state(user_id, repo_name, previous_analyzed_at, task_id=task_id))
         raise
+
+
+async def _enqueue_recommendation_generation():
+    if not global_config.REDIS_URL:
+        return 0
+    redis = redis_from_url(
+        global_config.REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+    )
+    try:
+        user_ids = await RecommendationService.load_recent_active_user_ids(redis)
+    finally:
+        await redis.aclose()
+
+    for user_id in user_ids:
+        generate_user_recommendations_task.delay(user_id)
+    return len(user_ids)
+
+
+@celery_app.task(name="enqueue_recommendation_generation_task")
+def enqueue_recommendation_generation_task():
+    return asyncio.run(_enqueue_recommendation_generation())
+
+
+async def _generate_user_recommendations(user_id: int):
+    if not global_config.REDIS_URL:
+        return 0
+
+    task_engine = create_async_engine(
+        global_config.DATABASE_URL,
+        pool_size=1,
+        max_overflow=0,
+    )
+    TaskSession = async_sessionmaker(
+        task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    redis = redis_from_url(
+        global_config.REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+    )
+    try:
+        async with TaskSession() as db:
+            return await RecommendationService(db, redis).generate_missing_recommendations(user_id)
+    finally:
+        await redis.aclose()
+        await task_engine.dispose()
+
+
+@celery_app.task(name="generate_user_recommendations_task")
+def generate_user_recommendations_task(user_id: int):
+    return asyncio.run(_generate_user_recommendations(user_id))

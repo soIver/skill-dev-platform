@@ -12,6 +12,7 @@ from sqlalchemy.orm import joinedload
 
 from ..config import global_config
 from ..models import User, Role, GitHubProfile
+from ..recommendations.service import RecommendationService
 from ..utils.crypto import Hasher, JwtCodec
 from ..utils.logger import get_logger
 from ..utils.redis import get_redis
@@ -77,6 +78,10 @@ class TokenService:
             device_id=normalized_device_id,
             expires_at=refresh_expires_at,
         )
+        try:
+            await RecommendationService.mark_user_active(user.id)
+        except Exception:
+            pass
 
         return TokenPair(access_token=access_token, refresh_token=refresh_token)
 

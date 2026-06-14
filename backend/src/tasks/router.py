@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, or_, exists, case
+from sqlalchemy import select, func, delete, or_, exists, case, literal
 from sqlalchemy.orm import selectinload
 
 from ..auth.utils import require_role, resolve_author_filter
 from ..auth.service import TokenClaims
 from ..utils.database import get_db
 from ..models import (
-    Task, UserRepo, GitHubRepo, TaskHistory, UserRecommendation,
+    Task, UserRepo, GitHubRepo, TaskHistory,
     SkillLevelTask, SkillLevel, Skill, Level, TaskPsFunction, PsFunction,
     TaskRequirement, TaskHistoryFailedRequirement,
 )
@@ -310,7 +310,7 @@ async def search_tasks(
 
     # расширенные подзапросы только для куратора/администратора
     if is_privileged:
-        issued_count_sq = select(func.count(UserRecommendation.id)).where(UserRecommendation.task_id == Task.id).scalar_subquery()
+        issued_count_expr = literal(0)
         failed_attempt_exists = exists().where(
             TaskHistoryFailedRequirement.task_history_id == TaskHistory.id
         )
@@ -325,7 +325,7 @@ async def search_tasks(
 
         full_query = select(
             Task,
-            issued_count_sq.label("issued_count"),
+            issued_count_expr.label("issued_count"),
             completed_count_sq.label("completed_count")
         )
         if keyword_matches:
@@ -346,7 +346,7 @@ async def search_tasks(
         order_by = []
         if rank_expr is not None:
             order_by.append(rank_expr.desc())
-        order_by.extend([issued_count_sq.desc(), Task.id])
+        order_by.extend([Task.id])
 
         full_query = full_query.options(
             selectinload(Task.skill_level_tasks).joinedload(SkillLevelTask.skill_level).joinedload(SkillLevel.skill),

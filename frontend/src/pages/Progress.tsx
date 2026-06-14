@@ -1,10 +1,5 @@
+import Recomendations from "./progress/Recomendations";
+
 export default function Progress() {
-  return (
-    <div className="workspace-container">
-      <div className="workspace-panel">
-        <h2 className="workspace-panel-header">Рекомендации</h2>
-        <p className="text-gray-500">Раздел находится в разработке...</p>
-      </div>
-    </div>
-  );
+  return <Recomendations />;
 }

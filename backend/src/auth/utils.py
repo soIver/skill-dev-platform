@@ -1,6 +1,7 @@
 from fastapi import Cookie, Depends, HTTPException, Response, status
 
 from ..config import global_config
+from ..recommendations.service import RecommendationService
 from ..utils.crypto import JwtCodec
 from .service import TokenClaims, TokenPair, TokenService
 
@@ -47,13 +48,18 @@ async def get_current_user(
                 pass  # если Redis недоступен, не блокируем
 
     try:
-        return TokenClaims(
+        claims = TokenClaims(
             user_id=int(payload["sub"]),
             username=payload["username"],
             email=payload["email"],
             role=payload["role"],
             jti=payload["jti"],
         )
+        try:
+            await RecommendationService.mark_user_active(claims.user_id)
+        except Exception:
+            pass
+        return claims
     except (KeyError, TypeError, ValueError):
         raise _unauthorized()
 

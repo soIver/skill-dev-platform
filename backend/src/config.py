@@ -70,6 +70,14 @@ class Config:
     DAYS_FOR_TEST_ATTEMPT = 7 # количество дней перед новой попыткой сдать тест
     DAYS_FOR_EMAIL_CHANGE = 30 # количество дней перед новой попыткой сменить почту
 
+    # рекомендации
+    RECOMMENDATION_TTL_DAYS = int(os.getenv("RECOMMENDATION_TTL_DAYS", "7"))
+    RECOMMENDATION_ACTIVE_USER_DAYS = int(os.getenv("RECOMMENDATION_ACTIVE_USER_DAYS", "7"))
+    RECOMMENDATION_MAX_ACTIVE = int(os.getenv("RECOMMENDATION_MAX_ACTIVE", "7"))
+    RECOMMENDATION_SKIP_LIMIT_PER_WEEK = int(os.getenv("RECOMMENDATION_SKIP_LIMIT_PER_WEEK", "5"))
+    RECOMMENDATION_STALE_ACTIVITY_DAYS = int(os.getenv("RECOMMENDATION_STALE_ACTIVITY_DAYS", "14"))
+    RECOMMENDATION_LOW_CONFIDENCE_THRESHOLD = float(os.getenv("RECOMMENDATION_LOW_CONFIDENCE_THRESHOLD", "0.65"))
+
     # анализ
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     REPO_SKILL_COUNT_FOR_UPDATE = 10 # количество встреч навыка для обновления уровня

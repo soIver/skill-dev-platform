@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { authJson } from "../auth";
 import { ITEMS_PER_PAGE, TASK, SEARCH_DEBOUNCE_MS, ITEMS_PER_TABLE_PAGE } from "../config";
@@ -43,6 +44,9 @@ interface TaskDetail {
 }
 
 export default function Tasks() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const restoredTaskRef = useRef(false);
   const {
     keywordInput,
     onlyUncompleted,
@@ -150,6 +154,15 @@ export default function Tasks() {
       setIsTaskLoading(false);
     }
   };
+
+  const routeState = location.state as { taskId?: number } | null;
+  useEffect(() => {
+    if (restoredTaskRef.current || !routeState?.taskId) return;
+    restoredTaskRef.current = true;
+    void openTaskDetails(routeState.taskId);
+    navigate("/tasks", { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeState?.taskId]);
 
   const fetchPage = useCallback(async (page: number, limit: number) => {
     try {

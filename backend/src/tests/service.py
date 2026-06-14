@@ -15,6 +15,7 @@ from .schemas import (
 )
 from ..config import global_config
 from ..models import Level, QuestionAnswer, Skill, SkillLevel, Test, TestAttempt, TestGroup, TestQuestion
+from ..recommendations.service import RecommendationService
 from ..utils.redis import get_redis
 
 ATTEMPT_KEY_PREFIX = "test_attempt"
@@ -297,6 +298,10 @@ async def _complete_attempt(db: AsyncSession, attempt_id: str, state: dict, chea
         ))
 
     await db.commit()
+    await RecommendationService(db).complete_test_recommendation(
+        state["user_id"],
+        state["skill_level_id"],
+    )
     return TestAttemptResult(
         score=score,
         total_score=state["total_score"],

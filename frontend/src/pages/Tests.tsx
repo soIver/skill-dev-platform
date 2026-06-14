@@ -45,6 +45,7 @@ export default function Tests() {
   const {
     keywordInput,
     onlyUnpassed,
+    selectedSkills,
     selectedPsFunctions,
     results,
     currentPage,
@@ -56,6 +57,7 @@ export default function Tests() {
     lastSearchPsFunctionIds,
     setKeywordInput,
     setOnlyUnpassed,
+    setSelectedSkills,
     setSelectedPsFunctions,
     setSearchState,
   } = useTestsStore();
@@ -71,6 +73,7 @@ export default function Tests() {
     keyword: string,
     psFunctions = selectedPsFunctions,
     onlyUnpassedValue = onlyUnpassed,
+    skillLevels = selectedSkills,
   ) => {
     setIsLoading(true);
     try {
@@ -80,6 +83,9 @@ export default function Tests() {
       });
       if (keyword.trim()) params.append("keyword", keyword.trim());
       if (onlyUnpassedValue) params.append("only_unpassed", "true");
+      for (const item of skillLevels) {
+        params.append("skill_level_ids", String(item.id));
+      }
       for (const item of psFunctions) {
         params.append("ps_function_ids", String(item.id));
       }
@@ -91,7 +97,7 @@ export default function Tests() {
         hasSearched: true,
         lastSearchKeyword: keyword.trim(),
         lastSearchOnlyUnpassed: onlyUnpassedValue,
-        lastSearchSkillIds: [],
+        lastSearchSkillIds: skillLevels.map((item) => item.id),
         lastSearchPsFunctionIds: psFunctions.map((item) => item.id),
       });
     } catch (error) {
@@ -99,7 +105,7 @@ export default function Tests() {
     } finally {
       setIsLoading(false);
     }
-  }, [onlyUnpassed, selectedPsFunctions, setSearchState]);
+  }, [onlyUnpassed, selectedPsFunctions, selectedSkills, setSearchState]);
 
   useEffect(() => {
     if (initialRefreshRef.current) return;
@@ -171,8 +177,9 @@ export default function Tests() {
     restoredSelectionRef.current = true;
     setSelectedTest(test);
     setSelectedLevelId(level.id);
+    setSelectedSkills([]);
     navigate("/tests", { replace: true, state: null });
-  }, [attemptState, navigate, results]);
+  }, [attemptState, navigate, results, setSelectedSkills]);
 
   const handleStartAttempt = async () => {
     if (!activeModalLevel || isStarting) return;

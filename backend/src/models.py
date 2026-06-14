@@ -504,45 +504,6 @@ class TestPsFunction(Base):
     ps_function = relationship("PsFunction", back_populates="test_links", lazy="select")
 
 
-class UserRecommendation(Base):
-    __tablename__ = "user_recommendations"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    task_id = Column(
-        Integer,
-        ForeignKey("tasks.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    test_id = Column(
-        Integer,
-        ForeignKey("tests.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    vacancy_id = Column(
-        Integer,
-        ForeignKey("vacancies.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    repo_id = Column(
-        Integer,
-        ForeignKey("user_repos.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    completed = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User", lazy="select")
-    task = relationship("Task", lazy="select")
-    test = relationship("Test", lazy="select")
-    vacancy = relationship("Vacancy", lazy="select")
-
-
 class UserVacancy(Base):
     __tablename__ = "user_vacancies"
 
