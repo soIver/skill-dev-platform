@@ -23,7 +23,7 @@ export default function Login() {
         message: "Вы успешно вошли в аккаунт.",
         variant: "success",
       });
-      navigate("/profile");
+      navigate("/account");
     } catch (error: unknown) {
       console.error(error);
       showToast({

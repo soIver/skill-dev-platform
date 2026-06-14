@@ -26,7 +26,9 @@
 
 #### Запуск
 1. Выполнить `uvicorn src.main:app --reload`
-2. В отдельном терминале выполить `celery -A src.celery.app.celery_app worker --beat`
+2. Запустить Celery:
+   - Windows: в отдельных терминалах выполнить `celery -A src.celery.app.celery_app worker --pool=solo` и `celery -A src.celery.app.celery_app beat`
+   - Linux/macOS: в отдельном терминале выполнить `celery -A src.celery.app.celery_app worker --beat`
 
 ### Клиент (`/frontend/`)
 

@@ -47,11 +47,11 @@ export default function VerNavBar() {
       {/* область навигации */}
       <nav className="flex-1 pe-2 py-4 space-y-3">
         <VerNavItem
-          to="/my"
+          to="/account"
           icon={ProfileIcon}
-          label="Профиль"
+          label="Аккаунт"
           isExpanded={isExpanded}
-          isActive={location.pathname.startsWith("/my")}
+          isActive={location.pathname.startsWith("/account")}
         />
         <VerNavItem
           to="/progress"

@@ -42,14 +42,14 @@ export default function AppRoutes() {
       <Route path="/auth/change-email" element={<EmailChange />} />
       <Route path="/auth/confirm-email-change" element={<EmailChangeConfirmation />} />
       <Route
-        path="/my"
+        path="/account"
         element={
           <RequireAuth>
             <My />
           </RequireAuth>
         }
       >
-        <Route index element={<TabRedirect section="my" defaultTab="profile" />} />
+        <Route index element={<TabRedirect section="account" defaultTab="profile" />} />
         <Route path="profile" element={<Profile />} />
         <Route path="repositories" element={<Repositories />} />
         <Route path="credentials" element={<Credentials />} />

@@ -129,7 +129,7 @@ export default function Registration() {
         message: "Аккаунт успешно создан.",
         variant: "success",
       });
-      navigate("/me");
+      navigate("/account");
     } catch (error) {
       showToast({
         title: "Ошибка регистрации",

@@ -6,7 +6,11 @@ from datetime import timedelta, timezone
 
 from dotenv import load_dotenv
 
-load_dotenv()
+SRC_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SRC_DIR.parent
+
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(SRC_DIR / ".env")
 
 
 class Config:
@@ -46,7 +50,7 @@ class Config:
     )
     GITHUB_FRONTEND_REDIRECT_URL = os.getenv(
         "GITHUB_FRONTEND_REDIRECT_URL",
-        "http://localhost:5173/me/credentials",
+        "http://localhost:5173/account/credentials",
     )
     GITHUB_SCOPE = "read:user user:email"
     GITHUB_OAUTH_STATE_TTL_SECONDS = 600

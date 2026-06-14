@@ -12,7 +12,7 @@ export default function RootRedirect() {
   }
 
   if (user) {
-    return <Navigate to="/profile" replace />;
+    return <Navigate to="/account" replace />;
   }
 
   return <Navigate to="/auth/login" replace />;

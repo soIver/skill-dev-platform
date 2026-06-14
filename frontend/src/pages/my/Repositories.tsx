@@ -197,7 +197,7 @@ export default function Repositories() {
             isLoading={isLoading}
             emptyMessage={
               <>
-                Привяжите профиль GitHub в <Link to="/me/credentials" className="hyperlink">настройках интеграций</Link>,<br />чтобы получить возможность загружать свои репозитории.
+                Привяжите профиль GitHub в <Link to="/account/credentials" className="hyperlink">настройках интеграций</Link>,<br />чтобы получить возможность загружать свои репозитории.
               </>
             }
           />

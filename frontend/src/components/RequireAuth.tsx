@@ -22,7 +22,7 @@ export default function RequireAuth({ children, allowedRoles }: RequireAuthProps
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/me/profile" replace />;
+    return <Navigate to="/account/profile" replace />;
   }
 
   return <>{children}</>;

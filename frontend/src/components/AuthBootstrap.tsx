@@ -29,7 +29,7 @@ export default function AuthBootstrap() {
       return;
     }
 
-    navigate("/profile", { replace: true });
+    navigate("/account", { replace: true });
   }, [isAuthChecked, isHydrated, location.pathname, navigate, user]);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function AuthBootstrap() {
     syncSession()
       .then((isAuthenticated) => {
         if (isAuthenticated && AUTH_ENTRY_PATHS.has(location.pathname)) {
-          navigate("/profile", { replace: true });
+          navigate("/account", { replace: true });
           return;
         }
 
@@ -70,7 +70,7 @@ export default function AuthBootstrap() {
     syncSession()
       .then((isAuthenticated) => {
         if (isAuthenticated && AUTH_ENTRY_PATHS.has(location.pathname)) {
-          navigate("/profile", { replace: true });
+          navigate("/account", { replace: true });
         }
       })
       .finally(() => {

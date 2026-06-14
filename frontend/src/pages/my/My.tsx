@@ -7,5 +7,5 @@ export default function My() {
     { to: "credentials", label: "Учётные данные" },
   ];
 
-  return <TabTracker section="profile" tabs={tabs} />;
+  return <TabTracker section="account" tabs={tabs} />;
 }

@@ -235,7 +235,7 @@ export default function Profile() {
             isLoading={isLoading}
             emptyMessage={
               <>
-                Вы можете <Link to="/tests" className="hyperlink">пройти тест</Link>, <Link to="/tasks" className="hyperlink">выполнить задание</Link> <br />или <Link to="/my/repositories" className="hyperlink">загрузить репозиторий</Link>, чтобы получить первые навыки.
+                Вы можете <Link to="/tests" className="hyperlink">пройти тест</Link>, <Link to="/tasks" className="hyperlink">выполнить задание</Link> <br />или <Link to="/account/repositories" className="hyperlink">загрузить репозиторий</Link>, чтобы получить первые навыки.
               </>
             }
             currentPage={currentPage}

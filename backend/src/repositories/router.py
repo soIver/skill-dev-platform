@@ -90,7 +90,7 @@ async def github_callback(
                 user = data
                 token_service = TokenService(db)
                 token_pair = await token_service.issue_token_pair(user, None) # No device_id in redirect
-                redirect_url = global_config.GITHUB_FRONTEND_REDIRECT_URL.replace("/me/credentials", "/me")
+                redirect_url = global_config.GITHUB_FRONTEND_REDIRECT_URL.replace("/account/credentials", "/account")
                 
                 redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
                 set_auth_cookies(redirect_response, token_pair)
@@ -102,7 +102,7 @@ async def github_callback(
                     "gh_login": data["login"],
                     "gh_token_enc": data["gh_token_enc"],
                 }
-                base_url = global_config.GITHUB_FRONTEND_REDIRECT_URL.replace("/me/credentials", "/auth/registration")
+                base_url = global_config.GITHUB_FRONTEND_REDIRECT_URL.replace("/account/credentials", "/auth/registration")
                 redirect_url = f"{base_url}?{urlencode(query)}"
         else:
             redirect_url = result

@@ -146,7 +146,7 @@ export default function EmailChange() {
             <p className="text-base text-gray-900">
               На электронную почту {email} было отправлено письмо с инструкцией для подтверждения
             </p>
-            <button type="button" onClick={() => navigate("/me/credentials")} className="primary-button">
+            <button type="button" onClick={() => navigate("/account/credentials")} className="primary-button">
               Профиль
             </button>
           </div>
