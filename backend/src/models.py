@@ -399,11 +399,6 @@ class TaskHistory(Base):
     __tablename__ = "task_history"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
     task_id = Column(
         Integer,
         ForeignKey("tasks.id", ondelete="CASCADE"),
@@ -416,7 +411,6 @@ class TaskHistory(Base):
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
-    user = relationship("User", lazy="select")
     task = relationship("Task", lazy="select")
     repo = relationship("UserRepo", lazy="select")
     failed_requirements = relationship("TaskHistoryFailedRequirement", back_populates="task_history", cascade="all, delete-orphan")
@@ -502,22 +496,3 @@ class TestPsFunction(Base):
 
     test_group = relationship("TestGroup", back_populates="ps_function_links")
     ps_function = relationship("PsFunction", back_populates="test_links", lazy="select")
-
-
-class UserVacancy(Base):
-    __tablename__ = "user_vacancies"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    vacancy_id = Column(
-        Integer,
-        ForeignKey("vacancies.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    user = relationship("User", lazy="select")
-    vacancy = relationship("Vacancy", lazy="select")

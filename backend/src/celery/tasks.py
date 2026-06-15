@@ -138,7 +138,6 @@ async def _process_repository(
             failed_requirement_items: list[dict] = []
             if task_id:
                 task_history = TaskHistory(
-                    user_id=user_id,
                     task_id=task_id,
                     repo_id=repo.id,
                     completed_at=repo.analyzed_at,

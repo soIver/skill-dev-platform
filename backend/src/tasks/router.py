@@ -38,8 +38,9 @@ async def _load_latest_task_attempts(
 
     latest_ids_subq = (
         select(func.max(TaskHistory.id).label("history_id"))
+        .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
         .where(
-            TaskHistory.user_id == user_id,
+            UserRepo.user_id == user_id,
             TaskHistory.task_id.in_(task_ids),
         )
         .group_by(TaskHistory.task_id)
@@ -255,7 +256,8 @@ async def search_tasks(
     ).correlate(TaskHistory)
     successful_task_attempt_exists = exists().where(
         TaskHistory.task_id == Task.id,
-        TaskHistory.user_id == claims.user_id,
+        TaskHistory.repo_id == UserRepo.id,
+        UserRepo.user_id == claims.user_id,
         TaskHistory.completed_at.isnot(None),
         ~failed_requirements_exists,
     ).correlate(Task)

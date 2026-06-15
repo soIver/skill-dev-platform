@@ -713,8 +713,9 @@ class SkillService:
         completed_task_function_ids_query = (
             select(TaskPsFunction.ps_function_id)
             .join(TaskHistory, TaskPsFunction.task_id == TaskHistory.task_id)
+            .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
             .where(
-                TaskHistory.user_id == user_id,
+                UserRepo.user_id == user_id,
                 TaskHistory.completed_at.isnot(None),
                 ~failed_requirements_exist,
             )

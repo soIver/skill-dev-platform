@@ -345,7 +345,8 @@ class RecommendationService:
             select(SkillLevel.skill_id)
             .join(SkillLevelTask, SkillLevelTask.skill_level_id == SkillLevel.id)
             .join(TaskHistory, TaskHistory.task_id == SkillLevelTask.task_id)
-            .where(TaskHistory.user_id == user_id, TaskHistory.completed_at.isnot(None))
+            .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
+            .where(UserRepo.user_id == user_id, TaskHistory.completed_at.isnot(None))
             .distinct()
         )
         skill_ids.update(task_result.scalars().all())
@@ -507,8 +508,9 @@ class RecommendationService:
         completed_tasks = (
             select(TaskPsFunction.ps_function_id)
             .join(TaskHistory, TaskPsFunction.task_id == TaskHistory.task_id)
+            .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
             .where(
-                TaskHistory.user_id == user_id,
+                UserRepo.user_id == user_id,
                 TaskHistory.completed_at.isnot(None),
                 ~failed_requirements_exist,
             )
@@ -531,7 +533,8 @@ class RecommendationService:
         result = await self.db.execute(
             select(SkillLevelTask.skill_level_id, func.max(TaskHistory.completed_at).label("completed_at"))
             .join(TaskHistory, TaskHistory.task_id == SkillLevelTask.task_id)
-            .where(TaskHistory.user_id == user_id, TaskHistory.completed_at.isnot(None))
+            .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
+            .where(UserRepo.user_id == user_id, TaskHistory.completed_at.isnot(None))
             .group_by(SkillLevelTask.skill_level_id)
         )
         return {row.skill_level_id: row.completed_at for row in result.all() if row.completed_at}
@@ -542,8 +545,9 @@ class RecommendationService:
         ).correlate(TaskHistory)
         result = await self.db.execute(
             select(TaskHistory.task_id)
+            .join(UserRepo, TaskHistory.repo_id == UserRepo.id)
             .where(
-                TaskHistory.user_id == user_id,
+                UserRepo.user_id == user_id,
                 TaskHistory.completed_at.isnot(None),
                 ~failed_requirements_exist,
             )

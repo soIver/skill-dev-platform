@@ -37,8 +37,16 @@ async def init_tables():
     async with db_engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
+        await ensure_schema_compatibility(conn)
         await ensure_database_triggers(conn)
         logger.debug("Таблицы БД созданы")
+
+
+async def ensure_schema_compatibility(conn):
+    await conn.execute(text("""
+        ALTER TABLE IF EXISTS task_history
+        DROP COLUMN IF EXISTS user_id;
+    """))
 
 
 async def ensure_database_triggers(conn):
