@@ -233,7 +233,7 @@ export default function Tasks() {
 
     setIsSubmitting(true);
     try {
-      await authJson("/analysis/repository", {
+      await authJson("/github/analyze", {
         method: "POST",
         body: JSON.stringify({
           gh_id: repo.gh_id,

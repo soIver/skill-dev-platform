@@ -149,6 +149,129 @@ class RecommendationService:
     async def complete_test_recommendation(self, user_id: int, skill_level_id: int) -> None:
         await self._delete_recommendation(user_id, f"test-{skill_level_id}")
 
+    async def build_skill_gap_recommendations(
+        self,
+        user_id: int,
+        gaps: list[dict],
+        limit: int = 5,
+    ) -> list[RecommendationItem]:
+        if not gaps:
+            return []
+
+        completed_task_ids = await self._load_successful_task_ids(user_id)
+        candidates: list[CandidateRecommendation] = []
+        used_ids: set[str] = set()
+
+        for gap in gaps:
+            skill_id = int(gap["skill_id"])
+            required_order_index = gap.get("required_order_index")
+            if required_order_index is None:
+                continue
+
+            current_order_index = gap.get("current_order_index")
+            min_order_index = required_order_index
+            if current_order_index is not None:
+                min_order_index = min(required_order_index, int(current_order_index) + 1)
+
+            test_candidate = await self._build_gap_test_candidate(
+                skill_id,
+                min_order_index,
+                required_order_index,
+                used_ids,
+            )
+            if test_candidate:
+                candidates.append(test_candidate)
+                used_ids.add(test_candidate.id)
+                continue
+
+            task_candidate = await self._build_gap_task_candidate(
+                skill_id,
+                min_order_index,
+                required_order_index,
+                completed_task_ids,
+                used_ids,
+            )
+            if task_candidate:
+                candidates.append(task_candidate)
+                used_ids.add(task_candidate.id)
+
+            if len(candidates) >= limit:
+                break
+
+        return await self._enrich_candidates(candidates[:limit])
+
+    async def _build_gap_test_candidate(
+        self,
+        skill_id: int,
+        min_order_index: int,
+        required_order_index: int,
+        used_ids: set[str],
+    ) -> CandidateRecommendation | None:
+        result = await self.db.execute(
+            select(SkillLevel.id, SkillLevel.order_index)
+            .join(TestGroup, TestGroup.skill_level_id == SkillLevel.id)
+            .join(Test, Test.test_group_id == TestGroup.id)
+            .where(
+                SkillLevel.skill_id == skill_id,
+                SkillLevel.order_index >= min_order_index,
+                SkillLevel.order_index <= required_order_index,
+                Test.is_published == True,
+            )
+            .group_by(SkillLevel.id, SkillLevel.order_index)
+            .order_by(SkillLevel.order_index, SkillLevel.id)
+            .limit(1)
+        )
+        row = result.first()
+        if row is None:
+            return None
+        candidate = CandidateRecommendation("test", row.id, 1.0)
+        return None if candidate.id in used_ids else candidate
+
+    async def _build_gap_task_candidate(
+        self,
+        skill_id: int,
+        min_order_index: int,
+        required_order_index: int,
+        completed_task_ids: set[int],
+        used_ids: set[str],
+    ) -> CandidateRecommendation | None:
+        result = await self.db.execute(
+            select(Task.id, SkillLevel.order_index)
+            .join(SkillLevelTask, SkillLevelTask.task_id == Task.id)
+            .join(SkillLevel, SkillLevelTask.skill_level_id == SkillLevel.id)
+            .where(
+                Task.is_published == True,
+                SkillLevel.skill_id == skill_id,
+                SkillLevel.order_index >= min_order_index,
+                SkillLevel.order_index <= required_order_index,
+            )
+            .order_by(SkillLevel.order_index, Task.id)
+        )
+        for row in result.all():
+            if row.id in completed_task_ids:
+                continue
+            candidate = CandidateRecommendation("task", row.id, 0.9)
+            if candidate.id not in used_ids:
+                return candidate
+        return None
+
+    async def _enrich_candidates(self, candidates: list[CandidateRecommendation]) -> list[RecommendationItem]:
+        now = self._now()
+        expires_at = now + timedelta(days=global_config.RECOMMENDATION_TTL_DAYS)
+        stored = [
+            StoredRecommendation(
+                id=candidate.id,
+                content_type=candidate.content_type,
+                target_id=candidate.target_id,
+                score=candidate.score,
+                status="active",
+                created_at=now,
+                expires_at=expires_at,
+            )
+            for candidate in candidates
+        ]
+        return await self._enrich(stored)
+
     async def _build_candidates(self, user_id: int, excluded_ids: set[str]) -> list[CandidateRecommendation]:
         skill_profiles = await self._load_skill_profiles(user_id)
         missing_function_priorities = await self._load_missing_function_priorities(user_id)

@@ -5,6 +5,7 @@ import { useUserStore } from "./useUserStore";
 import { useRepositoriesStore } from "./useRepositoriesStore";
 import type { RepoItem } from "./useRepositoriesStore";
 import { useTasksStore, type TaskLatestAttempt } from "./useTasksStore";
+import { useVacanciesStore } from "./useVacanciesStore";
 
 const RECENT_NOTIFICATION_TTL_MS = 2000;
 const recentNotificationKeys = new Map<string, number>();
@@ -35,6 +36,14 @@ function shouldShowNotification(key: string): boolean {
   return lastShownAt === undefined || now - lastShownAt > RECENT_NOTIFICATION_TTL_MS;
 }
 
+function getCachedVacancyId(): number | null {
+  const state = useVacanciesStore.getState();
+  const id = state.analysisResult?.vacancy.id ?? state.analysisVacancy?.id;
+  if (!id) return null;
+  const parsed = Number(id);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function useNotifications() {
   const { showToast } = useToast();
   const location = useLocation();
@@ -44,6 +53,7 @@ export function useNotifications() {
   const updateRepoStatus = useRepositoriesStore((state) => state.updateRepoStatus);
   const setTaskAnalysisStatus = useTasksStore((state) => state.setTaskAnalysisStatus);
   const updateTaskLatestAttempt = useTasksStore((state) => state.updateTaskLatestAttempt);
+  const setVacancyAnalysisState = useVacanciesStore((state) => state.setAnalysisState);
 
   useEffect(() => {
     if (!user) return;
@@ -92,6 +102,35 @@ export function useNotifications() {
           if (typeof data.task_id === "number") {
             setTaskAnalysisStatus(data.task_id, null);
           }
+        } else if (data.type === "vacancy_analyzed") {
+          if (data.vacancy_id === getCachedVacancyId()) {
+            setVacancyAnalysisState({ analysisIsAnalyzing: false });
+          }
+          if (shouldShowNotification(`${data.type}:${data.vacancy_id}:${data.message}`)) {
+            showToast({
+              title: "Анализ завершён",
+              message: data.message,
+              variant: "success",
+            });
+          }
+          window.dispatchEvent(new CustomEvent("vacancy-analysis-completed", { detail: data }));
+        } else if (data.type === "vacancy_analysis_processing") {
+          if (data.vacancy_id === getCachedVacancyId()) {
+            setVacancyAnalysisState({ analysisIsAnalyzing: true });
+          }
+          window.dispatchEvent(new CustomEvent("vacancy-analysis-processing", { detail: data }));
+        } else if (data.type === "vacancy_analysis_failed") {
+          if (data.vacancy_id === getCachedVacancyId()) {
+            setVacancyAnalysisState({ analysisIsAnalyzing: false });
+          }
+          if (shouldShowNotification(`${data.type}:${data.vacancy_id}:${data.message}`)) {
+            showToast({
+              title: "Ошибка анализа",
+              message: data.message,
+              variant: "error",
+            });
+          }
+          window.dispatchEvent(new CustomEvent("vacancy-analysis-failed", { detail: data }));
         } else if (data.type === "session_invalidated") {
           clearSession();
           if (!location.pathname.startsWith("/auth")) {
@@ -120,6 +159,7 @@ export function useNotifications() {
     clearSession,
     location.pathname,
     navigate,
+    setVacancyAnalysisState,
     setTaskAnalysisStatus,
     showToast,
     updateRepoStatus,

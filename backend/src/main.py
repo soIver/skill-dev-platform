@@ -17,7 +17,6 @@ from .utils.database import init_database, db_engine
 from .repositories.router import router as github_router
 from .skills.router import router as skills_router
 from .tasks.router import router as tasks_router
-from .analysis.router import router as analysis_router
 from .notifications.router import router as notifications_router
 from .notifications.router import close_active_streams, reset_shutdown_state, trigger_shutdown
 from .progress.router import router as progress_router
@@ -74,7 +73,6 @@ root_router.include_router(management_router)
 root_router.include_router(github_router)
 root_router.include_router(skills_router)
 root_router.include_router(tasks_router)
-root_router.include_router(analysis_router)
 root_router.include_router(notifications_router)
 root_router.include_router(progress_router)
 root_router.include_router(recommendations_router)

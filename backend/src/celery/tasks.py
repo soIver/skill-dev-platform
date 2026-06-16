@@ -16,6 +16,8 @@ from ..models import (
     RepoSkill,
     TaskHistory,
     TaskHistoryFailedRequirement,
+    Vacancy,
+    VacancySkill,
 )
 from ..recommendations.service import RecommendationService
 from ..config import global_config
@@ -80,7 +82,7 @@ async def _process_repository(
 
     try:
         async with TaskSession() as db:
-            # запись уже создана роутером analysis/router.py
+            # запись уже создана доменным роутером репозиториев
             query = (
                 select(UserRepo)
                 .options(selectinload(UserRepo.repo))
@@ -329,6 +331,87 @@ def analyze_repository_task(
         # принудительная очистка, если asyncio.run упал или произошла иная ошибка уровня задачи
         asyncio.run(_cleanup_repository_state(user_id, repo_name, previous_analyzed_at, task_id=task_id))
         raise
+
+
+async def _process_vacancy(user_id: int, vacancy_id: int, title: str, description: str):
+    task_engine = create_async_engine(
+        global_config.DATABASE_URL,
+        pool_size=1,
+        max_overflow=0,
+    )
+    TaskSession = async_sessionmaker(
+        task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    try:
+        async with TaskSession() as db:
+            vacancy = await db.get(Vacancy, vacancy_id)
+            if vacancy is None:
+                logger.error(f"Vacancy не найдена для анализа: {vacancy_id}")
+                return
+
+            await _publish_notification(user_id, {
+                "type": "vacancy_analysis_processing",
+                "vacancy_id": vacancy_id,
+                "title": title,
+            })
+
+            extracted = await analyzer.extract_vacancy_skills(description)
+            if not extracted.skills:
+                await _publish_notification(user_id, {
+                    "type": "vacancy_analysis_failed",
+                    "vacancy_id": vacancy_id,
+                    "title": title,
+                    "message": f'Не удалось выделить навыки из вакансии "{title}".',
+                })
+                return
+
+            matched_skills = await analyzer.match_skills(db, extracted.skills, analyzer.DISTANCE_TRESHOLD)
+            if not matched_skills:
+                await _publish_notification(user_id, {
+                    "type": "vacancy_analysis_failed",
+                    "vacancy_id": vacancy_id,
+                    "title": title,
+                    "message": f'Не удалось выделить навыки из вакансии "{title}".',
+                })
+                return
+
+            await db.execute(delete(VacancySkill).where(VacancySkill.vacancy_id == vacancy_id))
+            for match in matched_skills:
+                db.add(VacancySkill(
+                    vacancy_id=vacancy_id,
+                    skill_id=match["skill_id"],
+                    score=match["score"],
+                ))
+
+            vacancy.analyzed_at = datetime.now(timezone.utc)
+            await db.commit()
+
+        await _publish_notification(user_id, {
+            "type": "vacancy_analyzed",
+            "vacancy_id": vacancy_id,
+            "title": title,
+            "message": f"Анализ вакансии {title} завершён.",
+        })
+    except Exception:
+        await _publish_notification(user_id, {
+            "type": "vacancy_analysis_failed",
+            "vacancy_id": vacancy_id,
+            "title": title,
+            "message": f"При анализе вакансии {title} произошла ошибка.",
+        })
+        raise
+    finally:
+        await task_engine.dispose()
+
+
+@celery_app.task(name="analyze_vacancy_task")
+def analyze_vacancy_task(user_id: int, vacancy_id: int, title: str, description: str):
+    logger.debug(f"Начат процесс анализа вакансии {vacancy_id} (инициатор: {user_id})")
+    asyncio.run(_process_vacancy(user_id, vacancy_id, title, description))
+    logger.debug(f"Процесс анализа вакансии {vacancy_id} завершён")
 
 
 async def _enqueue_recommendation_generation():

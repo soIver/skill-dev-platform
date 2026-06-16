@@ -79,7 +79,7 @@ export default function Repositories() {
 
   const handleAnalyze = async (repo: RepoItem) => {
     try {
-      await authJson("/analysis/repository", {
+      await authJson("/github/analyze", {
         method: "POST",
         body: JSON.stringify({
           gh_id: repo.gh_id,

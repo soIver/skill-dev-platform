@@ -22,6 +22,8 @@ from ..models import (
     TestGroup,
     TestQuestion,
     UserRepo,
+    Vacancy,
+    VacancyHistory,
 )
 
 
@@ -50,15 +52,17 @@ class ProgressActivityService:
                 TaskHistory.completed_at.isnot(None),
             )
         ) or 0
+        vacancy_count = await self.db.scalar(
+            select(func.count(VacancyHistory.id))
+            .where(VacancyHistory.user_id == user_id)
+        ) or 0
 
         items = await self._load_test_actions(user_id, fetch_limit)
         items.extend(await self._load_task_actions(user_id, fetch_limit))
-
-        # todo: добавить действия анализа вакансий после сохранения пользовательских событий
-        # они должны открывать детальную карточку вакансии из этой истории
+        items.extend(await self._load_vacancy_actions(user_id, fetch_limit))
 
         items.sort(key=lambda item: self._timestamp(item.occurred_at), reverse=True)
-        total_items = test_count + task_count
+        total_items = test_count + task_count + vacancy_count
         total_pages = ceil(total_items / limit) if total_items else 1
 
         return ProgressActivityListResponse(
@@ -106,7 +110,7 @@ class ProgressActivityService:
             threshold_score = row.threshold_score or 0
             successful = threshold_score > 0 and score >= threshold_score
             status = "тест пройден успешно" if successful else "тест не пройден"
-            title = f"Тест: {row.skill_name} - {row.level_name}"
+            title = f"{row.skill_name} - {row.level_name}"
 
             actions.append(ProgressActivityItem(
                 id=f"test:{row.id}",
@@ -160,11 +164,41 @@ class ProgressActivityService:
                 id=f"task:{row.id}",
                 content_type="task",
                 target_id=row.task_id,
-                title=f"Задание: {row.title}",
+                title=row.title,
                 action_text="Проверено практическое задание",
                 description=f"Репозиторий: {row.repo_name}. Статус: {status}.",
                 occurred_at=row.completed_at,
                 successful=successful,
+            ))
+        return actions
+
+    async def _load_vacancy_actions(self, user_id: int, limit: int) -> list[ProgressActivityItem]:
+        result = await self.db.execute(
+            select(
+                VacancyHistory.id,
+                VacancyHistory.viewed_at,
+                Vacancy.id.label("vacancy_id"),
+                Vacancy.title,
+                Vacancy.analyzed_at,
+            )
+            .join(Vacancy, VacancyHistory.vacancy_id == Vacancy.id)
+            .where(VacancyHistory.user_id == user_id)
+            .order_by(VacancyHistory.viewed_at.desc(), VacancyHistory.id.desc())
+            .limit(limit)
+        )
+
+        actions: list[ProgressActivityItem] = []
+        for row in result.all():
+            description = "Вакансия проанализирована." if row.analyzed_at else "Анализ вакансии поставлен в очередь."
+            actions.append(ProgressActivityItem(
+                id=f"vacancy:{row.id}",
+                content_type="vacancy",
+                target_id=row.vacancy_id,
+                title=row.title,
+                action_text="Просмотрена вакансия",
+                description=description,
+                occurred_at=row.viewed_at,
+                successful=None,
             ))
         return actions
 

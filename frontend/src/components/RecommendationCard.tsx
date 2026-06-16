@@ -1,4 +1,5 @@
 import { ArrowRight, X } from "lucide-react";
+import type { ReactNode } from "react";
 
 export interface RecommendationSkillLevelItem {
   id: number;
@@ -27,9 +28,10 @@ export interface RecommendationItem {
 
 interface RecommendationCardProps {
   item: RecommendationItem;
-  onSkip: (item: RecommendationItem) => void;
+  onSkip?: (item: RecommendationItem) => void;
   onOpen: (item: RecommendationItem) => void;
   isSkipping?: boolean;
+  goal?: ReactNode;
 }
 
 function buildGoal(item: RecommendationItem): string {
@@ -55,11 +57,15 @@ function buildMessage(item: RecommendationItem): string {
   return `выполните задание «${item.title}»`;
 }
 
-export function RecommendationCard({ item, onSkip, onOpen, isSkipping = false }: RecommendationCardProps) {
+export function RecommendationCard({ item, onSkip, onOpen, isSkipping = false, goal }: RecommendationCardProps) {
+  const skillLevels = item.content_type === "test" ? [] : item.skill_levels.slice(0, 3);
+  const psFunctions = item.ps_functions.slice(0, 3);
+  const hasMeta = skillLevels.length > 0 || psFunctions.length > 0;
+
   return (
-    <article className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+    <article className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm max-w-150">
       <div className="mb-4">
-        <p className="text-sm font-semibold text-primary">{buildGoal(item)}</p>
+        <p className="text-sm font-semibold text-primary">{goal ?? buildGoal(item)}</p>
         <h3 className="mt-1 text-lg font-bold text-gray-900">{buildMessage(item)}</h3>
       </div>
 
@@ -67,35 +73,39 @@ export function RecommendationCard({ item, onSkip, onOpen, isSkipping = false }:
         <p className="mb-4 line-clamp-3 text-sm leading-6 text-gray-600">{item.description}</p>
       )}
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {item.skill_levels.slice(0, 3).map((skill) => (
-          <span key={skill.id} className="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-            {skill.skill_name} - {skill.level_name}
-          </span>
-        ))}
-        {item.ps_functions.slice(0, 3).map((func) => (
-          <span key={func.id} className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-            ТФ {func.code}
-          </span>
-        ))}
-      </div>
+      {hasMeta && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {skillLevels.map((skill) => (
+            <span key={skill.id} className="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+              {skill.skill_name} - {skill.level_name}
+            </span>
+          ))}
+          {psFunctions.map((func) => (
+            <span key={func.id} className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+              ТФ {func.code}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => onSkip(item)}
-          disabled={isSkipping}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <X className="h-4 w-4" />
-          Пропустить
-        </button>
+        {onSkip && (
+          <button
+            type="button"
+            onClick={() => onSkip(item)}
+            disabled={isSkipping}
+            className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <X className="h-4 w-4" />
+            Пропустить
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onOpen(item)}
-          className="primary-button flex flex-1 items-center justify-center gap-2"
+          className="primary-button flex h-9 flex-1 items-center justify-center gap-2 px-3 text-sm"
         >
-          {item.content_type === "test" ? "Перейти к тесту" : "Перейти к заданию"}
+          {`Перейти к ${item.content_type === "test" ? "тесту" : "заданию"}`}
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>

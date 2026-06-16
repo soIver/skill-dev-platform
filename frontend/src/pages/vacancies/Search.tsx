@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { authJson } from "../../auth";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
@@ -32,7 +33,8 @@ const EDUCATION_OPTIONS = [
   { value: "not_required_or_not_specified", label: "Не требуется или не указано" },
 ];
 
-export default function VacancyMatching() {
+export default function VacancySearch() {
+  const navigate = useNavigate();
   const {
     description,
     excludedWords,
@@ -139,6 +141,10 @@ export default function VacancyMatching() {
   };
 
   const isAreaDisabled = (area: VacancyAreaItem) => selectedAreas.some((selectedArea) => selectedArea.id === area.id);
+
+  const handleAnalyzeVacancy = (vacancy: VacancySearchItem) => {
+    navigate("/vacancies/analysis", { state: { vacancy, autoAnalyze: true } });
+  };
 
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -365,7 +371,7 @@ export default function VacancyMatching() {
               </p>
 
               {results.map((vacancy) => (
-                <VacancyCard key={vacancy.id} vacancy={vacancy} />
+                <VacancyCard key={vacancy.id} vacancy={vacancy} onAnalyze={handleAnalyzeVacancy} />
               ))}
             </div>
           )}

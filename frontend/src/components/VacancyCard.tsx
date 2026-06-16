@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { VacancySearchItem } from "../hooks/useVacanciesStore";
 
 interface VacancyCardProps {
@@ -5,12 +7,20 @@ interface VacancyCardProps {
   onAnalyze?: (vacancy: VacancySearchItem) => void;
 }
 
-export function VacancyCard({ vacancy, onAnalyze }: VacancyCardProps) {
+interface VacancyInfoProps {
+  vacancy: VacancySearchItem;
+  titleAction?: ReactNode;
+}
+
+export function VacancyInfo({ vacancy, titleAction }: VacancyInfoProps) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm max-w-150">
-      <h3 className="text-lg font-semibold text-gray-900">
-        {vacancy.title}
-      </h3>
+    <>
+      <div className="flex flex-wrap items-start gap-2">
+        <h3 className="min-w-0 wrap-break-word text-lg font-semibold text-gray-900">
+          {vacancy.title}
+        </h3>
+        {titleAction}
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-700">
         <span className="font-medium text-gray-900 shrink-0">{vacancy.salary_text}</span>
@@ -27,6 +37,14 @@ export function VacancyCard({ vacancy, onAnalyze }: VacancyCardProps) {
       <p className="mt-3 text-sm text-gray-600">
         Работодатель: {vacancy.employer_name}
       </p>
+    </>
+  );
+}
+
+export function VacancyCard({ vacancy, onAnalyze }: VacancyCardProps) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm max-w-150">
+      <VacancyInfo vacancy={vacancy} />
 
       <div className="mt-4 flex flex-wrap gap-3">
         <button

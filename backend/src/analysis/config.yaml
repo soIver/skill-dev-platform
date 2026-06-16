@@ -34,10 +34,20 @@ prompts:
     You are an expert IT recruiter and software engineer. Analyze the following repository codebase 
     to identify the precise technical skills, languages, frameworks, and tools actively used by the contributor.
 
+  vacancy_role: >
+    You are an expert IT recruiter and software engineer. Analyze the following vacancy description
+    to identify the core technical skills, languages, frameworks, platforms, and tools required from a candidate.
+
   base_task: >
     Output only a plain list of a maximum of 5 core skills that are most prominent and demonstrated 
     at the highest level in the code. Ignore dependencies and environments that are merely installed 
     but not actively used or configured.
+
+  vacancy_task: >
+    Output a list of 1 to 5 core skills that are most important for this vacancy. Ignore generic soft skills,
+    company benefits, business-domain-only phrases, and minor nice-to-have tools unless they are clearly central.
+    Assign a strict required proficiency score for each skill based on the seniority and responsibilities in the
+    vacancy text.
 
   task_with_skills: >
     Evaluate the repository ONLY for the following skills: {skills}. 
@@ -71,12 +81,24 @@ prompts:
   format: |
     Output ONLY valid JSON in the following format:
     
-    {{
+    {
       "skills": [
-        {{"name": "SkillName", "score": 55}}
+        {"name": "SkillName", "score": 55}
       ],
       "failed_requirement_ids": [1, 2]
-    }}
+    }
     
     If no skills found or repository is empty, output:
-    {{"skills": [], "failed_requirement_ids": []}}
+    {"skills": [], "failed_requirement_ids": []}
+
+  vacancy_format: |
+    Output ONLY valid JSON in the following format:
+
+    {
+      "skills": [
+        {"name": "SkillName", "score": 70}
+      ]
+    }
+
+    If no technical skills are found, output:
+    {"skills": []}

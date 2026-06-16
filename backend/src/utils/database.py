@@ -47,6 +47,10 @@ async def ensure_schema_compatibility(conn):
         ALTER TABLE IF EXISTS task_history
         DROP COLUMN IF EXISTS user_id;
     """))
+    await conn.execute(text("""
+        ALTER TABLE IF EXISTS vacancy_skills
+        ADD COLUMN IF NOT EXISTS score INTEGER NOT NULL DEFAULT 0;
+    """))
 
 
 async def ensure_database_triggers(conn):

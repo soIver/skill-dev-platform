@@ -334,9 +334,10 @@ class VacancySkill(Base):
         ForeignKey("skills.id"),
         nullable=True,
     )
+    score = Column(Integer, nullable=False)
 
     vacancy = relationship("Vacancy", lazy="select")
-    skill_level = relationship("Skill", lazy="select")
+    skill = relationship("Skill", lazy="select")
 
 
 class VacancyHistory(Base):

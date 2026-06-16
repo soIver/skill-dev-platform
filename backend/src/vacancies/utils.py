@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from .schemas import VacancySearchItem, VacancySearchRequest
@@ -78,6 +79,27 @@ def map_vacancy_item(item: dict[str, Any]) -> VacancySearchItem:
         employer_name=str(employer.get("name") or "Не указан"),
         original_url=str(item.get("alternate_url") or item.get("url") or ""),
     )
+
+
+def map_vacancy_detail(item: dict[str, Any]) -> VacancySearchItem:
+    employer = item.get("employer") or {}
+
+    return VacancySearchItem(
+        id=str(item.get("id") or ""),
+        title=str(item.get("name") or "Без названия"),
+        salary_text=format_salary(item.get("salary")),
+        tags=collect_tags(item),
+        employer_name=str(employer.get("name") or "Не указан"),
+        original_url=str(item.get("alternate_url") or item.get("url") or ""),
+    )
+
+
+def html_to_text(value: str) -> str:
+    text = re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE)
+    text = re.sub(r"</p\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 def format_salary(salary: dict[str, Any] | None) -> str:

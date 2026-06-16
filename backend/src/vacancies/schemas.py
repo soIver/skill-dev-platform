@@ -1,5 +1,7 @@
+from datetime import datetime
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Any
 
 
 HH_EXPERIENCE_IDS = {
@@ -113,3 +115,44 @@ class VacancySearchItem(BaseModel):
 class VacancySearchResponse(BaseModel):
     items: list[VacancySearchItem]
     found: int
+
+
+class AnalyzeVacancyRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=512)
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def normalize_url(cls, value: str | None) -> str:
+        return (value or "").strip()
+
+
+class VacancySkillComparisonItem(BaseModel):
+    id: int
+    skill_id: int
+    skill_name: str
+    current_level_name: str | None = None
+    current_order_index: int | None = None
+    required_level_name: str | None = None
+    required_order_index: int | None = None
+    required_score: int
+    is_satisfied: bool
+
+
+class VacancyAnalysisRecommendation(BaseModel):
+    id: str
+    content_type: Literal["task", "test"]
+    target_id: int
+    title: str
+    description: str | None = None
+    skill_name: str
+    current_level_name: str | None = None
+    required_level_name: str | None = None
+
+
+class VacancyAnalysisResponse(BaseModel):
+    vacancy: VacancySearchItem
+    analyzed_at: datetime | None = None
+    is_analyzed: bool
+    is_queued: bool = False
+    skills: list[VacancySkillComparisonItem] = []
+    recommendations: list[VacancyAnalysisRecommendation] = []

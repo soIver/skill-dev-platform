@@ -16,7 +16,7 @@ import Tasks from "./pages/Tasks";
 import Tests from "./pages/Tests";
 import TestAttempt from "./pages/TestAttempt";
 import Vacancies from "./pages/vacancies/Vacancies";
-import VacancyMatching from "./pages/vacancies/Matching";
+import VacancySearch from "./pages/vacancies/Search";
 import VacancyAnalysis from "./pages/vacancies/Analysis";
 import Content from "./pages/content/Content";
 import ContentClassifier from "./pages/content/Classifier";
@@ -94,8 +94,8 @@ export default function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<TabRedirect section="vacancies" defaultTab="matching" />} />
-        <Route path="matching" element={<VacancyMatching />} />
+        <Route index element={<TabRedirect section="vacancies" defaultTab="search" />} />
+        <Route path="search" element={<VacancySearch />} />
         <Route path="analysis" element={<VacancyAnalysis />} />
       </Route>
       <Route

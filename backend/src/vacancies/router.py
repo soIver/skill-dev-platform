@@ -3,10 +3,19 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.service import TokenClaims
 from ..auth.utils import require_role
-from .schemas import VacancyAreasResponse, VacancyKeywordResponse, VacancySearchRequest, VacancySearchResponse
+from ..utils.database import get_db
+from .schemas import (
+    AnalyzeVacancyRequest,
+    VacancyAnalysisResponse,
+    VacancyAreasResponse,
+    VacancyKeywordResponse,
+    VacancySearchRequest,
+    VacancySearchResponse,
+)
 from .service import VacanciesService
 
 router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
@@ -43,3 +52,21 @@ async def search_vacancies(request: Request, claims: TokenClaims = Depends(requi
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=jsonable_encoder(exc.errors())) from exc
 
     return await VacanciesService().search_vacancies(payload)
+
+
+@router.post("/analyze", response_model=VacancyAnalysisResponse)
+async def analyze_vacancy(
+    payload: AnalyzeVacancyRequest,
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await VacanciesService().analyze_vacancy(db, claims.user_id, payload)
+
+
+@router.get("/{vacancy_id}/analysis", response_model=VacancyAnalysisResponse)
+async def get_vacancy_analysis(
+    vacancy_id: int,
+    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await VacanciesService().get_analysis(db, claims.user_id, vacancy_id)

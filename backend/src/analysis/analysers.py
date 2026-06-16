@@ -100,6 +100,25 @@ class RepoAnalyzer:
             and tokens > self.max_payload_tokens
         )
 
+    @staticmethod
+    def _strip_json_markdown(content: str) -> str:
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            parts = cleaned.split("```")
+            if len(parts) >= 2:
+                cleaned = parts[1].strip()
+                if cleaned.lower().startswith("json"):
+                    cleaned = cleaned[4:].strip()
+        return cleaned
+
+    def _load_json_response(self, content: str) -> dict:
+        cleaned = self._strip_json_markdown(content)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            normalized = cleaned.replace("{{", "{").replace("}}", "}")
+            return json.loads(normalized)
+
     def _build_prompt(
         self,
         skill_names: List[str] | None = None,
@@ -131,6 +150,15 @@ class RepoAnalyzer:
 
         return "\n\n".join(fragments)
 
+    def _build_vacancy_prompt(self) -> str:
+        prompts = self.config["prompts"]
+        return "\n\n".join([
+            prompts["vacancy_role"],
+            prompts["vacancy_task"],
+            prompts["scoring"],
+            prompts["vacancy_format"],
+        ])
+
     async def ingest_repository(self, url: str) -> RepositoryPayload:
         logger.info(f"Начата обработка репозитория {url}")
         ignore_patterns = self.config.get("ignore_patterns", [])
@@ -160,14 +188,7 @@ class RepoAnalyzer:
             return ExtractedAnalysis(skills=[], failed_requirement_ids=[])
 
         try:
-            # очистка от возможных markdown-тегов
-            content = content.strip()
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
-            
-            data = json.loads(content)
+            data = self._load_json_response(content)
             skills = []
             for item in data.get("skills", []):
                 name = item.get("name")
@@ -188,7 +209,7 @@ class RepoAnalyzer:
                     failed_requirement_ids.append(requirement_id)
             if task_requirements and not skills and not failed_requirement_ids:
                 failed_requirement_ids = requirement_ids
-            
+
             logger.debug(f"Извлечено {len(skills)} навыков")
             logger.debug(skills)
             return ExtractedAnalysis(
@@ -200,10 +221,41 @@ class RepoAnalyzer:
             logger.debug(f"Raw content: {content}")
             return ExtractedAnalysis(skills=[], failed_requirement_ids=[])
 
+    async def extract_vacancy_skills(self, payload: str) -> ExtractedAnalysis:
+        prompt = self._build_vacancy_prompt()
+        model = self.config["models"]["llm"]["name"]
+
+        logger.debug(f"Отправка запроса модели {model} для анализа вакансии")
+        content = await get_completion(prompt=prompt, payload=payload)
+        if not content:
+            return ExtractedAnalysis(skills=[], failed_requirement_ids=[])
+
+        try:
+            data = self._load_json_response(content)
+            skills = []
+            for item in data.get("skills", []):
+                name = item.get("name")
+                score = item.get("score")
+                if name and isinstance(score, int) and 0 <= score <= 100:
+                    skills.append((name, score))
+                if len(skills) >= 5:
+                    break
+
+            logger.debug(f"Извлечено {len(skills)} навыков вакансии")
+            logger.debug(skills)
+            return ExtractedAnalysis(skills=skills, failed_requirement_ids=[])
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.error(f"Ошибка при парсинге JSON вакансии от LLM: {e}")
+            logger.debug(f"Raw content: {content}")
+            return ExtractedAnalysis(skills=[], failed_requirement_ids=[])
+
     async def match_skills(self, db: AsyncSession, extracted_skills: List[Tuple[str, int]], threshold: float) -> List[Dict]:
         matched = []
         for skill_name, score in extracted_skills:
             vector = await get_embedding(skill_name)
+            if not vector:
+                logger.debug(f"Отклонён '{skill_name}' (эмбеддинг не получен)")
+                continue
             
             # используем pgvector <-> оператор для вычисления косинусного расстояния
             # чтобы найти ближайший по смыслу навык в БД

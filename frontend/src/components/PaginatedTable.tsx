@@ -24,6 +24,7 @@ interface PaginatedTableProps<T> {
   itemsPerPage?: number;
   onPreload?: (nextPage: number) => void;
   useClientSlice?: boolean;
+  getRowClassName?: (item: T) => string;
 }
 
 export function PaginatedTable<T extends { id: number | string }>({
@@ -38,6 +39,7 @@ export function PaginatedTable<T extends { id: number | string }>({
   itemsPerPage = ITEMS_PER_TABLE_PAGE.DEFAULT,
   onPreload,
   useClientSlice,
+  getRowClassName,
 }: PaginatedTableProps<T>) {
   // автоматическая предзагрузка следующей страницы при доступности
   useEffect(() => {
@@ -74,7 +76,7 @@ export function PaginatedTable<T extends { id: number | string }>({
               currentData.map((item) => (
                 <tr
                   key={item.id}
-                  className={`transition-colors ${onRowClick ? "cursor-pointer hover:bg-gray-100" : "hover:bg-gray-50"}`}
+                  className={`transition-colors ${getRowClassName?.(item) ?? ""} ${onRowClick ? "cursor-pointer hover:bg-gray-100" : "hover:bg-gray-50"}`}
                   onClick={() => onRowClick?.(item)}
                 >
                   {columns.map((col) => (
