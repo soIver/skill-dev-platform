@@ -83,25 +83,17 @@ export default function Recomendations() {
   };
 
   return (
-    <div className="workspace-container">
-      <div className="workspace-panel">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="workspace-panel-header mb-1">Рекомендации</h2>
-            <p className="text-sm text-gray-500">
-              Доступно пропусков на этой неделе: {data?.skips_available ?? 0} из {data?.skip_limit ?? 0}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={loadRecommendations}
-            disabled={isLoading}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Обновить
-          </button>
+    <section className="workspace-panel min-h-0 flex h-full flex-col">
+      <div className="mb-6 shrink-0">
+        <div>
+          <h2 className="workspace-panel-header mb-1">Рекомендации</h2>
+          <p className="text-sm text-gray-500">
+            Доступно пропусков на этой неделе: {data?.skips_available ?? 0} из {data?.skip_limit ?? 0}
+          </p>
         </div>
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
         {isLoading ? (
           <div className="flex h-40 items-center justify-center text-gray-400">
             <LoadingText text="Загрузка..." />
@@ -111,7 +103,7 @@ export default function Recomendations() {
             Сейчас нет активных рекомендаций
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="flex flex-col gap-4">
             {data.items.map((item) => (
               <RecommendationCard
                 key={item.id}
@@ -134,6 +126,6 @@ export default function Recomendations() {
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

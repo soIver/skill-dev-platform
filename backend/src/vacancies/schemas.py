@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Any
 
 
@@ -31,6 +31,13 @@ class VacancyKeywordResponse(BaseModel):
 
 class SalaryId(BaseModel):
     id: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_id(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return {"id": value}
+        return value
 
 class SalaryRange(BaseModel):
     currency: str = "RUR"

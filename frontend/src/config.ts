@@ -56,7 +56,7 @@ export const PS_FUNCTIONS = {
 export const SEARCH_DEBOUNCE_MS = 1000;
 
 export const ITEMS_PER_TABLE_PAGE = {
-  REPOS: 5,
+  REPOS: 10,
   DEFAULT: 7,
 } as const;
 

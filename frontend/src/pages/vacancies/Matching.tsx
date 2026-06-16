@@ -72,10 +72,8 @@ export default function VacancyMatching() {
           excluded_words: excludedWords,
           salary_range: (salaryFrom > 0 || salaryTo < 1000000) ? {
             currency: "RUR",
-            frequency: { id: "MONTHLY" },
             from: salaryFrom > 0 ? salaryFrom : null,
             gross: false,
-            mode: { id: "MONTH" },
             to: salaryTo < 1000000 ? salaryTo : null
           } : null,
           area_ids: selectedAreas.map((area) => area.id),

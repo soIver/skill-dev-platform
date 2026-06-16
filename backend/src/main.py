@@ -20,6 +20,7 @@ from .tasks.router import router as tasks_router
 from .analysis.router import router as analysis_router
 from .notifications.router import router as notifications_router
 from .notifications.router import close_active_streams, reset_shutdown_state, trigger_shutdown
+from .progress.router import router as progress_router
 from .recommendations.router import router as recommendations_router
 from .tests.router import router as tests_router
 from .utils.redis import RedisClient
@@ -75,6 +76,7 @@ root_router.include_router(skills_router)
 root_router.include_router(tasks_router)
 root_router.include_router(analysis_router)
 root_router.include_router(notifications_router)
+root_router.include_router(progress_router)
 root_router.include_router(recommendations_router)
 root_router.include_router(tests_router)
 root_router.include_router(vacancies_router)

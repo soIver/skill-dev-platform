@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from ..auth.service import TokenClaims
 from ..auth.utils import require_role
@@ -19,8 +23,23 @@ async def get_vacancy_keywords(q: str = "", claims: TokenClaims = Depends(requir
 
 
 @router.post("/search", response_model=VacancySearchResponse)
-async def search_vacancies(
-    payload: VacancySearchRequest,
-    claims: TokenClaims = Depends(require_role("user", "curator", "admin")),
-):
+async def search_vacancies(request: Request, claims: TokenClaims = Depends(require_role("user", "curator", "admin"))):
+    try:
+        raw_payload = await request.json()
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="тело запроса должно быть JSON-объектом") from exc
+
+    if isinstance(raw_payload, str):
+        try:
+            raw_payload = json.loads(raw_payload)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="тело запроса должно быть JSON-объектом") from exc
+    if raw_payload is None:
+        raw_payload = {}
+
+    try:
+        payload = VacancySearchRequest.model_validate(raw_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=jsonable_encoder(exc.errors())) from exc
+
     return await VacanciesService().search_vacancies(payload)

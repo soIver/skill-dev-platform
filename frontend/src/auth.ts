@@ -47,10 +47,41 @@ function buildHeaders(headers?: HeadersInit): Record<string, string> {
   return Object.fromEntries(new Headers(headers).entries());
 }
 
+function stringifyApiError(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  if (Array.isArray(value)) {
+    const messages = value
+      .map((item) => stringifyApiError(item))
+      .filter((item): item is string => Boolean(item));
+    return messages.length > 0 ? messages.join("; ") : null;
+  }
+
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const msg = stringifyApiError(record.msg ?? record.message ?? record.error);
+    if (msg) {
+      const location = Array.isArray(record.loc)
+        ? record.loc.filter((item) => item !== "body").join(".")
+        : null;
+      return location ? `${location}: ${msg}` : msg;
+    }
+  }
+
+  return null;
+}
+
 async function readApiError(response: Response): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string; error?: string };
-    return payload.detail || payload.message || payload.error || "Ошибка запроса";
+    const payload = (await response.json()) as { detail?: unknown; message?: unknown; error?: unknown };
+    return (
+      stringifyApiError(payload.detail) ||
+      stringifyApiError(payload.message) ||
+      stringifyApiError(payload.error) ||
+      "Ошибка запроса"
+    );
   } catch {
     return "Ошибка запроса";
   }
@@ -255,7 +286,7 @@ export async function authFetch(
   return fetch(input, {
     ...init,
     credentials: "include",
-    headers: buildHeaders(init.headers),
+    headers,
   });
 }
 
