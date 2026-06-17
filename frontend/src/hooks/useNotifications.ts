@@ -6,6 +6,7 @@ import { useRepositoriesStore } from "./useRepositoriesStore";
 import type { RepoItem } from "./useRepositoriesStore";
 import { useTasksStore, type TaskLatestAttempt } from "./useTasksStore";
 import { useVacanciesStore } from "./useVacanciesStore";
+import { config } from "../config";
 
 const RECENT_NOTIFICATION_TTL_MS = 2000;
 const recentNotificationKeys = new Map<string, number>();
@@ -58,8 +59,7 @@ export function useNotifications() {
   useEffect(() => {
     if (!user) return;
 
-    // Используем относительный путь, так как Vite проксирует /api
-    const eventSource = new EventSource("/api/notifications/stream", {
+    const eventSource = new EventSource(`${config.apiBaseUrl}/notifications/stream`, {
       withCredentials: true,
     });
 

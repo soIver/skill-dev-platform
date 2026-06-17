@@ -5,6 +5,7 @@ import { login } from "../auth";
 import { useToast } from "../components/ToastProvider";
 import GitHubIcon from "../assets/icons/github.svg?react";
 import { Eye, EyeOff } from "lucide-react";
+import { config } from "../config";
 
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
@@ -39,7 +40,7 @@ export default function Login() {
 
   const handleGitHubLogin = async () => {
     try {
-      const response = await fetch("/api/github/login-url");
+      const response = await fetch(`${config.apiBaseUrl}/github/login-url`);
       if (!response.ok) throw new Error("Failed to fetch login URL");
       const data = await response.json();
       window.location.assign(data.authorization_url);

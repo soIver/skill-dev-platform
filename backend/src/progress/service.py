@@ -189,14 +189,13 @@ class ProgressActivityService:
 
         actions: list[ProgressActivityItem] = []
         for row in result.all():
-            description = "Вакансия проанализирована." if row.analyzed_at else "Анализ вакансии поставлен в очередь."
             actions.append(ProgressActivityItem(
                 id=f"vacancy:{row.id}",
                 content_type="vacancy",
                 target_id=row.vacancy_id,
                 title=row.title,
                 action_text="Просмотрена вакансия",
-                description=description,
+                description=None,
                 occurred_at=row.viewed_at,
                 successful=None,
             ))

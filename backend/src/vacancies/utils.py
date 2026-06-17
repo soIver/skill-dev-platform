@@ -61,7 +61,7 @@ def build_search_params(payload: VacancySearchRequest, it_roles: list[str]) -> d
     if payload.education:
         params["education"] = payload.education
     if payload.accredited_it_employer:
-        params["accredited_it_employer"] = "true"
+        params["label"] = "accredited_it"
     if payload.less_than_10_negotiations:
         params["parttime"] = "less_than_10_negotiations"
 
