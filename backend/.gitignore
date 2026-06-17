@@ -3,3 +3,7 @@
 /data
 .env
 .env.production
+.coverage
+coverage.xml
+htmlcov/
+test-results.xml

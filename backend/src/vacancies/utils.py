@@ -122,11 +122,11 @@ def format_salary(salary: dict[str, Any] | None) -> str:
 
     tax_label = ""
     if gross is True:
-        tax_label = " до вычета налогов"
+        tax_label = "до вычета налогов"
     elif gross is False:
-        tax_label = " на руки"
+        tax_label = "на руки"
 
-    return f"{amount} {tax_label}"
+    return f"{amount} {tax_label}".strip()
 
 
 def format_amount(value: Any) -> str:
