@@ -15,6 +15,23 @@ def test_config_auth_cookie_secure_depends_on_allowed_origins(monkeypatch):
     assert Config.auth_cookie_secure() is True
 
 
+def test_normalize_api_route_prefix_accepts_empty_root_and_api_prefix():
+    assert Config._normalize_api_route_prefix(None) == ""
+    assert Config._normalize_api_route_prefix("") == ""
+    assert Config._normalize_api_route_prefix("/") == ""
+    assert Config._normalize_api_route_prefix("api") == "/api"
+    assert Config._normalize_api_route_prefix("/api/") == "/api"
+
+
+def test_frontend_url_joins_base_url_and_path(monkeypatch):
+    config = Config()
+    monkeypatch.setattr(config, "FRONTEND_BASE_URL", "https://app.example.com/")
+
+    assert config.frontend_url() == "https://app.example.com"
+    assert config.frontend_url("/account/credentials") == "https://app.example.com/account/credentials"
+    assert config.frontend_url("auth/login") == "https://app.example.com/auth/login"
+
+
 def test_config_validate_returns_false_when_required_values_are_missing(monkeypatch):
     monkeypatch.setattr(Config, "DATABASE_URL", None)
 

@@ -14,6 +14,23 @@ load_dotenv(SRC_DIR / ".env")
 
 
 class Config:
+    @staticmethod
+    def _normalize_api_route_prefix(value: str | None) -> str:
+        prefix = (value or "").strip()
+        if prefix in ("", "/"):
+            return ""
+        if not prefix.startswith("/"):
+            prefix = f"/{prefix}"
+        return prefix.rstrip("/")
+
+    @staticmethod
+    def _join_base_url(base_url: str, path: str = "") -> str:
+        base_url = base_url.rstrip("/")
+        clean_path = (path or "").strip()
+        if clean_path in ("", "/"):
+            return base_url
+        return f"{base_url}/{clean_path.lstrip('/')}"
+
     # данные
     DATA_PATH = "./data"
     DEFAULT_LOGGER_LEVEL = os.getenv("DEFAULT_LOGGER_LEVEL", "DEBUG")
@@ -33,13 +50,13 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRE_MINUTES = 10080
     AUTH_ACCESS_COOKIE_NAME = "access_token"
     AUTH_REFRESH_COOKIE_NAME = "refresh_token"
-    AUTH_ACCESS_COOKIE_PATH = "/api"
-    AUTH_REFRESH_COOKIE_PATH = "/api/auth"
     AUTH_COOKIE_HTTPONLY = True
 
     # приложение
-    PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://it-skill-dev.ru")
-    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+    API_ROUTE_PREFIX = _normalize_api_route_prefix(os.getenv("API_ROUTE_PREFIX", "/api"))
+    AUTH_ACCESS_COOKIE_PATH = API_ROUTE_PREFIX or "/"
+    AUTH_REFRESH_COOKIE_PATH = f"{API_ROUTE_PREFIX}/auth" if API_ROUTE_PREFIX else "/auth"
+    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 
     # GitHub OAuth
     GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
@@ -48,9 +65,14 @@ class Config:
         "GITHUB_REDIRECT_URI",
         "http://localhost:8000/api/github/callback",
     )
-    GITHUB_FRONTEND_REDIRECT_URL = os.getenv(
-        "GITHUB_FRONTEND_REDIRECT_URL",
-        "http://localhost:5173/account/credentials",
+    GITHUB_FRONTEND_REDIRECT_PATH = os.getenv(
+        "GITHUB_FRONTEND_REDIRECT_PATH",
+        "/account/credentials",
+    )
+    GITHUB_LOGIN_REDIRECT_PATH = os.getenv("GITHUB_LOGIN_REDIRECT_PATH", "/account")
+    GITHUB_REGISTRATION_REDIRECT_PATH = os.getenv(
+        "GITHUB_REGISTRATION_REDIRECT_PATH",
+        "/auth/registration",
     )
     GITHUB_SCOPE = "read:user user:email"
     GITHUB_OAUTH_STATE_TTL_SECONDS = 600
@@ -125,6 +147,9 @@ class Config:
             for origin in cls.ALLOWED_ORIGINS
             if origin.strip()
         )
+
+    def frontend_url(self, path: str = "") -> str:
+        return self._join_base_url(self.FRONTEND_BASE_URL, path)
 
     @classmethod
     def validate(cls):

@@ -1,5 +1,5 @@
-## Инструкции по локальному запуску
-### Требования
+# Инструкции по запуску
+## Требования
 - Docker 20.10+
 - Docker Compose 2.20+
 - Python 3.11+
@@ -50,7 +50,7 @@
   1. Авторизоваться на https://github.com под своими учётными данными
   2. Перейти к регистрации нового OAuth-приложения: https://github.com/settings/applications/new
   3. В качестве Homepage URL указать URL клиента (например, `http://localhost:5173`)
-  4. В качестве Authorization callback URL указать {URL-сервера}/api/github/callback (например, `http://localhost:8000/api/github/callback`)
+  4. В качестве Authorization callback URL указать `{URL-сервера}{API_ROUTE_PREFIX}/github/callback`; локально при `API_ROUTE_PREFIX=/api` это `http://localhost:8000/api/github/callback`, а на production-поддомене при `API_ROUTE_PREFIX=/` или пустом значении — `https://api.it-skill-dev.ru/github/callback`
 - `GITHUB_CLIENT_SECRET` - ключ для обмена временного кода авторизации на токен доступа GitHub. Способ получения:
   1. На странице созданного OAuth-приложения нажать "Generate a new client secret"
   2. Скопировать значение ключа сразу после генерации (GitHub покажет его только один раз)

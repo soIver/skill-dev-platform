@@ -376,15 +376,15 @@ class ManagementService:
     @staticmethod
     def _build_registration_invitation_url(code: str) -> str:
         return (
-            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
-            f"/auth/confirm-email?code={quote(code)}"
+            f"{global_config.frontend_url('/auth/confirm-email')}"
+            f"?code={quote(code)}"
         )
 
     @staticmethod
     def _build_role_invitation_url(code: str) -> str:
         return (
-            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
-            f"/auth/confirm-curator?code={quote(code)}"
+            f"{global_config.frontend_url('/auth/confirm-curator')}"
+            f"?code={quote(code)}"
         )
 
     @staticmethod

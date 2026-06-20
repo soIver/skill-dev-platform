@@ -156,7 +156,7 @@ class MailService:
                     "Подтверждение адреса электронной почты",
                     (
                         "Ваш адрес электронной почты был указан при регистрации "
-                        f'на платформе <a href="{global_config.PUBLIC_SITE_URL}">IT Skill Dev</a>.</br></br>'
+                        f'на платформе <a href="{global_config.frontend_url()}">IT Skill Dev</a>.</br></br>'
                         "Для завершения регистрации нажмите на кнопку ниже — "
                         "она будет действительна в течение одного часа с момента получения этого письма.</br></br>"
                         "Если Вы не пытались зарегистрироваться на платформе, игнорируйте это письмо."
@@ -217,7 +217,7 @@ class MailService:
                     "Смена адреса электронной почты",
                     (
                         "Ваш адрес электронной почты был указан как новый "
-                        f'для учётной записи <b>{user.username}</b> на платформе <a href="{global_config.PUBLIC_SITE_URL}">IT Skill Dev</a>.</br></br>'
+                        f'для учётной записи <b>{user.username}</b> на платформе <a href="{global_config.frontend_url()}">IT Skill Dev</a>.</br></br>'
                         "Для подтверждения смены адреса нажмите на кнопку ниже — "
                         "она будет действительна в течение одного часа с момента получения этого письма.</br></br>"
                         "Если Вы не указывали свою почту для смены авторизационных данных на платформе, игнорируйте это письмо."
@@ -476,29 +476,29 @@ class MailService:
     @staticmethod
     def _build_password_change_url(code: str) -> str:
         return (
-            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
-            f"/auth/change-password?code={quote(code)}"
+            f"{global_config.frontend_url('/auth/change-password')}"
+            f"?code={quote(code)}"
         )
 
     @staticmethod
     def _build_email_confirmation_url(code: str) -> str:
         return (
-            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
-            f"/auth/confirm-email?code={quote(code)}"
+            f"{global_config.frontend_url('/auth/confirm-email')}"
+            f"?code={quote(code)}"
         )
 
     @staticmethod
     def _build_email_change_url(code: str) -> str:
         return (
-            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
-            f"/auth/change-email?code={quote(code)}"
+            f"{global_config.frontend_url('/auth/change-email')}"
+            f"?code={quote(code)}"
         )
 
     @staticmethod
     def _build_email_change_confirmation_url(code: str) -> str:
         return (
-            f"{global_config.FRONTEND_BASE_URL.rstrip('/')}"
-            f"/auth/confirm-email-change?code={quote(code)}"
+            f"{global_config.frontend_url('/auth/confirm-email-change')}"
+            f"?code={quote(code)}"
         )
 
     @staticmethod

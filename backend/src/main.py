@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-root_router = APIRouter(prefix="/api")
+root_router = APIRouter(prefix=global_config.API_ROUTE_PREFIX)
 
 root_router.include_router(auth_router)
 root_router.include_router(classifier_router)

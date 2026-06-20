@@ -590,7 +590,10 @@ class GitHubService:
             query["login"] = login
         if message:
             query["message"] = message
-        return f"{global_config.GITHUB_FRONTEND_REDIRECT_URL}?{urlencode(query)}"
+        return (
+            f"{global_config.frontend_url(global_config.GITHUB_FRONTEND_REDIRECT_PATH)}"
+            f"?{urlencode(query)}"
+        )
 
     @staticmethod
     def _validate_config() -> None:
@@ -598,7 +601,7 @@ class GitHubService:
             "GITHUB_CLIENT_ID": global_config.GITHUB_CLIENT_ID,
             "GITHUB_CLIENT_SECRET": global_config.GITHUB_CLIENT_SECRET,
             "GITHUB_REDIRECT_URI": global_config.GITHUB_REDIRECT_URI,
-            "GITHUB_FRONTEND_REDIRECT_URL": global_config.GITHUB_FRONTEND_REDIRECT_URL,
+            "FRONTEND_BASE_URL": global_config.FRONTEND_BASE_URL,
         }
         missing = [name for name, value in required_values.items() if not value]
         if missing:

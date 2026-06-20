@@ -91,7 +91,7 @@ def build_action_email_html(title: str, text: str, button_text: str, action_url:
     escaped_button_text = escape(button_text)
     escaped_action_url = escape(action_url, quote=True)
     escaped_logo_src = escape(f"cid:{global_config.MAIL_LOGO_CONTENT_ID}", quote=True)
-    escaped_site_url = escape(global_config.PUBLIC_SITE_URL, quote=True)
+    escaped_site_url = escape(global_config.frontend_url(), quote=True)
 
     return f"""\
 <!doctype html>
