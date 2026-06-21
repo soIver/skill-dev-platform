@@ -13,6 +13,10 @@ import { PsFunctionSelectorField } from "../../components/PsFunctionSelectorFiel
 import { TextareaField } from "../../components/TextareaField";
 import { useToast } from "../../components/ToastProvider";
 import { ChevronDown, X, Plus } from "lucide-react";
+import deleteIcon from "../../assets/icons/delete.svg";
+import publishIcon from "../../assets/icons/publish.svg";
+import saveIcon from "../../assets/icons/save.svg";
+import unpublishIcon from "../../assets/icons/unpublish.svg";
 
 interface SearchResponse {
   items: TestItem[];
@@ -659,20 +663,20 @@ export default function ContentTests() {
           {selectedId && (
             <div className="flex items-center gap-2 shrink-0">
               <IconButton
-                iconSrc="/src/assets/icons/delete.svg"
+                iconSrc={deleteIcon}
                 altText={selectedId === "new" ? "Отменить создание" : "Удалить"}
                 onClick={selectedId === "new" ? handleDelete : () => setShowDeleteConfirm(true)}
                 color="danger"
               />
               <IconButton
-                iconSrc="/src/assets/icons/save.svg"
+                iconSrc={saveIcon}
                 altText="Сохранить"
                 onClick={() => handleSave(editorData.is_published)}
                 disabled={!canSave}
                 color="primary"
               />
               <IconButton
-                iconSrc={editorData.is_published ? "/src/assets/icons/unpublish.svg" : "/src/assets/icons/publish.svg"}
+                iconSrc={editorData.is_published ? unpublishIcon : publishIcon}
                 altText={editorData.is_published ? "Снять с публикации" : "Опубликовать"}
                 onClick={() => handleSave(!editorData.is_published)}
                 disabled={!canTogglePublish}

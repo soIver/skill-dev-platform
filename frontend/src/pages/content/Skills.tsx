@@ -16,6 +16,8 @@ import { InfoModal } from "../../components/InfoModal";
 import { IconButton } from "../../components/IconButton";
 import { NumberInput } from "../../components/NumberInput";
 import { useToast } from "../../components/ToastProvider";
+import deleteIcon from "../../assets/icons/delete.svg";
+import saveIcon from "../../assets/icons/save.svg";
 
 interface SearchResponse {
   items: SkillLevelItem[];
@@ -530,13 +532,13 @@ export default function SkillsAdmin() {
           {selectedId && (
             <div className="flex items-center gap-2">
               <IconButton
-                iconSrc="/src/assets/icons/delete.svg"
+                iconSrc={deleteIcon}
                 altText="Удалить"
                 onClick={() => setShowDeleteConfirm(true)}
                 color="danger"
               />
               <IconButton
-                iconSrc="/src/assets/icons/save.svg"
+                iconSrc={saveIcon}
                 altText="Сохранить"
                 onClick={handleSave}
                 disabled={!canSave}

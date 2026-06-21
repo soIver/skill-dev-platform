@@ -11,6 +11,7 @@ import ContentIcon from "../assets/icons/content.svg?react";
 import ManagementIcon from "../assets/icons/management.svg?react";
 import ArrowToggle from "../assets/icons/arrow-toggle.svg?react";
 import IsdLogo from "../assets/icons/isd-logo.svg?react";
+import IsdLogoWide from "../assets/icons/isd-logo-wide.svg?react";
 
 const NAV_WIDTH = {
   expanded: "w-68",
@@ -34,14 +35,12 @@ export default function VerNavBar() {
           className={`shrink-0 transition-all duration-300 ${isExpanded ? "w-0 opacity-0" : "w-15 h-15 opacity-100"
             }`}
         />
-        <span
-          className={`text-2xl font-bold whitespace-nowrap shrink-0 transition-all ${isExpanded
-            ? "ml-2 opacity-100 duration-400"
-            : "max-w-0 opacity-0 duration-200"
+        <IsdLogoWide
+          className={`shrink-0 transition-all ${isExpanded
+            ? "w-[180px] h-[50px] opacity-100 duration-200"
+            : "w-0 h-[50px] opacity-0 duration-200"
             }`}
-        >
-          IT-SKILL-DEV
-        </span>
+        />
       </div>
 
       {/* область навигации */}

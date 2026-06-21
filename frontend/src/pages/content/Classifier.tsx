@@ -19,6 +19,8 @@ import { useToast } from "../../components/ToastProvider";
 import { useUserStore } from "../../hooks/useUserStore";
 import { filterClassifierTree, formatPsCode, formatTfCode } from "../../utils/classifier";
 import { X } from "lucide-react";
+import deleteIcon from "../../assets/icons/delete.svg";
+import saveIcon from "../../assets/icons/save.svg";
 
 interface ClassifierTreeResponse {
   items: ClassifierProfStandardTreeItem[];
@@ -550,13 +552,13 @@ export default function Classifier() {
           {editorData && canEdit && (
             <div className="flex items-center gap-2 shrink-0">
               <IconButton
-                iconSrc="/src/assets/icons/delete.svg"
+                iconSrc={deleteIcon}
                 altText={editorData.id === "new" ? "Отменить создание" : "Удалить"}
                 onClick={editorData.id === "new" ? handleDelete : () => setShowDeleteConfirm(true)}
                 color="danger"
               />
               <IconButton
-                iconSrc="/src/assets/icons/save.svg"
+                iconSrc={saveIcon}
                 altText="Сохранить"
                 onClick={handleSave}
                 disabled={!canSave}
