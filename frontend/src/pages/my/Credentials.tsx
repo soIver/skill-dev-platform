@@ -38,7 +38,7 @@ interface CredentialChangeConfig {
 
 const credentialChangeConfig: Record<CredentialChangeAction, CredentialChangeConfig> = {
   email: {
-    path: "/auth/email-change/request",
+    path: "/auth/recovery/email/request",
     waitTitle: "Пожалуйста, подождите",
     waitMessage: (seconds) =>
       `Обязательно проверьте папку "спам" в почтовом ящике. Повторная отправка письма будет доступна через ${formatDurationSeconds(seconds)}.`,
@@ -48,7 +48,7 @@ const credentialChangeConfig: Record<CredentialChangeAction, CredentialChangeCon
     fallbackError: "Не удалось отправить письмо для смены почты.",
   },
   password: {
-    path: "/auth/password-change/request",
+    path: "/auth/recovery/password/request",
     waitTitle: "Пожалуйста, подождите",
     waitMessage: (seconds) =>
       `Обязательно проверьте папку "спам" в почтовом ящике. Повторная отправка письма будет доступна через ${formatDurationSeconds(seconds)}.`,
@@ -370,6 +370,7 @@ export default function Credentials() {
         `${config.apiBaseUrl}${actionConfig.path}`,
         {
           method: "POST",
+          body: action === "password" ? JSON.stringify({ email: user?.email }) : undefined,
         },
       );
       const data = await readCredentialChangeResponse(response);

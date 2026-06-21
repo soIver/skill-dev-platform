@@ -37,12 +37,12 @@ class MailService:
         self.redis = redis or get_redis()
         self.delivery = MailDeliveryService()
 
-    async def request_password_change(self, user_id: int) -> int:
-        retry_after = await self._get_retry_after(self._password_change_rate_key(user_id))
+    async def request_password_change(self, email: str) -> int:
+        user = await self._get_user_by_email(email)
+        retry_after = await self._get_retry_after(self._password_change_rate_key(user.id))
         if retry_after > 0:
             raise PasswordChangeRateLimitError(retry_after)
 
-        user = await self._get_user(user_id)
         code = generate_urlsafe_token(32)
         action_url = self._build_password_change_url(code)
 
@@ -264,12 +264,6 @@ class MailService:
         code_data = await self._get_password_change_code_data(payload.code)
         user = await self._get_user(int(code_data["user_id"]))
 
-        if not password_hasher.verify(payload.current_password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Текущий пароль указан неверно",
-            )
-
         user.password_hash = password_hasher.hash(payload.new_password)
         await self.db.commit()
 
@@ -461,6 +455,16 @@ class MailService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Пользователь не найден",
+            )
+        return user
+
+    async def _get_user_by_email(self, email: str) -> User:
+        result = await self.db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Пользователь с таким email не найден",
             )
         return user
 

@@ -44,7 +44,7 @@ export default function Login() {
       if (!response.ok) throw new Error("Failed to fetch login URL");
       const data = await response.json();
       window.location.assign(data.authorization_url);
-    } catch (error) {
+    } catch {
       showToast({
         title: "Ошибка GitHub",
         message: "Не удалось начать авторизацию GitHub.",
@@ -97,6 +97,9 @@ export default function Login() {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
+            <Link to="/auth/recovery/password" className="hyperlink text-sm ml-1">
+              Я не помню свой пароль
+            </Link>
           </div>
 
           <button type="submit" className="primary-button mt-5">

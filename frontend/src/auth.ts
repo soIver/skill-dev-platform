@@ -164,6 +164,19 @@ export async function requestEmailConfirmation(email: string): Promise<void> {
   }
 }
 
+export async function requestPasswordRecovery(email: string): Promise<void> {
+  const response = await fetch(`${config.apiBaseUrl}/auth/recovery/password/request`, {
+    method: "POST",
+    headers: getDefaultHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+}
+
 export async function completeEmailRegistration(
   credentials: EmailRegistrationCredentials,
 ): Promise<void> {

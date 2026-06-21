@@ -3,6 +3,7 @@ import NotFound from "./pages/NotFound";
 import Registration from "./pages/Registration";
 import Login from "./pages/Login";
 import PasswordChange from "./pages/auth/PasswordChange";
+import PasswordRecovery from "./pages/auth/PasswordRecovery";
 import EmailConfirmation from "./pages/auth/EmailConfirmation";
 import CuratorInvitationConfirmation from "./pages/auth/CuratorInvitationConfirmation";
 import EmailChange from "./pages/auth/EmailChange";
@@ -37,6 +38,7 @@ export default function AppRoutes() {
       <Route path="/auth/registration" element={<Registration />} />
       <Route path="/auth/login" element={<Login />} />
       <Route path="/auth/change-password" element={<PasswordChange />} />
+      <Route path="/auth/recovery/password" element={<PasswordRecovery />} />
       <Route path="/auth/confirm-email" element={<EmailConfirmation />} />
       <Route path="/auth/confirm-curator" element={<CuratorInvitationConfirmation />} />
       <Route path="/auth/change-email" element={<EmailChange />} />

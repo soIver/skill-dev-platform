@@ -48,7 +48,7 @@ export default function EmailChange() {
 
       try {
         const response = await fetch(
-          `${config.apiBaseUrl}/auth/email-change/verify?code=${encodeURIComponent(code)}`,
+          `${config.apiBaseUrl}/auth/recovery/email/verify?code=${encodeURIComponent(code)}`,
           {
             method: "GET",
             credentials: "include",
@@ -92,7 +92,7 @@ export default function EmailChange() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${config.apiBaseUrl}/auth/email-change/request-confirmation`, {
+      const response = await fetch(`${config.apiBaseUrl}/auth/recovery/email/request-confirmation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -144,7 +144,7 @@ export default function EmailChange() {
         {status === "sent" ? (
           <div className="space-y-6">
             <p className="text-base text-gray-900">
-              На электронную почту {email} было отправлено письмо с инструкцией для подтверждения
+              На электронную почту {email} было отправлено письмо с инструкцией для подтверждения.
             </p>
             <button type="button" onClick={() => navigate("/account/credentials")} className="primary-button">
               Профиль

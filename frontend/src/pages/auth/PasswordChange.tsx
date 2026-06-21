@@ -30,10 +30,8 @@ export default function PasswordChange() {
   const code = searchParams.get("code") || "";
   const [status, setStatus] = useState<"loading" | "ready" | "invalid" | "success">("loading");
   const [successMessage, setSuccessMessage] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [activeField, setActiveField] = useState<"newPassword" | "repeatPassword" | null>(null);
@@ -58,7 +56,7 @@ export default function PasswordChange() {
 
       try {
         const response = await fetch(
-          `${config.apiBaseUrl}/auth/password-change/verify?code=${encodeURIComponent(code)}`,
+          `${config.apiBaseUrl}/auth/recovery/password/verify?code=${encodeURIComponent(code)}`,
           {
             method: "GET",
             credentials: "include",
@@ -112,7 +110,7 @@ export default function PasswordChange() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${config.apiBaseUrl}/auth/password-change/confirm`, {
+      const response = await fetch(`${config.apiBaseUrl}/auth/recovery/password/confirm`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -120,7 +118,6 @@ export default function PasswordChange() {
         credentials: "include",
         body: JSON.stringify({
           code,
-          current_password: currentPassword,
           new_password: newPassword,
           repeat_password: repeatPassword,
         }),
@@ -185,7 +182,7 @@ export default function PasswordChange() {
   return (
     <div className="auth-screen">
       <div className="auth-panel">
-        <h1 className="auth-panel-header">Смена пароля</h1>
+        <h1 className="auth-panel-header">Восстановление пароля</h1>
 
         {status === "loading" ? (
           <LoadingText text="Проверка кода..." className="text-base text-gray-900" />
@@ -212,19 +209,6 @@ export default function PasswordChange() {
 
         {status === "ready" ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Текущий пароль
-              </label>
-              {renderPasswordInput(
-                currentPassword,
-                setCurrentPassword,
-                showCurrentPassword,
-                () => setShowCurrentPassword(!showCurrentPassword),
-                "Ваш текущий пароль",
-              )}
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Новый пароль

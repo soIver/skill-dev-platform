@@ -152,7 +152,7 @@ export default function Registration() {
           <h1 className="auth-panel-header">Подтверждение адреса электронной почты</h1>
           <div className="space-y-6">
             <p className="text-base text-gray-900">
-              На электронную почту {confirmedEmail} было отправлено письмо с инструкцией для подтверждения
+              На электронную почту {confirmedEmail} было отправлено письмо с инструкцией для подтверждения.
             </p>
             <button type="button" onClick={() => navigate("/auth/login")} className="primary-button">
               Вход

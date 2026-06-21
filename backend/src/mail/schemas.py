@@ -13,7 +13,6 @@ class PasswordChangeCodeResponse(BaseModel):
 
 class PasswordChangeConfirmRequest(BaseModel):
     code: str
-    current_password: str = Field(max_length=64)
     new_password: str = Field(max_length=64)
     repeat_password: str = Field(max_length=64)
 

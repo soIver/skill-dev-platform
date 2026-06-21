@@ -29,7 +29,7 @@ function confirmEmailChangeOnce(code: string): Promise<void> {
     return existingRequest;
   }
 
-  const request = fetch(`${config.apiBaseUrl}/auth/email-change/confirm`, {
+  const request = fetch(`${config.apiBaseUrl}/auth/recovery/email/confirm`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

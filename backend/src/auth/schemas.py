@@ -46,6 +46,15 @@ class EmailConfirmationRequest(BaseModel):
         return validate_email_value(v)
 
 
+class PasswordRecoveryRequest(BaseModel):
+    email: str = Field(max_length=64)
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        return validate_email_value(v)
+
+
 class EmailConfirmationResponse(BaseModel):
     message: str
     retry_after_seconds: int = 0

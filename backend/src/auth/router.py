@@ -28,6 +28,7 @@ from .schemas import (
     EmailRegistrationCompleteRequest,
     LoginCredentials,
     MessageResponse,
+    PasswordRecoveryRequest,
     RegistrationCredentials,
     UsernameAvailabilityResponse,
     UsernameUpdateRequest,
@@ -207,12 +208,12 @@ async def confirm_curator_invitation(
     )
 
 
-@router.post("/password-change/request", response_model=PasswordChangeRequestResponse)
-async def request_password_change(db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(get_current_user)):
+@router.post("/recovery/password/request", response_model=PasswordChangeRequestResponse)
+async def request_password_change(payload: PasswordRecoveryRequest, db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
 
     try:
-        retry_after = await mail_service.request_password_change(claims.user_id)
+        retry_after = await mail_service.request_password_change(payload.email)
     except PasswordChangeRateLimitError as exc:
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -228,7 +229,7 @@ async def request_password_change(db: AsyncSession = Depends(get_db), claims: To
     )
 
 
-@router.post("/email-change/request", response_model=EmailConfirmationResponse)
+@router.post("/recovery/email/request", response_model=EmailConfirmationResponse)
 async def request_email_change(db: AsyncSession = Depends(get_db), claims: TokenClaims = Depends(get_current_user)):
     mail_service = MailService(db)
 
@@ -249,21 +250,21 @@ async def request_email_change(db: AsyncSession = Depends(get_db), claims: Token
     )
 
 
-@router.get("/email-change/verify", response_model=EmailConfirmationResponse)
+@router.get("/recovery/email/verify", response_model=EmailConfirmationResponse)
 async def verify_email_change_code(code: str = Query(...), db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
     await mail_service.verify_email_change_code(code)
     return EmailConfirmationResponse(message="Код подтверждения корректен")
 
 
-@router.post("/email-change/request-confirmation", response_model=EmailConfirmationResponse)
+@router.post("/recovery/email/request-confirmation", response_model=EmailConfirmationResponse)
 async def request_email_change_confirmation(payload: EmailChangeNewAddressRequest, db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
     await mail_service.request_email_change_confirmation(payload.code, payload.email)
     return EmailConfirmationResponse(message="Письмо для подтверждения нового адреса отправлено")
 
 
-@router.post("/email-change/confirm", response_model=EmailConfirmationResponse)
+@router.post("/recovery/email/confirm", response_model=EmailConfirmationResponse)
 async def confirm_email_change(payload: EmailChangeConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
     await mail_service.confirm_email_change(payload.code)
@@ -271,14 +272,14 @@ async def confirm_email_change(payload: EmailChangeConfirmRequest, response: Res
     return EmailConfirmationResponse(message="Адрес электронной почты успешно изменён!")
 
 
-@router.get("/password-change/verify", response_model=PasswordChangeCodeResponse)
+@router.get("/recovery/password/verify", response_model=PasswordChangeCodeResponse)
 async def verify_password_change_code(code: str = Query(...), db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
     await mail_service.verify_password_change_code(code)
     return PasswordChangeCodeResponse(message="Код подтверждения корректен")
 
 
-@router.post("/password-change/confirm", response_model=PasswordChangeCodeResponse)
+@router.post("/recovery/password/confirm", response_model=PasswordChangeCodeResponse)
 async def confirm_password_change(payload: PasswordChangeConfirmRequest, response: Response, db: AsyncSession = Depends(get_db)):
     mail_service = MailService(db)
     user = await mail_service.confirm_password_change(payload)
