@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { PaginatedTable, type Column, type PaginatedPage } from "../../components/PaginatedTable";
 import { ActionMenu } from "../../components/ActionMenu";
 import { authJson } from "../../auth";
 import { InfoModal } from "../../components/InfoModal";
@@ -36,36 +36,14 @@ export default function Profile() {
   const tasksStore = useTasksStore();
   const testsStore = useTestsStore();
   const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
-  const [data, setData] = useState<UserSkill[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
   const [psFunctions, setPsFunctions] = useState<ClassifierProfStandardTreeItem[]>([]);
   const [isFunctionsLoading, setIsFunctionsLoading] = useState(true);
 
-  const lastFetchedPage = useRef<number | null>(null);
-
-  const fetchSkills = useCallback(async (page: number) => {
-    if (lastFetchedPage.current === page) return;
-    lastFetchedPage.current = page;
-
-    setIsLoading(true);
-    try {
-      const response = await authJson<PaginatedResponse>(`/skills/my?page=${page}&limit=10`);
-      setData(response.items);
-      setTotalPages(response.total_pages);
-    } catch (error) {
-      console.error("Ошибка при загрузке навыков:", error);
-      lastFetchedPage.current = null; // Позволяем повторную попытку при ошибке
-    } finally {
-      setIsLoading(false);
-    }
+  const loadSkillsPage = useCallback(async (page: number, limit: number): Promise<PaginatedPage<UserSkill>> => {
+    const response = await authJson<PaginatedResponse>(`/skills/my?page=${page}&limit=${limit}`);
+    return { items: response.items, totalPages: response.total_pages };
   }, []);
-
-  useEffect(() => {
-    fetchSkills(currentPage);
-  }, [currentPage, fetchSkills]);
 
   const fetchPsFunctions = useCallback(async () => {
     setIsFunctionsLoading(true);
@@ -231,16 +209,14 @@ export default function Profile() {
         <div className="flex-1 min-h-0 flex flex-col">
           <PaginatedTable
             columns={columns}
-            data={data}
-            isLoading={isLoading}
             emptyMessage={
               <>
                 Вы можете <Link to="/tests" className="hyperlink">пройти тест</Link>, <Link to="/tasks" className="hyperlink">выполнить задание</Link> <br />или <Link to="/account/repositories" className="hyperlink">загрузить репозиторий</Link>, чтобы получить первые навыки.
               </>
             }
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
+            loadPage={loadSkillsPage}
+            cacheKey="profile-skills"
+            queryKey="profile-skills"
           />
         </div>
       </div>

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 
 import { authJson } from "../auth";
 import { ITEMS_PER_TABLE_PAGE, SEARCH_DEBOUNCE_MS } from "../config";
 import { EditorConfirmModal } from "../components/EditorConfirmModal";
-import { PaginatedTable, type Column } from "../components/PaginatedTable";
+import { PaginatedTable, type Column, type PaginatedPage } from "../components/PaginatedTable";
 import { useToast } from "../components/ToastProvider";
 import { useContentStore } from "../hooks/useContentStore";
 import { useManagementStore, type CuratorManagementItem } from "../hooks/useManagementStore";
@@ -27,14 +27,12 @@ type PendingAction =
   | { type: "revoke"; item: CuratorManagementItem };
 
 export default function ManagementAdmin() {
-  const { query, results, currentPage, totalPages, hasLoaded, lastSearch, setManagementState } = useManagementStore();
+  const { query, setManagementState } = useManagementStore();
   const { setSkillsState, setTasksState, setTestsState } = useContentStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDebouncing, setIsDebouncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tableRefreshKey, setTableRefreshKey] = useState(0);
   const [availability, setAvailability] = useState<CuratorInvitationAvailabilityResponse | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -42,55 +40,20 @@ export default function ManagementAdmin() {
   const isFullEmail = checkEmail(trimmedQuery).valid;
   const canInvite = isFullEmail && availability?.can_invite === true && !isSubmitting;
 
-  const loadCurators = async (page: number, search: string) => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(ITEMS_PER_TABLE_PAGE.DEFAULT),
-      });
-      if (search.trim()) {
-        params.set("q", search.trim());
-      }
-
-      const response = await authJson<CuratorManagementResponse>(`/management/curators?${params.toString()}`);
-      setManagementState({
-        results: response.items,
-        currentPage: response.current_page,
-        totalPages: response.total_pages,
-        hasLoaded: true,
-        lastSearch: { query: search, page },
-      });
-    } finally {
-      setIsLoading(false);
-      setIsDebouncing(false);
-    }
-  };
-
-  useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
+  const loadCuratorsPage = useCallback(async (page: number, limit: number): Promise<PaginatedPage<CuratorManagementItem>> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (trimmedQuery) {
+      params.set("q", trimmedQuery);
     }
 
-    const shouldSearch = !hasLoaded || query !== lastSearch.query;
+    const response = await authJson<CuratorManagementResponse>(`/management/curators?${params.toString()}`);
+    return { items: response.items, totalPages: response.total_pages };
+  }, [trimmedQuery]);
 
-    if (!shouldSearch) {
-      setIsDebouncing(false);
-      return;
-    }
-
-    setIsDebouncing(true);
-
-    debounceRef.current = setTimeout(() => {
-      void loadCurators(1, query);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, [query]);
+  const refreshTable = () => setTableRefreshKey((value) => value + 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +100,7 @@ export default function ManagementAdmin() {
         message: "Письмо с приглашением отправлено на указанную почту.",
         variant: "success",
       });
-      await loadCurators(1, query);
+      refreshTable();
       setAvailability({ can_invite: true });
     } finally {
       setIsSubmitting(false);
@@ -171,7 +134,7 @@ export default function ManagementAdmin() {
       }
 
       setPendingAction(null);
-      await loadCurators(currentPage, query);
+      refreshTable();
     } finally {
       setIsSubmitting(false);
     }
@@ -346,12 +309,13 @@ export default function ManagementAdmin() {
 
         <PaginatedTable
           columns={columns}
-          data={results}
-          isLoading={isLoading || isDebouncing}
           emptyMessage="Кураторы не найдены"
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={(page) => void loadCurators(page, query)}
+          itemsPerPage={ITEMS_PER_TABLE_PAGE.DEFAULT}
+          loadPage={loadCuratorsPage}
+          cacheKey="management-curators"
+          queryKey={trimmedQuery}
+          refreshKey={tableRefreshKey}
+          debounceMs={SEARCH_DEBOUNCE_MS}
         />
       </div>
 

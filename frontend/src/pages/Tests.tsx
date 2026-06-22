@@ -41,7 +41,6 @@ export default function Tests() {
   const location = useLocation();
   const initialRefreshRef = useRef(false);
   const restoredSelectionRef = useRef(false);
-  const refreshedAfterAttemptRef = useRef(false);
   const {
     keywordInput,
     onlyUnpassed,
@@ -67,6 +66,11 @@ export default function Tests() {
   const [isStarting, setIsStarting] = useState(false);
   const [selectedTest, setSelectedTest] = useState<TestPublicItem | null>(null);
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
+  const attemptState = location.state as {
+    skillId?: number;
+    skillLevelId?: number;
+    forceRefresh?: boolean;
+  } | null;
 
   const doSearch = useCallback(async (
     page: number,
@@ -110,12 +114,30 @@ export default function Tests() {
   useEffect(() => {
     if (initialRefreshRef.current) return;
     initialRefreshRef.current = true;
-    if (!hasSearched || lastSearchSkillIds.length > 0 || lastSearchPsFunctionIds.length > 0) {
+
+    // lastSearchSkillIds хранит временный фильтр при открытии рекомендации.
+    // После восстановления нужной карточки selectedSkills очищается, поэтому при
+    // следующем входе возвращаем обычную первую страницу без скрытого фильтра.
+    if (!hasSearched || lastSearchSkillIds.length > 0) {
       doSearch(1, keywordInput, selectedPsFunctions, onlyUnpassed);
       return;
     }
-    doSearch(currentPage, lastSearchKeyword, selectedPsFunctions, onlyUnpassed);
-  }, [currentPage, doSearch, hasSearched, keywordInput, lastSearchKeyword, lastSearchSkillIds.length, lastSearchPsFunctionIds.length, onlyUnpassed, selectedPsFunctions]);
+
+    if (attemptState?.forceRefresh || attemptState?.skillLevelId) {
+      doSearch(currentPage, lastSearchKeyword || keywordInput, selectedPsFunctions, onlyUnpassed);
+    }
+  }, [
+    attemptState?.forceRefresh,
+    attemptState?.skillLevelId,
+    currentPage,
+    doSearch,
+    hasSearched,
+    keywordInput,
+    lastSearchKeyword,
+    lastSearchSkillIds.length,
+    onlyUnpassed,
+    selectedPsFunctions,
+  ]);
 
   const handleSearch = () => doSearch(1, keywordInput, selectedPsFunctions, onlyUnpassed);
 
@@ -151,18 +173,6 @@ export default function Tests() {
   }, [results, selectedLevelId, selectedTest]);
 
   const modalDescription = activeModalLevel?.description_preview || "Описание теста пока не заполнено.";
-  const attemptState = location.state as {
-    skillId?: number;
-    skillLevelId?: number;
-    forceRefresh?: boolean;
-  } | null;
-
-  useEffect(() => {
-    if ((!attemptState?.forceRefresh && !attemptState?.skillLevelId) || refreshedAfterAttemptRef.current) return;
-    refreshedAfterAttemptRef.current = true;
-    doSearch(currentPage, lastSearchKeyword || keywordInput, selectedPsFunctions, onlyUnpassed);
-  }, [attemptState?.forceRefresh, attemptState?.skillLevelId, currentPage, doSearch, keywordInput, lastSearchKeyword, onlyUnpassed, selectedPsFunctions]);
-
   useEffect(() => {
     if (restoredSelectionRef.current || !attemptState?.skillLevelId || results.length === 0) {
       return;

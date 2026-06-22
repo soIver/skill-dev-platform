@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { authJson } from "../../auth";
-import { PS_FUNCTIONS, TASK, SEARCH_DEBOUNCE_MS } from "../../config";
+import { ITEMS_PER_TABLE_PAGE, PS_FUNCTIONS, TASK, SEARCH_DEBOUNCE_MS } from "../../config";
 import { useContentStore, type TaskItem, type PsFunctionItem, type SkillTaskItem } from "../../hooks/useContentStore";
 import { useClassifierTree } from "../../hooks/useClassifierTree";
-import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { PaginatedTable, type Column, type PaginatedPage } from "../../components/PaginatedTable";
 import { IconButton } from "../../components/IconButton";
 import { EditorConfirmModal } from "../../components/EditorConfirmModal";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
@@ -49,81 +49,48 @@ interface TaskDetailResponse {
 
 export default function ContentTasks() {
   const { tasks, setTasksState } = useContentStore();
-  const { keywordInput, skillInput, ownerId, ownerUsername, results, currentPage, totalPages, lastSearch, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
+  const { keywordInput, skillInput, ownerId, ownerUsername, selectedId, editorData, hasUnsavedChanges, pendingSelectId } = tasks;
   const { showToast } = useToast();
   const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
 
-  const [isSearching, setIsSearching] = useState(false);
-  const [isDebouncing, setIsDebouncing] = useState(false);
-
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isTitleTaken, setIsTitleTaken] = useState(false);
+  const [tableRefreshKey, setTableRefreshKey] = useState(0);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newTitleRef = useRef<string>("");
 
-  const fetchTasks = async (keyword: string, skill: string, ownerIdValue: number | null, page: number) => {
-    setIsSearching(true);
-    try {
-      const params = new URLSearchParams({ page: page.toString() });
-      if (keyword) params.append("keyword", keyword);
-      if (ownerIdValue !== null) params.append("author_id", ownerIdValue.toString());
+  const loadTasksPage = async (page: number, limit: number): Promise<PaginatedPage<TaskItem>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (keywordInput) params.append("keyword", keywordInput);
+    if (ownerId !== null) params.append("author_id", ownerId.toString());
 
-      // резолвим строку навыка в конкретные id уровней для AND-фильтрации
-      if (skill) {
-        let skillPart = skill;
-        let levelPart = "";
-        if (skill.includes(" - ")) {
-          const parts = skill.split(" - ", 2);
-          skillPart = parts[0].trim();
-          levelPart = parts[1].trim();
-        }
-        const slParams = new URLSearchParams({ skill: skillPart });
-        if (levelPart) slParams.append("level", levelPart);
-        const slData = await authJson<{ items: Array<{ id: number }> }>(`/skills/skill_levels?${slParams.toString()}`);
-        for (const sl of slData.items) {
-          params.append("skill_level_ids", String(sl.id));
-        }
+    // резолвим строку навыка в конкретные id уровней для AND-фильтрации
+    if (skillInput) {
+      let skillPart = skillInput;
+      let levelPart = "";
+      if (skillInput.includes(" - ")) {
+        const parts = skillInput.split(" - ", 2);
+        skillPart = parts[0].trim();
+        levelPart = parts[1].trim();
       }
-
-      const response = await authJson<SearchResponse>(`/tasks?${params.toString()}`);
-      setTasksState({
-        results: response.items,
-        totalPages: response.total_pages,
-        currentPage: response.current_page,
-        lastSearch: { keyword, skill, ownerId: ownerIdValue, page }
-      });
-    } catch (error) {
-      console.error("Failed to fetch tasks", error);
-    } finally {
-      setIsSearching(false);
-      setIsDebouncing(false);
+      const slParams = new URLSearchParams({ skill: skillPart });
+      if (levelPart) slParams.append("level", levelPart);
+      const slData = await authJson<{ items: Array<{ id: number }> }>(`/skills/skill_levels?${slParams.toString()}`);
+      for (const sl of slData.items) {
+        params.append("skill_level_ids", String(sl.id));
+      }
     }
+
+    const response = await authJson<SearchResponse>(`/tasks?${params.toString()}`);
+    return { items: response.items, totalPages: response.total_pages };
   };
 
-  useEffect(() => {
-    setIsDebouncing(true);
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      if (
-        keywordInput === lastSearch.keyword &&
-        skillInput === lastSearch.skill &&
-        ownerId === lastSearch.ownerId &&
-        results.length > 0
-      ) {
-        setIsDebouncing(false);
-        return;
-      }
-      fetchTasks(keywordInput, skillInput, ownerId, 1);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [keywordInput, skillInput, ownerId]);
+  const tableQueryKey = JSON.stringify({ keyword: keywordInput, skill: skillInput, ownerId });
+  const refreshTable = () => setTableRefreshKey((value) => value + 1);
 
   useEffect(() => {
     setIsTitleTaken(false);
@@ -273,7 +240,7 @@ export default function ContentTasks() {
       });
 
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
-      fetchTasks(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
+      refreshTable();
       return response.id;
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
@@ -291,7 +258,7 @@ export default function ContentTasks() {
       await authJson(`/tasks/${selectedId}`, { method: "DELETE" });
       setTasksState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Задание удалено", variant: "success" });
-      fetchTasks(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
+      refreshTable();
     } catch (error) {
       showToast({ title: "Ошибка", message: "Не удалось удалить задание", variant: "error" });
     }
@@ -440,12 +407,6 @@ export default function ContentTasks() {
     },
   ];
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      fetchTasks(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, newPage);
-    }
-  };
-
   return (
     <div className="workspace-container">
       {pendingSelectId !== null && (
@@ -526,13 +487,14 @@ export default function ContentTasks() {
 
         <PaginatedTable
           columns={columns}
-          data={results}
-          isLoading={isSearching || isDebouncing}
           emptyMessage="Задания не найдены"
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
           onRowClick={handleRowClick}
+          itemsPerPage={ITEMS_PER_TABLE_PAGE.DEFAULT}
+          loadPage={loadTasksPage}
+          cacheKey="content-tasks"
+          queryKey={tableQueryKey}
+          refreshKey={tableRefreshKey}
+          debounceMs={SEARCH_DEBOUNCE_MS}
         />
       </div>
 

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2, Hourglass } from "lucide-react";
-import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { PaginatedTable, type Column, type PaginatedPage } from "../../components/PaginatedTable";
 import { ActionMenu } from "../../components/ActionMenu";
 import { authJson } from "../../auth";
 import { useToast } from "../../components/ToastProvider";
@@ -20,9 +20,6 @@ export default function Repositories() {
     addRepos,
   } = useRepositoriesStore();
 
-  const [isLoading, setIsLoading] = useState(!isInitialized);
-  const [currentPage, setCurrentPage] = useState(1);
-
   const fetchPage = useCallback(async (page: number, limit: number) => {
     try {
       const data = await authJson<{ items: RepoItem[]; total_pages: number; current_page: number; total_items: number }>(
@@ -39,43 +36,33 @@ export default function Repositories() {
     }
   }, [showToast]);
 
-  const loadData = useCallback(async () => {
-    if (isInitialized) {
-      setIsLoading(false);
-      return;
+  const loadRepositoriesPage = useCallback(async (page: number, limit: number): Promise<PaginatedPage<RepoItem>> => {
+    if (fetchedPages.includes(page)) {
+      const start = (page - 1) * limit;
+      return {
+        items: repos.slice(start, start + limit),
+        totalPages,
+      };
     }
 
-    setIsLoading(true);
-    // инициальная подгрузка первых двух страниц (ITEMS_PER_PAGE * 2 объектов)
-    const data = await fetchPage(1, ITEMS_PER_TABLE_PAGE.REPOS * 2);
-    if (data) {
-      // точный расчет страниц на основе реального количества элементов
-      const computedTotalPages = Math.max(1, Math.ceil(data.total_items / ITEMS_PER_TABLE_PAGE.REPOS));
-      const itemsWithId = data.items.map(item => ({ ...item, id: item.name }));
-      setReposData(itemsWithId, computedTotalPages, [1, 2]);
+    const data = await fetchPage(page, limit);
+    if (!data) {
+      return { items: [], totalPages };
     }
-    setIsLoading(false);
-  }, [fetchPage, isInitialized, setReposData]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadData();
-  }, [loadData]);
-
-  const handlePageChange = useCallback((newPage: number) => {
-    setCurrentPage(newPage);
-  }, []);
-
-  // функция предзагрузки следующей страницы
-  const handlePreload = useCallback(async (nextPage: number) => {
-    if (nextPage <= totalPages && !fetchedPages.includes(nextPage)) {
-      const data = await fetchPage(nextPage, ITEMS_PER_TABLE_PAGE.REPOS);
-      if (data) {
-        const itemsWithId = data.items.map(item => ({ ...item, id: item.name }));
-        addRepos(itemsWithId, nextPage);
-      }
+    const computedTotalPages = Math.max(1, Math.ceil(data.total_items / limit));
+    const itemsWithId = data.items.map((item) => ({ ...item, id: item.name }));
+    if (page === 1 && !isInitialized) {
+      setReposData(itemsWithId, computedTotalPages, [1]);
+    } else {
+      addRepos(itemsWithId, page);
     }
-  }, [addRepos, fetchPage, fetchedPages, totalPages]);
+    return { items: itemsWithId, totalPages: computedTotalPages };
+  }, [addRepos, fetchPage, fetchedPages, isInitialized, repos, setReposData, totalPages]);
+
+  const resolveRepository = useCallback((item: RepoItem) => (
+    repos.find((repo) => repo.name === item.name) ?? item
+  ), [repos]);
 
   const handleAnalyze = async (repo: RepoItem) => {
     try {
@@ -188,13 +175,11 @@ export default function Repositories() {
         <div className="flex-1 min-h-0 flex flex-col">
           <PaginatedTable
             columns={columns}
-            data={repos}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
             itemsPerPage={ITEMS_PER_TABLE_PAGE.REPOS}
-            onPreload={handlePreload}
-            isLoading={isLoading}
+            loadPage={loadRepositoriesPage}
+            cacheKey="repositories"
+            queryKey="repositories"
+            resolveItem={resolveRepository}
             emptyMessage={
               <>
                 Привяжите профиль GitHub в <Link to="/account/credentials" className="hyperlink">настройках интеграций</Link>,<br />чтобы получить возможность загружать свои репозитории.

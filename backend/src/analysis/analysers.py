@@ -35,7 +35,7 @@ class RepositoryTooLargeError(ValueError):
 
 
 class RepoAnalyzer:
-    DISTANCE_TRESHOLD = 0.3
+    DISTANCE_TRESHOLD = 0.5
     TOKEN_COUNT_PATTERN = re.compile(
         r"(?:estimated\s+tokens|tokens)\s*:\s*([\d\s,._\u00a0]+)([kKmM]?)",
         re.IGNORECASE,

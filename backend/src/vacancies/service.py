@@ -545,7 +545,7 @@ class VacanciesService:
     async def _get_cached_token(self) -> str | None:
         # локальный in-memory кэш
         now = time.time()
-        if VacanciesService._in_memory_token and VacanciesService._in_memory_expires_at > now + 60:
+        if VacanciesService._in_memory_token and VacanciesService._in_memory_expires_at > now:
             logger.debug(
                 "HH token source=in-memory fp=%s expires_in=%s",
                 token_fingerprint(VacanciesService._in_memory_token),
@@ -565,7 +565,7 @@ class VacanciesService:
                     token_fingerprint(token),
                     ttl,
                 )
-                if ttl > 60:
+                if ttl > 0:
                     VacanciesService._in_memory_token = token
                     VacanciesService._in_memory_expires_at = now + ttl
                 return token
@@ -609,11 +609,14 @@ class VacanciesService:
         # обработка ответа
         if response.status_code >= 400:
             if response.status_code == 403 and "app token refresh too early" in response.text.lower():
-                logger.warning(
-                    "hh.ru отклонил refresh app-token как слишком ранний, HH-запрос будет выполнен без Authorization: body=%s",
+                logger.error(
+                    "hh.ru отклонил refresh app-token как слишком ранний, анонимный HH-запрос отменён: body=%s",
                     response_preview(response),
                 )
-                return None
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="HeadHunter не разрешил обновить app-token до истечения текущего токена",
+                )
             logger.error(
                 "hh.ru отклонил запрос токена: status=%s body=%s",
                 response.status_code,
@@ -655,7 +658,7 @@ class VacanciesService:
         )
 
         # сохранение в redis
-        ttl = max(10, expires_in - 60)
+        ttl = max(1, expires_in)
         try:
             redis = get_redis()
             await redis.setex(HH_TOKEN_CACHE_KEY, ttl, access_token)

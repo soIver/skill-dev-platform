@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { authJson } from "../../auth";
-import { SKILL_LEVEL, SEARCH_DEBOUNCE_MS } from "../../config";
+import { ITEMS_PER_TABLE_PAGE, SKILL_LEVEL, SEARCH_DEBOUNCE_MS } from "../../config";
 import {
   useContentStore,
   type SkillLevelItem,
   type LevelEditorItem,
   type SkillRelationEditorItem,
 } from "../../hooks/useContentStore";
-import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { PaginatedTable, type Column, type PaginatedPage } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { BentoSearch } from "../../components/BentoSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
@@ -56,72 +56,43 @@ type RelationWeightField = "incoming_weight" | "outgoing_weight";
 export default function SkillsAdmin() {
   const { skills, setSkillsState } = useContentStore();
   const {
-    skillInput, levelInput, ownerId, ownerUsername, results, currentPage, totalPages, lastSearch,
+    skillInput, levelInput, ownerId, ownerUsername,
     selectedId, editorData, hasUnsavedChanges, pendingSelectId,
   } = skills;
   const { showToast } = useToast();
 
-  const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [isDebouncing, setIsDebouncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null);
+  const [tableRefreshKey, setTableRefreshKey] = useState(0);
 
   // клиентская пагинация связей
   const [relationsPage, setRelationsPage] = useState(1);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadSkillLevelsPage = useCallback(async (page: number, limit: number): Promise<PaginatedPage<SkillLevelItem>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (skillInput) params.append("skill", skillInput);
+    if (levelInput) params.append("level", levelInput);
+    if (ownerId !== null) params.append("author_id", ownerId.toString());
 
-  const fetchSkillLevels = async (skill: string, level: string, ownerIdValue: number | null, page: number) => {
-    setIsSearching(true);
-    try {
-      const params = new URLSearchParams({ page: page.toString() });
-      if (skill) params.append("skill", skill);
-      if (level) params.append("level", level);
-      if (ownerIdValue !== null) params.append("author_id", ownerIdValue.toString());
-
-      const response = await authJson<SearchResponse>(`/skills/skill_levels?${params.toString()}`);
-      setSkillsState({
-        results: response.items,
-        totalPages: response.total_pages,
-        currentPage: response.current_page,
-        lastSearch: { skill, level, ownerId: ownerIdValue, page },
-      });
-    } catch (error) {
-      console.error("Failed to fetch skill levels", error);
-    } finally {
-      setIsSearching(false);
-      setIsDebouncing(false);
-    }
-  };
-
-  useEffect(() => {
-    setIsDebouncing(true);
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      if (
-        skillInput === lastSearch.skill &&
-        levelInput === lastSearch.level &&
-        ownerId === lastSearch.ownerId &&
-        results.length > 0
-      ) {
-        setIsDebouncing(false);
-        return;
-      }
-      fetchSkillLevels(skillInput, levelInput, ownerId, 1);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+    const response = await authJson<SearchResponse>(`/skills/skill_levels?${params.toString()}`);
+    return {
+      items: response.items,
+      totalPages: response.total_pages,
     };
-  }, [skillInput, levelInput, ownerId]);
+  }, [levelInput, ownerId, skillInput]);
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      fetchSkillLevels(lastSearch.skill, lastSearch.level, lastSearch.ownerId, newPage);
-    }
+  const tableQueryKey = JSON.stringify({
+    skill: skillInput,
+    level: levelInput,
+    ownerId,
+  });
+
+  const refreshTable = () => {
+    setTableRefreshKey((value) => value + 1);
   };
 
   const handleCreate = async () => {
@@ -137,8 +108,8 @@ export default function SkillsAdmin() {
           level_name: levelInput,
         }),
       });
-      fetchSkillLevels("", "", ownerId, 1);
       setSkillsState({ skillInput: "", levelInput: "" });
+      refreshTable();
       showToast({ title: "Успех", message: "Навык успешно создан", variant: "success" });
 
       // сразу открываем в редакторе
@@ -222,7 +193,7 @@ export default function SkillsAdmin() {
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
       // перезагружаем актуальное состояние
       await loadSkillLevel(selectedId);
-      fetchSkillLevels(lastSearch.skill, lastSearch.level, lastSearch.ownerId, currentPage);
+      refreshTable();
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
@@ -236,7 +207,7 @@ export default function SkillsAdmin() {
       await authJson(`/skills/skill_levels/${selectedId}`, { method: "DELETE" });
       setSkillsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Навык удалён", variant: "success" });
-      fetchSkillLevels(lastSearch.skill, lastSearch.level, lastSearch.ownerId, currentPage);
+      refreshTable();
     } catch (err: unknown) {
       const error = err as { status?: number; response?: { status?: number; detail?: string }; detail?: string };
       // 409 — привязаны тесты
@@ -321,13 +292,14 @@ export default function SkillsAdmin() {
   const isRelationAlreadyAdded = (item: SkillSearchItem) =>
     item.id === editorData.skill_id || editorData.relations.some((r) => r.skill_id === item.id);
 
-  const hasExactMatch = results.some(
-    (item) =>
-      item.skill_name.toLowerCase() === skillInput.trim().toLowerCase() &&
-      item.level_name.toLowerCase() === levelInput.trim().toLowerCase()
-  );
+  const isLevelAlreadyAdded = (item: LevelSearchItem) => {
+    const normalizedName = item.name.trim().toLowerCase();
+    return editorData.levels.some(
+      (level) => level.level_name.trim().toLowerCase() === normalizedName,
+    );
+  };
 
-  const canCreate = !isSearching && !isDebouncing && !isCreating && !hasExactMatch && skillInput.trim() !== "" && levelInput.trim() !== "";
+  const canCreate = !isCreating && skillInput.trim() !== "" && levelInput.trim() !== "";
   const canSave = hasUnsavedChanges;
 
   // пагинация связей (клиентская)
@@ -481,23 +453,33 @@ export default function SkillsAdmin() {
 
         <div className="flex gap-4 mb-6">
           <div className="flex-1">
-            <input
-              type="text"
+            <AutocompleteSearch<SkillSearchItem>
+              onSearch={searchSkills}
+              onSelect={(item) => setSkillsState({ skillInput: item.name })}
+              onInputChange={(value) => setSkillsState({ skillInput: value })}
+              itemToString={(item) => item.name}
+              renderItem={(item) => <span>{item.name}</span>}
               value={skillInput}
-              onChange={(e) => setSkillsState({ skillInput: e.target.value })}
               maxLength={SKILL_LEVEL.SEARCH_SKILL.MAX_LENGTH}
-              className="input-field"
               placeholder="Поиск по названию"
+              hideButton={true}
+              showClearButton={true}
+              className="ml-0!"
             />
           </div>
           <div className="flex-1">
-            <input
-              type="text"
+            <AutocompleteSearch<LevelSearchItem>
+              onSearch={searchLevels}
+              onSelect={(item) => setSkillsState({ levelInput: item.name })}
+              onInputChange={(value) => setSkillsState({ levelInput: value })}
+              itemToString={(item) => item.name}
+              renderItem={(item) => <span>{item.name}</span>}
               value={levelInput}
-              onChange={(e) => setSkillsState({ levelInput: e.target.value })}
               maxLength={SKILL_LEVEL.SEARCH_LEVEL.MAX_LENGTH}
-              className="input-field"
               placeholder="Поиск по уровню"
+              hideButton={true}
+              showClearButton={true}
+              className="ml-0!"
             />
           </div>
           <div className="flex items-end">
@@ -513,13 +495,14 @@ export default function SkillsAdmin() {
 
         <PaginatedTable
           columns={columns}
-          data={results}
-          isLoading={isSearching || isDebouncing}
           emptyMessage="Навыки не найдены"
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
           onRowClick={handleRowClick}
+          itemsPerPage={ITEMS_PER_TABLE_PAGE.DEFAULT}
+          loadPage={loadSkillLevelsPage}
+          cacheKey="content-skills"
+          queryKey={tableQueryKey}
+          refreshKey={tableRefreshKey}
+          debounceMs={SEARCH_DEBOUNCE_MS}
         />
       </div>
 
@@ -572,6 +555,8 @@ export default function SkillsAdmin() {
                 onItemClick={(item) => loadSkillLevel(item.id)}
                 onSearch={searchLevels}
                 onAdd={async (item) => {
+                  if (isLevelAlreadyAdded(item)) return;
+
                   setIsCreating(true);
                   try {
                     await authJson<SkillLevelItem>("/skills/skill_levels", {
@@ -596,6 +581,7 @@ export default function SkillsAdmin() {
                 placeholder="Название уровня"
                 buttonText="Добавить"
                 debounceMs={SEARCH_DEBOUNCE_MS}
+                isSearchItemDisabled={isLevelAlreadyAdded}
                 searchFieldClassName="min-w-3xs"
               />
               {editorData.levels.length === 0 && (

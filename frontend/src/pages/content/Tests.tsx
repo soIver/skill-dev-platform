@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { authJson } from "../../auth";
-import { PS_FUNCTIONS, SEARCH_DEBOUNCE_MS, TEST } from "../../config";
+import { ITEMS_PER_TABLE_PAGE, PS_FUNCTIONS, SEARCH_DEBOUNCE_MS, TEST } from "../../config";
 import { useContentStore, type TestItem, type SkillLevelItem, type QuestionEditorItem, type AnswerEditorItem, type PsFunctionItem } from "../../hooks/useContentStore";
 import { useClassifierTree } from "../../hooks/useClassifierTree";
-import { PaginatedTable, type Column } from "../../components/PaginatedTable";
+import { PaginatedTable, type Column, type PaginatedPage } from "../../components/PaginatedTable";
 import { AutocompleteSearch } from "../../components/AutocompleteSearch";
 import { ContentOwnerFilter } from "../../components/ContentOwnerFilter";
 import { IconButton } from "../../components/IconButton";
@@ -64,10 +64,6 @@ export default function ContentTests() {
     skillInput,
     ownerId,
     ownerUsername,
-    results,
-    currentPage,
-    totalPages,
-    lastSearch,
     selectedId,
     editorData,
     hasUnsavedChanges,
@@ -76,59 +72,27 @@ export default function ContentTests() {
 
   const { showToast } = useToast();
   const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
-  const [isSearching, setIsSearching] = useState(false);
-  const [isDebouncing, setIsDebouncing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedSkillToCreate, setSelectedSkillToCreate] = useState<SkillLevelItem | null>(null);
+  const [tableRefreshKey, setTableRefreshKey] = useState(0);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newSkillLevelRef = useRef<SkillLevelItem | null>(null);
 
-  const fetchTests = async (keyword: string, skill: string, ownerIdValue: number | null, page: number) => {
-    setIsSearching(true);
-    try {
-      const params = new URLSearchParams({ page: page.toString() });
-      if (keyword) params.append("keyword", keyword);
-      if (skill) params.append("skill_query", skill);
-      if (ownerIdValue !== null) params.append("author_id", ownerIdValue.toString());
+  const loadTestsPage = async (page: number, limit: number): Promise<PaginatedPage<TestItem>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (keywordInput) params.append("keyword", keywordInput);
+    if (skillInput) params.append("skill_query", skillInput);
+    if (ownerId !== null) params.append("author_id", ownerId.toString());
 
-      const response = await authJson<SearchResponse>(`/tests?${params.toString()}`);
-      setTestsState({
-        results: response.items,
-        totalPages: response.total_pages,
-        currentPage: response.current_page,
-        lastSearch: { keyword, skill, ownerId: ownerIdValue, page }
-      });
-    } catch (error) {
-      console.error("Failed to fetch tests", error);
-    } finally {
-      setIsSearching(false);
-      setIsDebouncing(false);
-    }
+    const response = await authJson<SearchResponse>(`/tests?${params.toString()}`);
+    return { items: response.items, totalPages: response.total_pages };
   };
 
-  useEffect(() => {
-    setIsDebouncing(true);
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      if (
-        keywordInput === lastSearch.keyword &&
-        skillInput === lastSearch.skill &&
-        ownerId === lastSearch.ownerId &&
-        results.length > 0
-      ) {
-        setIsDebouncing(false);
-        return;
-      }
-      fetchTests(keywordInput, skillInput, ownerId, 1);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [keywordInput, skillInput, ownerId]);
+  const tableQueryKey = JSON.stringify({ keyword: keywordInput, skill: skillInput, ownerId });
+  const refreshTable = () => setTableRefreshKey((value) => value + 1);
 
   const fetchSkillLevels = async (query: string) => {
     let skill = query;
@@ -277,7 +241,7 @@ export default function ContentTests() {
 
       showToast({ title: "Успех", message: "Изменения сохранены", variant: "success" });
       await loadTest(response.id);
-      fetchTests(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
+      refreshTable();
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" });
     }
@@ -293,7 +257,7 @@ export default function ContentTests() {
       await authJson(`/tests/${selectedId}`, { method: "DELETE" });
       setTestsState({ selectedId: null, hasUnsavedChanges: false });
       showToast({ title: "Успех", message: "Тест удален", variant: "success" });
-      fetchTests(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, currentPage);
+      refreshTable();
     } catch {
       showToast({ title: "Ошибка", message: "Не удалось удалить тест", variant: "error" });
     }
@@ -548,12 +512,6 @@ export default function ContentTests() {
     },
   ];
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      fetchTests(lastSearch.keyword, lastSearch.skill, lastSearch.ownerId, newPage);
-    }
-  };
-
   return (
     <div className="workspace-container">
       {pendingSelectId !== null && (
@@ -640,13 +598,14 @@ export default function ContentTests() {
 
         <PaginatedTable
           columns={columns}
-          data={results}
-          isLoading={isSearching || isDebouncing}
           emptyMessage="Тесты не найдены"
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
           onRowClick={handleRowClick}
+          itemsPerPage={ITEMS_PER_TABLE_PAGE.DEFAULT}
+          loadPage={loadTestsPage}
+          cacheKey="content-tests"
+          queryKey={tableQueryKey}
+          refreshKey={tableRefreshKey}
+          debounceMs={SEARCH_DEBOUNCE_MS}
         />
       </div>
 

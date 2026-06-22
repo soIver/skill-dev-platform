@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "./useUserStore";
 import { useRepositoriesStore } from "./useRepositoriesStore";
@@ -47,9 +47,8 @@ function getCachedVacancyId(): number | null {
 
 export function useNotifications() {
   const { showToast } = useToast();
-  const location = useLocation();
   const navigate = useNavigate();
-  const user = useUserStore((state) => state.user);
+  const userId = useUserStore((state) => state.user?.id ?? null);
   const clearSession = useUserStore((state) => state.clearSession);
   const updateRepoStatus = useRepositoriesStore((state) => state.updateRepoStatus);
   const setTaskAnalysisStatus = useTasksStore((state) => state.setTaskAnalysisStatus);
@@ -57,7 +56,7 @@ export function useNotifications() {
   const setVacancyAnalysisState = useVacanciesStore((state) => state.setAnalysisState);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const eventSource = new EventSource(`${config.apiBaseUrl}/notifications/stream`, {
       withCredentials: true,
@@ -133,7 +132,7 @@ export function useNotifications() {
           window.dispatchEvent(new CustomEvent("vacancy-analysis-failed", { detail: data }));
         } else if (data.type === "session_invalidated") {
           clearSession();
-          if (!location.pathname.startsWith("/auth")) {
+          if (!window.location.pathname.startsWith("/auth")) {
             showToast({
               title: "Сессия завершена",
               message: data.message || "Войдите в аккаунт заново.",
@@ -157,13 +156,12 @@ export function useNotifications() {
     };
   }, [
     clearSession,
-    location.pathname,
     navigate,
     setVacancyAnalysisState,
     setTaskAnalysisStatus,
     showToast,
     updateRepoStatus,
     updateTaskLatestAttempt,
-    user,
+    userId,
   ]);
 }

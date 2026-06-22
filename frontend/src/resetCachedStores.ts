@@ -4,8 +4,10 @@ import { useRepositoriesStore } from "./hooks/useRepositoriesStore";
 import { useTasksStore } from "./hooks/useTasksStore";
 import { useTestsStore } from "./hooks/useTestsStore";
 import { useVacanciesStore } from "./hooks/useVacanciesStore";
+import { clearPaginatedTableCaches } from "./components/paginatedTableCache";
 
 export function resetCachedStores(): void {
+  clearPaginatedTableCaches();
   const contentStore = useContentStore.getState();
 
   contentStore.resetSkillsState();

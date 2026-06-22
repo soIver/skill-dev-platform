@@ -1,7 +1,14 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ITEMS_PER_TABLE_PAGE } from "../config";
 import { LoadingText } from "./LoadingText";
 import { Pagination } from "./Pagination";
+import {
+  deletePaginatedTableCache,
+  getPaginatedTableCache,
+  getPaginatedTableCacheEpoch,
+  setPaginatedTableCache,
+  type PaginatedTableCache,
+} from "./paginatedTableCache";
 
 export interface Column<T> {
   key: string;
@@ -12,47 +19,220 @@ export interface Column<T> {
   showProgressBar?: boolean;
 }
 
+export interface PaginatedPage<T> {
+  items: T[];
+  totalPages: number;
+}
+
 interface PaginatedTableProps<T> {
   columns: Column<T>[];
-  data: T[];
-  isLoading: boolean;
+  data?: T[];
+  isLoading?: boolean;
   emptyMessage: React.ReactNode;
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
+  currentPage?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
   onRowClick?: (item: T) => void;
   itemsPerPage?: number;
-  onPreload?: (nextPage: number) => void;
   useClientSlice?: boolean;
   getRowClassName?: (item: T) => string;
+  loadPage?: (page: number, limit: number) => Promise<PaginatedPage<T>>;
+  cacheKey?: string;
+  queryKey?: string;
+  refreshKey?: string | number;
+  debounceMs?: number;
+  resolveItem?: (item: T) => T;
 }
 
 export function PaginatedTable<T extends { id: number | string }>({
   columns,
-  data,
-  isLoading,
+  data = [],
+  isLoading = false,
   emptyMessage,
-  currentPage,
-  totalPages,
+  currentPage = 1,
+  totalPages = 1,
   onPageChange,
   onRowClick,
   itemsPerPage = ITEMS_PER_TABLE_PAGE.DEFAULT,
-  onPreload,
   useClientSlice,
   getRowClassName,
+  loadPage,
+  cacheKey,
+  queryKey = "",
+  refreshKey = "",
+  debounceMs = 0,
+  resolveItem,
 }: PaginatedTableProps<T>) {
-  // автоматическая предзагрузка следующей страницы при доступности
-  useEffect(() => {
-    if (onPreload && currentPage < totalPages) {
-      onPreload(currentPage + 1);
-    }
-  }, [currentPage, totalPages, onPreload]);
+  const isServerPaginated = loadPage !== undefined;
+  const initialCacheRef = useRef<PaginatedTableCache | null | undefined>(undefined);
+  if (initialCacheRef.current === undefined) {
+    const cached = cacheKey ? getPaginatedTableCache(cacheKey) : undefined;
+    initialCacheRef.current = cached
+      && cached.queryKey === queryKey
+      && cached.itemsPerPage === itemsPerPage
+      ? cached
+      : null;
+  }
+  const initialCache = initialCacheRef.current;
+  const loadPageRef = useRef(loadPage);
+  const cacheRef = useRef<Map<number, T[]>>(
+    new Map(initialCache?.pages as Map<number, T[]> | undefined),
+  );
+  const pendingPagesRef = useRef<Set<number>>(new Set());
+  const generationRef = useRef(0);
+  const managedCurrentPageRef = useRef(initialCache?.currentPage ?? 1);
+  const managedTotalPagesRef = useRef(initialCache?.totalPages ?? 1);
+  const activeCacheKeyRef = useRef(cacheKey);
+  const activeQueryRef = useRef(queryKey);
+  const previousRefreshKeyRef = useRef(refreshKey);
+  const hasInitializedRef = useRef(false);
+  const [managedPages, setManagedPages] = useState<Map<number, T[]>>(
+    new Map(cacheRef.current),
+  );
+  const [managedCurrentPage, setManagedCurrentPage] = useState(initialCache?.currentPage ?? 1);
+  const [managedTotalPages, setManagedTotalPages] = useState(initialCache?.totalPages ?? 1);
+  const [managedIsLoading, setManagedIsLoading] = useState(
+    isServerPaginated && !cacheRef.current.has(initialCache?.currentPage ?? 1),
+  );
 
-  // локальный срез данных по страницам если включена предзагрузка или запрошено явно
-  const shouldSlice = useClientSlice ?? (onPreload !== undefined);
-  const currentData = shouldSlice
-    ? data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-    : data;
+  useEffect(() => {
+    loadPageRef.current = loadPage;
+  }, [loadPage]);
+
+  const persistManagedCache = useCallback(() => {
+    if (!cacheKey) return;
+
+    setPaginatedTableCache(cacheKey, {
+      queryKey,
+      itemsPerPage,
+      pages: new Map(cacheRef.current) as Map<number, unknown[]>,
+      currentPage: managedCurrentPageRef.current,
+      totalPages: managedTotalPagesRef.current,
+    });
+  }, [cacheKey, itemsPerPage, queryKey]);
+
+  const loadManagedPage = useCallback(async (
+    page: number,
+    generation: number,
+    updateTotalPages: boolean,
+  ): Promise<PaginatedPage<T> | null> => {
+    const loader = loadPageRef.current;
+    if (!loader || cacheRef.current.has(page) || pendingPagesRef.current.has(page)) {
+      return null;
+    }
+
+    const pendingPages = pendingPagesRef.current;
+    const cacheEpoch = getPaginatedTableCacheEpoch();
+    pendingPages.add(page);
+    if (page === managedCurrentPageRef.current) {
+      setManagedIsLoading(true);
+    }
+
+    try {
+      const result = await loader(page, itemsPerPage);
+      if (
+        generationRef.current !== generation
+        || getPaginatedTableCacheEpoch() !== cacheEpoch
+      ) {
+        return null;
+      }
+
+      cacheRef.current.set(page, result.items);
+      setManagedPages(new Map(cacheRef.current));
+      if (updateTotalPages) {
+        const nextTotalPages = Math.max(1, result.totalPages);
+        managedTotalPagesRef.current = nextTotalPages;
+        setManagedTotalPages(nextTotalPages);
+      }
+      persistManagedCache();
+      return result;
+    } catch (error) {
+      console.error("Failed to load paginated table page", error);
+      return null;
+    } finally {
+      pendingPages.delete(page);
+      if (generationRef.current === generation && page === managedCurrentPageRef.current) {
+        setManagedIsLoading(false);
+      }
+    }
+  }, [itemsPerPage, persistManagedCache]);
+
+  useEffect(() => {
+    if (!isServerPaginated) return;
+
+    const cacheKeyChanged = activeCacheKeyRef.current !== cacheKey;
+    const queryChanged = activeQueryRef.current !== queryKey;
+    const refreshRequested = hasInitializedRef.current
+      && previousRefreshKeyRef.current !== refreshKey;
+    activeCacheKeyRef.current = cacheKey;
+    activeQueryRef.current = queryKey;
+    previousRefreshKeyRef.current = refreshKey;
+    hasInitializedRef.current = true;
+
+    if (cacheKeyChanged || queryChanged || refreshRequested) {
+      generationRef.current += 1;
+      cacheRef.current = new Map();
+      pendingPagesRef.current = new Set();
+      managedCurrentPageRef.current = 1;
+      managedTotalPagesRef.current = 1;
+      setManagedPages(new Map());
+      setManagedCurrentPage(1);
+      setManagedTotalPages(1);
+      if (cacheKey) deletePaginatedTableCache(cacheKey);
+    }
+
+    if (cacheRef.current.has(1)) {
+      setManagedIsLoading(false);
+      return;
+    }
+
+    const generation = generationRef.current;
+    setManagedIsLoading(true);
+
+    const timer = window.setTimeout(() => {
+      void loadManagedPage(1, generation, true).then((firstPage) => {
+        if (firstPage && firstPage.totalPages > 1) {
+          void loadManagedPage(2, generation, false);
+        }
+      });
+    }, debounceMs);
+
+    return () => window.clearTimeout(timer);
+  }, [cacheKey, debounceMs, isServerPaginated, loadManagedPage, queryKey, refreshKey]);
+
+  useEffect(() => {
+    if (!isServerPaginated || managedCurrentPage >= managedTotalPages) return;
+    void loadManagedPage(managedCurrentPage + 1, generationRef.current, false);
+  }, [isServerPaginated, loadManagedPage, managedCurrentPage, managedTotalPages]);
+
+  // локальный срез используется только для полностью загруженных клиентских массивов
+  const shouldSlice = useClientSlice ?? false;
+  const effectiveCurrentPage = isServerPaginated ? managedCurrentPage : currentPage;
+  const effectiveTotalPages = isServerPaginated ? managedTotalPages : totalPages;
+  const effectiveIsLoading = isLoading || (isServerPaginated && managedIsLoading);
+  const rawCurrentData = isServerPaginated
+    ? managedPages.get(managedCurrentPage) ?? []
+    : shouldSlice
+      ? data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+      : data;
+  const currentData = resolveItem ? rawCurrentData.map(resolveItem) : rawCurrentData;
+
+  const handlePageChange = (page: number) => {
+    if (!isServerPaginated) {
+      onPageChange?.(page);
+      return;
+    }
+
+    if (page < 1 || page > managedTotalPages) return;
+    managedCurrentPageRef.current = page;
+    setManagedCurrentPage(page);
+    setManagedIsLoading(!cacheRef.current.has(page));
+    persistManagedCache();
+    if (!cacheRef.current.has(page)) {
+      void loadManagedPage(page, generationRef.current, false);
+    }
+    onPageChange?.(page);
+  };
 
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full">
@@ -103,7 +283,7 @@ export function PaginatedTable<T extends { id: number | string }>({
             ) : (
               <tr>
                 <td colSpan={columns.length} className="py-8 text-center text-gray-500">
-                  {isLoading ? <LoadingText text="Поиск..." /> : emptyMessage}
+                  {effectiveIsLoading ? <LoadingText text="Поиск..." /> : emptyMessage}
                 </td>
               </tr>
             )}
@@ -112,15 +292,15 @@ export function PaginatedTable<T extends { id: number | string }>({
       </div>
 
       <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={onPageChange}
-        onPreloadNext={() => {
-          if (currentPage < totalPages) {
-            onPreload?.(currentPage + 1);
+        currentPage={effectiveCurrentPage}
+        totalPages={effectiveTotalPages}
+        onPageChange={handlePageChange}
+        onPreloadNext={isServerPaginated ? () => {
+          if (effectiveCurrentPage < effectiveTotalPages) {
+            void loadManagedPage(effectiveCurrentPage + 1, generationRef.current, false);
           }
-        }}
-        className={`mt-4 transition-opacity duration-300 ${totalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        } : undefined}
+        className={`mt-4 transition-opacity duration-300 ${effectiveTotalPages > 1 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       />
     </div>
   );
