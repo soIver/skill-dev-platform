@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from redis.asyncio import Redis
-from sqlalchemy import func, select, exists
+from sqlalchemy import case, exists, func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schemas import (
@@ -173,61 +173,23 @@ class RecommendationService:
             if current_order_index is not None:
                 min_order_index = min(required_order_index, int(current_order_index) + 1)
 
-            test_candidate = await self._build_gap_test_candidate(
-                skill_id,
-                min_order_index,
-                required_order_index,
-                used_ids,
-            )
-            if test_candidate:
-                candidates.append(test_candidate)
-                used_ids.add(test_candidate.id)
-                continue
-
-            task_candidate = await self._build_gap_task_candidate(
+            candidate = await self._build_gap_candidate(
                 skill_id,
                 min_order_index,
                 required_order_index,
                 completed_task_ids,
                 used_ids,
             )
-            if task_candidate:
-                candidates.append(task_candidate)
-                used_ids.add(task_candidate.id)
+            if candidate:
+                candidates.append(candidate)
+                used_ids.add(candidate.id)
 
             if len(candidates) >= limit:
                 break
 
         return await self._enrich_candidates(candidates[:limit])
 
-    async def _build_gap_test_candidate(
-        self,
-        skill_id: int,
-        min_order_index: int,
-        required_order_index: int,
-        used_ids: set[str],
-    ) -> CandidateRecommendation | None:
-        result = await self.db.execute(
-            select(SkillLevel.id, SkillLevel.order_index)
-            .join(TestGroup, TestGroup.skill_level_id == SkillLevel.id)
-            .join(Test, Test.test_group_id == TestGroup.id)
-            .where(
-                SkillLevel.skill_id == skill_id,
-                SkillLevel.order_index >= min_order_index,
-                SkillLevel.order_index <= required_order_index,
-                Test.is_published == True,
-            )
-            .group_by(SkillLevel.id, SkillLevel.order_index)
-            .order_by(SkillLevel.order_index, SkillLevel.id)
-            .limit(1)
-        )
-        row = result.first()
-        if row is None:
-            return None
-        candidate = CandidateRecommendation("test", row.id, 1.0)
-        return None if candidate.id in used_ids else candidate
-
-    async def _build_gap_task_candidate(
+    async def _build_gap_candidate(
         self,
         skill_id: int,
         min_order_index: int,
@@ -236,24 +198,104 @@ class RecommendationService:
         used_ids: set[str],
     ) -> CandidateRecommendation | None:
         result = await self.db.execute(
-            select(Task.id, SkillLevel.order_index)
+            self._gap_candidate_query(
+                skill_id,
+                min_order_index,
+                required_order_index,
+                completed_task_ids,
+                used_ids,
+            )
+        )
+        row = result.first()
+        if row is None:
+            return None
+        score = 1.0 if row.content_type == "test" else 0.9
+        return CandidateRecommendation(row.content_type, row.target_id, score)
+
+    @staticmethod
+    def _gap_candidate_query(
+        skill_id: int,
+        min_order_index: int,
+        required_order_index: int,
+        completed_task_ids: set[int],
+        used_ids: set[str],
+    ):
+        test_candidates = (
+            select(
+                literal("test").label("content_type"),
+                SkillLevel.id.label("target_id"),
+                SkillLevel.order_index.label("order_index"),
+            )
+            .join(TestGroup, TestGroup.skill_level_id == SkillLevel.id)
+            .join(Test, Test.test_group_id == TestGroup.id)
+            .where(
+                SkillLevel.skill_id == skill_id,
+                Test.is_published == True,
+            )
+            .group_by(SkillLevel.id, SkillLevel.order_index)
+        )
+        task_candidates = (
+            select(
+                literal("task").label("content_type"),
+                Task.id.label("target_id"),
+                SkillLevel.order_index.label("order_index"),
+            )
             .join(SkillLevelTask, SkillLevelTask.task_id == Task.id)
             .join(SkillLevel, SkillLevelTask.skill_level_id == SkillLevel.id)
             .where(
                 Task.is_published == True,
                 SkillLevel.skill_id == skill_id,
-                SkillLevel.order_index >= min_order_index,
-                SkillLevel.order_index <= required_order_index,
             )
-            .order_by(SkillLevel.order_index, Task.id)
+            .group_by(Task.id, SkillLevel.order_index)
         )
-        for row in result.all():
-            if row.id in completed_task_ids:
-                continue
-            candidate = CandidateRecommendation("task", row.id, 0.9)
-            if candidate.id not in used_ids:
-                return candidate
-        return None
+        candidates = union_all(test_candidates, task_candidates).subquery()
+
+        used_test_ids = {
+            int(item.removeprefix("test-"))
+            for item in used_ids
+            if item.startswith("test-")
+        }
+        used_task_ids = {
+            int(item.removeprefix("task-"))
+            for item in used_ids
+            if item.startswith("task-")
+        }
+        excluded_task_ids = completed_task_ids | used_task_ids
+
+        filters = []
+        if used_test_ids:
+            filters.append(or_(
+                candidates.c.content_type != "test",
+                candidates.c.target_id.not_in(used_test_ids),
+            ))
+        if excluded_task_ids:
+            filters.append(or_(
+                candidates.c.content_type != "task",
+                candidates.c.target_id.not_in(excluded_task_ids),
+            ))
+
+        in_target_range = candidates.c.order_index.between(min_order_index, required_order_index)
+        range_priority = case(
+            (in_target_range & (candidates.c.content_type == "test"), 0),
+            (in_target_range & (candidates.c.content_type == "task"), 1),
+            else_=2,
+        )
+        level_priority = case(
+            (in_target_range, candidates.c.order_index),
+            else_=-candidates.c.order_index,
+        )
+        type_priority = case((candidates.c.content_type == "test", 0), else_=1)
+
+        return (
+            select(
+                candidates.c.content_type,
+                candidates.c.target_id,
+                candidates.c.order_index,
+            )
+            .where(*filters)
+            .order_by(range_priority, level_priority, type_priority, candidates.c.target_id)
+            .limit(1)
+        )
 
     async def _enrich_candidates(self, candidates: list[CandidateRecommendation]) -> list[RecommendationItem]:
         now = self._now()
