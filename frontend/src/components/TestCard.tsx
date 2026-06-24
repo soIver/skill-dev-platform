@@ -66,7 +66,7 @@ export function TestCard({ test, onClick }: TestCardProps) {
         <p className="font-semibold text-gray-900 truncate mb-2" title={test.skill_name}>
           {test.skill_name}
         </p>
-        <div onClick={(event) => event.stopPropagation()}>
+        <div>
           <BentoSearch<TestPublicLevelItem, TestPublicLevelItem>
             items={test.levels}
             itemToString={(level) => level.level_name}
@@ -76,7 +76,10 @@ export function TestCard({ test, onClick }: TestCardProps) {
             reorderEnabled={false}
             closeable={false}
             customSelectLogic={false}
-            onItemClick={(level) => setActiveLevelId(level.id)}
+            onItemClick={(level, e) => {
+              e?.stopPropagation();
+              setActiveLevelId(level.id);
+            }}
             onSearch={async () => []}
             onAdd={() => undefined}
             searchItemToString={(level) => level.level_name}

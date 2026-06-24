@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 import { requestPasswordRecovery } from "../../auth";
 import FieldRequirements from "../../components/FieldRequirements";
@@ -96,6 +96,11 @@ export default function PasswordRecovery() {
             </button>
           </form>
         )}
+        <div className="mt-3 text-center text-sm">
+          <Link to="/auth/login" className="hyperlink">
+            Вернуться на страницу входа
+          </Link>
+        </div>
       </div>
     </div>
   );

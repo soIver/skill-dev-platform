@@ -276,7 +276,7 @@ class VacanciesService:
         if not match:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Укажите ссылку на вакансию hh.ru",
+                detail="Укажите корректную ссылку",
             )
         return int(match.group(1))
 

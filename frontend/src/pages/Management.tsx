@@ -278,7 +278,7 @@ export default function ManagementAdmin() {
   ], [isSubmitting, renderContentCount]);
 
   return (
-    <div className="workspace-container m-7">
+    <div className="workspace-container-no-nav m-7">
       <div className="workspace-panel">
         <h2 className="workspace-panel-header">Управление</h2>
 

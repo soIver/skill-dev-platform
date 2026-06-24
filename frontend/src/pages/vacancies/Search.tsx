@@ -72,9 +72,9 @@ export default function VacancySearch() {
         body: JSON.stringify({
           description,
           excluded_words: excludedWords,
-          salary_range: (salaryFrom > 0 || salaryTo < 1000000) ? {
+          salary_range: (salaryFrom > 24000 || salaryTo < 1000000) ? {
             currency: "RUR",
-            from: salaryFrom > 0 ? salaryFrom : null,
+            from: salaryFrom > 24000 ? salaryFrom : null,
             gross: false,
             to: salaryTo < 1000000 ? salaryTo : null
           } : null,
@@ -205,7 +205,7 @@ export default function VacancySearch() {
 
             <div>
               <RangeSlider
-                min={0}
+                min={24000}
                 max={1000000}
                 step={500}
                 value={[salaryFrom, salaryTo]}

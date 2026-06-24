@@ -474,8 +474,8 @@ export default function Credentials() {
               <div className="flex min-h-9 items-center justify-between gap-4">
                 <div className="flex min-w-0 flex-1 items-center">
                   <span className="relative inline-block w-fit max-w-full min-w-0 flex-none">
-                    <span className="invisible block whitespace-pre text-lg font-medium">
-                      {usernameDraft || "    "}
+                    <span className="invisible block whitespace-pre text-lg font-medium pr-2">
+                      {usernameDraft || " "}
                     </span>
                     <input
                       ref={usernameInputRef}
@@ -484,7 +484,7 @@ export default function Credentials() {
                       onChange={(event) => setUsernameDraft(event.target.value)}
                       readOnly={!isUsernameEditing}
                       maxLength={USERNAME_MAX_LENGTH}
-                      className="absolute inset-0 h-full w-full min-w-0 border border-transparent bg-transparent p-0 text-lg font-medium text-gray-900 outline-none transition-none focus:border-transparent focus:outline-none focus:ring-0 read-only:pointer-events-none"
+                      className="absolute inset-0 h-full w-full min-w-0 border border-transparent bg-transparent p-0 text-lg font-medium text-gray-900 outline-none transition-none focus:border-transparent focus:outline-none focus:ring-0 read-only:pointer-events-none pr-1"
                       aria-label="Имя пользователя"
                     />
                   </span>

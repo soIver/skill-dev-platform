@@ -44,7 +44,7 @@ export function RangeSlider({
     }
   };
 
-  const sliderMin = isNonLinear ? 0 : min;
+  const sliderMin = isNonLinear ? valueToSlider(min) : min;
   const sliderMax = isNonLinear ? 200 : max;
   const sliderStep = isNonLinear ? 0.01 : step;
 

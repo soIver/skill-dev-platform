@@ -88,3 +88,34 @@ export function getClassifierFunctionIds(items: ClassifierProfStandardTreeItem[]
     standard.groups.flatMap((group) => group.functions.map((item) => item.id))
   );
 }
+
+export function filterClassifierTreeByIds(
+  items: ClassifierProfStandardTreeItem[],
+  ids: Set<number>,
+): ClassifierProfStandardTreeItem[] {
+  if (ids.size === 0) return [];
+
+  return items.reduce<ClassifierProfStandardTreeItem[]>((standards, standard) => {
+    const groups = standard.groups.reduce<ClassifierGroupTreeItem[]>((filteredGroups, group) => {
+      const functions = group.functions.filter((item) => ids.has(item.id));
+
+      if (functions.length > 0) {
+        filteredGroups.push({
+          ...group,
+          functions,
+        });
+      }
+
+      return filteredGroups;
+    }, []);
+
+    if (groups.length > 0) {
+      standards.push({
+        ...standard,
+        groups,
+      });
+    }
+
+    return standards;
+  }, []);
+}

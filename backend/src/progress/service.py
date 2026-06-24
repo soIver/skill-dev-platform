@@ -109,7 +109,6 @@ class ProgressActivityService:
             total_score = row.total_score or 0
             threshold_score = row.threshold_score or 0
             successful = threshold_score > 0 and score >= threshold_score
-            status = "тест пройден успешно" if successful else "тест не пройден"
             title = f"{row.skill_name} - {row.level_name}"
 
             actions.append(ProgressActivityItem(
@@ -118,7 +117,7 @@ class ProgressActivityService:
                 target_id=row.skill_level_id,
                 title=title,
                 action_text="Завершена попытка теста",
-                description=f"Результат: {score} из {total_score} баллов, {status}.",
+                description=f"Результат: {score} из {total_score} баллов.",
                 occurred_at=row.completed_at,
                 successful=successful,
                 skill_level=ProgressActivitySkillLevelItem(
@@ -159,14 +158,13 @@ class ProgressActivityService:
         actions: list[ProgressActivityItem] = []
         for row in result.all():
             successful = (row.failed_count or 0) == 0
-            status = "задание выполнено успешно" if successful else "задание не выполнено"
             actions.append(ProgressActivityItem(
                 id=f"task:{row.id}",
                 content_type="task",
                 target_id=row.task_id,
                 title=row.title,
                 action_text="Проверено практическое задание",
-                description=f"Репозиторий: {row.repo_name}. Статус: {status}.",
+                description=f"Репозиторий: {row.repo_name}.",
                 occurred_at=row.completed_at,
                 successful=successful,
             ))

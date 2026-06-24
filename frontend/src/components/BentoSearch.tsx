@@ -21,7 +21,7 @@ export interface BentoSearchProps<T, S> {
   // Обработчики
   onReorder?: (oldIndex: number, newIndex: number) => void;
   onRemove?: (item: T) => void;
-  onItemClick?: (item: T) => void;
+  onItemClick?: (item: T, event?: React.MouseEvent) => void;
 
   // Пропсы для поиска
   onSearch: (query: string) => Promise<S[]>;
@@ -130,16 +130,24 @@ export function BentoSearch<
             onDrop={() => handleDrop(index)}
             onMouseDown={handleMouseDown}
             onMouseUp={(e) => handleMouseUp(e, item)}
-            onClick={() => {
+            onClick={(e) => {
               if (!customSelectLogic && !reorderEnabled) {
-                onItemClick?.(item);
+                onItemClick?.(item, e);
               }
             }}
-            className={`px-4 py-2 rounded-xl select-none transition-all border text-sm font-medium gap-1 max-w-full truncate flex items-center ${reorderEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
-              } ${isActive
+            className={`px-4 py-2 rounded-xl select-none transition-all border text-sm font-medium gap-1 max-w-full truncate flex items-center ${
+              reorderEnabled
+                ? "cursor-grab active:cursor-grabbing"
+                : onItemClick
+                  ? "cursor-pointer"
+                  : "cursor-default"
+            } ${
+              isActive
                 ? "bg-primary text-white border-primary shadow-md"
-                : "bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-400"
-              }`}
+                : `bg-gray-100 text-gray-800 border-gray-200 ${
+                    onItemClick || reorderEnabled ? "hover:border-gray-400" : ""
+                  }`
+            }`}
           >
             {renderItem ? renderItem(item, index) : itemToString(item)}
 

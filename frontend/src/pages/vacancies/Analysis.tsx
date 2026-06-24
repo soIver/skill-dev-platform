@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 
 import { authJson } from "../../auth";
 import { LoadingText } from "../../components/LoadingText";
@@ -263,8 +263,10 @@ export default function VacancyAnalysis() {
               />
             </>
           ) : (
-            <div className="flex h-28 items-center justify-center text-gray-400">
-              Укажите ссылку на вакансию
+            <div className="h-28 flex items-center justify-center text-gray-400">
+                <div className="text-center">
+                    Укажите ссылку на вакансию в поле выше<br/> или выберите понравившуюся в <Link to="/vacancies/search" className="hyperlink">поисковой выдаче</Link>
+                </div>
             </div>
           )}
         </div>

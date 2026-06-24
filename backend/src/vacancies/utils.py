@@ -49,7 +49,13 @@ def build_search_params(payload: VacancySearchRequest, it_roles: list[str]) -> d
     if payload.excluded_words:
         params["excluded_text"] = payload.excluded_words
     if payload.salary_range:
-        params["salary_range"] = payload.salary_range.model_dump_json(exclude_none=True, by_alias=True)
+        if payload.salary_range.from_ is not None:
+            params["salary"] = payload.salary_range.from_
+        elif payload.salary_range.to is not None:
+            params["salary"] = payload.salary_range.to
+        
+        if payload.salary_range.currency:
+            params["currency"] = payload.salary_range.currency
     if payload.only_with_salary:
         params["only_with_salary"] = "true"
     if payload.area_ids:
@@ -78,6 +84,7 @@ def map_vacancy_item(item: dict[str, Any]) -> VacancySearchItem:
         tags=collect_tags(item),
         employer_name=str(employer.get("name") or "Не указан"),
         original_url=str(item.get("alternate_url") or item.get("url") or ""),
+        accredited_it_employer=bool(employer.get("accredited_it_employer", False)),
     )
 
 
@@ -91,6 +98,7 @@ def map_vacancy_detail(item: dict[str, Any]) -> VacancySearchItem:
         tags=collect_tags(item),
         employer_name=str(employer.get("name") or "Не указан"),
         original_url=str(item.get("alternate_url") or item.get("url") or ""),
+        accredited_it_employer=bool(employer.get("accredited_it_employer", False)),
     )
 
 
@@ -100,6 +108,30 @@ def html_to_text(value: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def detect_education_tag(text: str) -> str | None:
+    # Check for Higher Education (ВО)
+    has_higher = bool(re.search(
+        r"\b(высш(ее|ем|их|ему|ей)|бакалавр\w*|магистр\w*|специалитет\w*|в/о)\b|\bв\.о\.",
+        text,
+        re.IGNORECASE
+    ))
+    
+    # Check for Secondary Professional Education (СПО)
+    has_secondary = bool(re.search(
+        r"\b(средн(ее|ем)\s+(профессиональное|специальное)|средне[- ](профессиональное|специальное)|колледж\w*|техникум\w*|спо)\b",
+        text,
+        re.IGNORECASE
+    ))
+    
+    if has_higher and has_secondary:
+        return "ВО или СПО"
+    elif has_higher:
+        return "ВО"
+    elif has_secondary:
+        return "СПО"
+    return None
 
 
 def format_salary(salary: dict[str, Any] | None) -> str:
@@ -162,7 +194,24 @@ def collect_tags(item: dict[str, Any]) -> list[str]:
         for value in item.get(field_name) or []:
             add_named_tag(value, tags, seen_tags)
 
+    # Detect education from description or snippet
+    search_texts = []
+    if item.get("description"):
+        search_texts.append(html_to_text(item["description"]))
+    snippet = item.get("snippet") or {}
+    if snippet.get("requirement"):
+        search_texts.append(html_to_text(snippet["requirement"]))
+    if snippet.get("responsibility"):
+        search_texts.append(html_to_text(snippet["responsibility"]))
+    
+    if search_texts:
+        combined_text = " | ".join(search_texts)
+        edu_tag = detect_education_tag(combined_text)
+        if edu_tag:
+            tags.append(edu_tag)
+
     return tags
+
 
 
 def add_named_tag(source: Any, tags: list[str], seen_tags: set[str]):

@@ -11,6 +11,8 @@ import { PsFunctionSelectorField } from "../components/PsFunctionSelectorField";
 import { TestCard } from "../components/TestCard";
 import { useClassifierTree } from "../hooks/useClassifierTree";
 import { useTestsStore, type TestPublicItem, type TestPublicLevelItem } from "../hooks/useTestsStore";
+import { ClassifierTree } from "../components/ClassifierTree";
+import { filterClassifierTreeByIds } from "../utils/classifier";
 
 interface TestPublicSearchResponse {
   items: TestPublicItem[];
@@ -66,6 +68,7 @@ export default function Tests() {
   const [isStarting, setIsStarting] = useState(false);
   const [selectedTest, setSelectedTest] = useState<TestPublicItem | null>(null);
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
+  const [modalView, setModalView] = useState<"details" | "tf">("details");
   const attemptState = location.state as {
     skillId?: number;
     skillLevelId?: number;
@@ -156,12 +159,18 @@ export default function Tests() {
   const openTestDetails = (test: TestPublicItem, level: TestPublicLevelItem) => {
     setSelectedTest(test);
     setSelectedLevelId(level.id);
+    setModalView("details");
   };
 
   const activeModalLevel = useMemo(() => {
     if (!selectedTest) return null;
     return selectedTest.levels.find((level) => level.id === selectedLevelId) ?? selectedTest.levels[0] ?? null;
   }, [selectedLevelId, selectedTest]);
+
+  const filteredTree = useMemo(() => {
+    if (!activeModalLevel?.ps_functions || activeModalLevel.ps_functions.length === 0) return [];
+    return filterClassifierTreeByIds(classifierTree, new Set(activeModalLevel.ps_functions.map((f) => f.id)));
+  }, [classifierTree, activeModalLevel?.ps_functions]);
 
   useEffect(() => {
     if (!selectedTest) return;
@@ -187,6 +196,7 @@ export default function Tests() {
     restoredSelectionRef.current = true;
     setSelectedTest(test);
     setSelectedLevelId(level.id);
+    setModalView("details");
     setSelectedSkills([]);
     navigate("/tests", { replace: true, state: null });
   }, [attemptState, navigate, results, setSelectedSkills]);
@@ -241,8 +251,8 @@ export default function Tests() {
   );
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="sticky top-0 z-20 bg-gray-50 px-8 pt-6">
+    <div className="flex flex-col flex-1 overflow-y-auto min-h-0">
+      <div className="bg-gray-50 px-8 pt-6">
         <h1 className="text-3xl font-extrabold text-gray-800">Банк тестов</h1>
         <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для проверки теоретических основ</h2>
 
@@ -281,11 +291,9 @@ export default function Tests() {
           maxSelected={null}
           onChange={setSelectedPsFunctions}
         />
-
-        <div className="h-6 pointer-events-none bg-linear-to-b from-gray-50 to-transparent" />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      <div className="px-8 pb-8">
         {!hasSearched || isLoading ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
             {isLoading ? <LoadingText text="Загрузка..." /> : ""}
@@ -315,91 +323,154 @@ export default function Tests() {
       {selectedTest && activeModalLevel && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center modal-overlay-animate"
-          onClick={(event) => event.target === event.currentTarget && setSelectedTest(null)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedTest(null);
+              setModalView("details");
+            }
+          }}
         >
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 border border-gray-100 modal-content-animate flex flex-col max-h-[90vh]">
-            <h3 className="text-2xl font-bold text-gray-900 mb-5 text-center">
-              {selectedTest.skill_name}
-            </h3>
-
-            <div className="mb-6">
-              <BentoSearch<TestPublicLevelItem, TestPublicLevelItem>
-                items={selectedTest.levels}
-                itemToString={(level) => level.level_name}
-                itemToId={(level) => level.id}
-                renderItem={renderLevel}
-                prefixTitle="Уровни"
-                activeItemId={activeModalLevel.id}
-                reorderEnabled={false}
-                closeable={false}
-                customSelectLogic={false}
-                onItemClick={(level) => setSelectedLevelId(level.id)}
-                onSearch={async () => []}
-                onAdd={() => undefined}
-                searchItemToString={(level) => level.level_name}
-                hideSearch={true}
-              />
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 border border-gray-100 modal-content-animate flex flex-col h-[80vh]">
+            <div className="flex items-start justify-between gap-4 mb-6 shrink-0 pr-2">
+              <h3 className="text-2xl font-bold text-gray-900 text-left line-clamp-2">
+                {modalView === "details"
+                  ? selectedTest.skill_name
+                  : `Трудовые функции теста «${selectedTest.skill_name} - ${activeModalLevel.level_name}»`}
+              </h3>
+              {modalView === "details" && (
+                <button
+                  type="button"
+                  onClick={() => setModalView("tf")}
+                  className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-sm font-semibold rounded-xl transition-all shrink-0"
+                >
+                  {activeModalLevel.ps_functions?.length || 0} ТФ
+                </button>
+              )}
+              {modalView === "tf" && (
+                <button
+                  type="button"
+                  onClick={() => setModalView("details")}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-all shrink-0"
+                >
+                  Назад
+                </button>
+              )}
             </div>
 
-            <div className="flex flex-wrap gap-4 mb-6 text-sm font-semibold text-gray-600">
-              <span className="flex items-center gap-2">
-                <ListChecks className="w-5 h-5 text-primary" />
-                {activeModalLevel.question_count} {getQuestionsWord(activeModalLevel.question_count)}
-              </span>
-              <span className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                {activeModalLevel.time_limit_minutes} {getMinutesWord(activeModalLevel.time_limit_minutes)}
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-primary" />
-                {activeModalLevel.threshold_score} баллов из {activeModalLevel.total_score} необходимо набрать
-              </span>
-            </div>
+            {modalView === "details" ? (
+              <>
+                <div className="mb-6 shrink-0">
+                  <BentoSearch<TestPublicLevelItem, TestPublicLevelItem>
+                    items={selectedTest.levels}
+                    itemToString={(level) => level.level_name}
+                    itemToId={(level) => level.id}
+                    renderItem={renderLevel}
+                    prefixTitle="Уровни"
+                    activeItemId={activeModalLevel.id}
+                    reorderEnabled={false}
+                    closeable={false}
+                    customSelectLogic={false}
+                    onItemClick={(level) => setSelectedLevelId(level.id)}
+                    onSearch={async () => []}
+                    onAdd={() => undefined}
+                    searchItemToString={(level) => level.level_name}
+                    hideSearch={true}
+                  />
+                </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 mb-8 custom-scrollbar">
-              <div className="text-gray-700 whitespace-pre-line text-lg leading-relaxed">
-                {modalDescription}
-              </div>
-            </div>
+                <div className="flex flex-wrap gap-4 mb-6 text-sm font-semibold text-gray-600 shrink-0">
+                  <span className="flex items-center gap-2">
+                    <ListChecks className="w-5 h-5 text-primary" />
+                    {activeModalLevel.question_count} {getQuestionsWord(activeModalLevel.question_count)}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-primary" />
+                    {activeModalLevel.time_limit_minutes} {getMinutesWord(activeModalLevel.time_limit_minutes)}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-primary" />
+                    {activeModalLevel.threshold_score} баллов из {activeModalLevel.total_score} необходимо набрать
+                  </span>
+                </div>
 
-            <p className="text-sm text-gray-500 mb-6">
-              Тест доступен к прохождению один раз в 7 дней вне зависимости от результата.
-            </p>
+                <div className="flex-1 overflow-y-auto pr-2 mb-8 custom-scrollbar">
+                  <div className="text-gray-700 whitespace-pre-line text-lg leading-relaxed mb-6">
+                    {modalDescription}
+                  </div>
 
-            {activeModalLevel.latest_attempt_completed_at && (
-              <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="font-semibold text-gray-900">
-                  Последний результат: {activeModalLevel.latest_attempt_score} из {activeModalLevel.latest_attempt_total_score} баллов
-                </p>
-                <p className="mt-1">
-                  Статус: {activeModalLevel.latest_attempt_passed ? "тест пройден успешно" : "тест не пройден"}
-                </p>
-                <p className="mt-1">
-                  Завершено: {formatDateTime(activeModalLevel.latest_attempt_completed_at)}
-                </p>
-                {activeModalLevel.next_attempt_at && activeModalLevel.can_start_attempt === false && (
-                  <p className="mt-1">
-                    Следующая попытка будет доступна: {formatDateTime(activeModalLevel.next_attempt_at)}
+                  <p className="text-sm text-gray-500 mb-6">
+                    Тест доступен к прохождению один раз в 7 дней вне зависимости от результата.
                   </p>
-                )}
-              </div>
-            )}
 
-            <div className="flex gap-4">
-              <button
-                onClick={() => setSelectedTest(null)}
-                className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
-              >
-                Вернуться
-              </button>
-              <button
-                onClick={handleStartAttempt}
-                disabled={activeModalLevel.can_start_attempt === false || isStarting}
-                className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg flex items-center justify-center"
-              >
-                {isStarting ? <LoadingText text="Запуск..." /> : "Начать тест"}
-              </button>
-            </div>
+                  {activeModalLevel.latest_attempt_completed_at && (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                      <p className="font-semibold text-gray-900">
+                        Последний результат: {activeModalLevel.latest_attempt_score} из {activeModalLevel.latest_attempt_total_score} баллов
+                      </p>
+                      <p className="mt-1">
+                        Статус: {activeModalLevel.latest_attempt_passed ? "тест пройден успешно" : "тест не пройден"}
+                      </p>
+                      <p className="mt-1">
+                        Завершено: {formatDateTime(activeModalLevel.latest_attempt_completed_at)}
+                      </p>
+                      {activeModalLevel.next_attempt_at && activeModalLevel.can_start_attempt === false && (
+                        <p className="mt-1">
+                          Следующая попытка будет доступна: {formatDateTime(activeModalLevel.next_attempt_at)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-4 shrink-0">
+                  <button
+                    onClick={() => {
+                      setSelectedTest(null);
+                      setModalView("details");
+                    }}
+                    className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                  >
+                    Вернуться
+                  </button>
+                  <button
+                    onClick={handleStartAttempt}
+                    disabled={activeModalLevel.can_start_attempt === false || isStarting}
+                    className="flex-1 py-3 px-6 bg-primary text-white font-semibold rounded-xl hover:bg-primary-hover transition-all shadow-md hover:shadow-lg flex items-center justify-center"
+                  >
+                    {isStarting ? <LoadingText text="Запуск..." /> : "Начать тест"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex-1 pr-2 custom-scrollbar flex flex-col min-h-0">
+                  {isClassifierLoading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <LoadingText text="Загрузка трудовых функций..." className="text-gray-500" />
+                    </div>
+                  ) : filteredTree.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center text-gray-500 py-8">
+                      Нет связанных трудовых функций.
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-h-0 overflow-auto border border-gray-200 rounded-lg bg-white p-4">
+                      <ClassifierTree
+                        items={filteredTree}
+                        selectedKey={null}
+                        isLoading={isClassifierLoading}
+                        canEdit={false}
+                        onSelectProfStandard={() => undefined}
+                        onSelectGroup={() => undefined}
+                        onSelectFunction={() => undefined}
+                        onCreateProfStandard={() => undefined}
+                        onCreateGroup={() => undefined}
+                        onCreateFunction={() => undefined}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

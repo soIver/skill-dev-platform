@@ -35,12 +35,8 @@ interface RecommendationCardProps {
 }
 
 function buildGoal(item: RecommendationItem): string {
-  const firstFunction = item.ps_functions[0];
   const firstSkill = item.skill_levels[0];
 
-  if (firstFunction) {
-    return `С целью закрыть трудовую функцию ${firstFunction.code}`;
-  }
   if (firstSkill) {
     return `Для развития навыка ${firstSkill.skill_name}`;
   }
@@ -59,13 +55,12 @@ function buildMessage(item: RecommendationItem): string {
 
 export function RecommendationCard({ item, onSkip, onOpen, isSkipping = false, goal }: RecommendationCardProps) {
   const skillLevels = item.content_type === "test" ? [] : item.skill_levels.slice(0, 3);
-  const psFunctions = item.ps_functions.slice(0, 3);
-  const hasMeta = skillLevels.length > 0 || psFunctions.length > 0;
+  const hasMeta = skillLevels.length > 0;
 
   return (
     <article className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm max-w-150">
       <div className="mb-4">
-        <p className="text-sm font-semibold text-primary">{goal ?? buildGoal(item)}</p>
+        <p className="font-semibold text-primary">{goal ?? buildGoal(item)}</p>
         <h3 className="mt-1 text-lg font-bold text-gray-900">{buildMessage(item)}</h3>
       </div>
 
@@ -78,11 +73,6 @@ export function RecommendationCard({ item, onSkip, onOpen, isSkipping = false, g
           {skillLevels.map((skill) => (
             <span key={skill.id} className="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
               {skill.skill_name} - {skill.level_name}
-            </span>
-          ))}
-          {psFunctions.map((func) => (
-            <span key={func.id} className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-              ТФ {func.code}
             </span>
           ))}
         </div>

@@ -110,6 +110,8 @@ class VacancySearchItem(BaseModel):
     tags: list[str]
     employer_name: str
     original_url: str
+    accredited_it_employer: bool = False
+
 
 
 class VacancySearchResponse(BaseModel):

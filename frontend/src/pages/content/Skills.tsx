@@ -376,14 +376,14 @@ export default function SkillsAdmin() {
       key: "skill_name",
       header: "Название",
       align: "center",
-      width: "w-1/3",
-      render: (item) => <span className="text-gray-900">{item.skill_name}</span>,
+      width: "w-2/5",
+      render: (item) => <span className="text-gray-900 font-medium">{item.skill_name}</span>,
     },
     {
       key: "level_name",
       header: "Уровень",
       align: "center",
-      width: "w-1/3",
+      width: "w-2/5",
       render: (item) => (
         <span className="inline-block px-2 py-1 bg-gray-100 rounded-lg text-gray-800">
           {item.level_name}
@@ -394,7 +394,7 @@ export default function SkillsAdmin() {
       key: "obtained_count",
       header: "Получен",
       align: "center",
-      width: "w-1/3",
+      width: "w-1/5",
       render: (item) => <span className="text-gray-500">{item.obtained_count}</span>,
     },
   ];

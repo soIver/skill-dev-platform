@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { authJson } from "../auth";
@@ -21,6 +21,9 @@ import {
 } from "../hooks/useTasksStore";
 import { useUserStore } from "../hooks/useUserStore";
 import GitHubIcon from "../assets/icons/github.svg?react";
+import { ClassifierTree } from "../components/ClassifierTree";
+import { filterClassifierTreeByIds } from "../utils/classifier";
+import type { PsFunctionItem } from "../hooks/useContentStore";
 
 // интерфейсы
 
@@ -41,6 +44,7 @@ interface TaskDetail {
   analysis_status?: "preparing" | "processing" | null;
   analysis_repo_name?: string | null;
   analysis_repo_url?: string | null;
+  ps_functions: PsFunctionItem[];
 }
 
 export default function Tasks() {
@@ -69,7 +73,7 @@ export default function Tasks() {
   // состояние модального окна
   const [selectedTask, setSelectedTask] = useState<TaskDetail | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalView, setModalView] = useState<"details" | "attach">("details");
+  const [modalView, setModalView] = useState<"details" | "attach" | "tf">("details");
   const [isTaskLoading, setIsTaskLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -82,6 +86,11 @@ export default function Tasks() {
   } = useRepositoriesStore();
   const githubProfile = useUserStore((state) => state.githubProfile);
   const { items: classifierTree, isLoading: isClassifierLoading } = useClassifierTree();
+
+  const filteredTree = useMemo(() => {
+    if (!selectedTask?.ps_functions || selectedTask.ps_functions.length === 0) return [];
+    return filterClassifierTreeByIds(classifierTree, new Set(selectedTask.ps_functions.map((f) => f.id)));
+  }, [classifierTree, selectedTask?.ps_functions]);
 
   // функция поиска только по кнопке или при смене страницы
   const doSearch = useCallback(async (
@@ -328,8 +337,8 @@ export default function Tasks() {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="sticky top-0 z-20 bg-gray-50 px-8 pt-6">
+    <div className="flex flex-col flex-1 overflow-y-auto min-h-0">
+      <div className="bg-gray-50 px-8 pt-6">
         <h1 className="text-3xl font-extrabold text-gray-800">Банк заданий</h1>
         <h2 className="mb-6 ml-1 text-xl font-bold text-gray-800">для закрепления навыков на практике</h2>
         <label className="mb-3 ml-1 flex w-fit items-center gap-2 text-sm font-medium text-gray-700">
@@ -367,13 +376,10 @@ export default function Tasks() {
           maxSelected={null}
           onChange={setSelectedPsFunctions}
         />
-
-        {/* градиент начинается ровно там, где кончается панель поиска */}
-        <div className="h-6 pointer-events-none bg-linear-to-b from-gray-50 to-transparent" />
       </div>
 
       {/* область результатов */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      <div className="px-8 pb-8">
         {!hasSearched || isLoading ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
             {isLoading ? <LoadingText text="Загрузка..." /> : ""}
@@ -407,16 +413,40 @@ export default function Tasks() {
           className="fixed inset-0 z-50 flex items-center justify-center modal-overlay-animate"
           onClick={(e) => e.target === e.currentTarget && setIsModalOpen(false)}
         >
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 border border-gray-100 modal-content-animate flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 border border-gray-100 modal-content-animate flex flex-col h-[80vh]">
             {isTaskLoading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div className="flex-1 flex flex-col items-center justify-center gap-4">
                 <LoadingText text="Загрузка информации..." className="text-gray-500" iconClassName="h-10 w-10 text-primary" />
               </div>
             ) : selectedTask && (
               <>
-                <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-                  {modalView === "details" ? selectedTask.title : "Прикрепить репозиторий"}
-                </h3>
+                <div className="flex items-start justify-between gap-4 mb-6 shrink-0 pr-2">
+                  <h3 className="text-2xl font-bold text-gray-900 text-left line-clamp-2">
+                    {modalView === "details"
+                      ? selectedTask.title
+                      : modalView === "tf"
+                        ? `Трудовые функции задания «${selectedTask.title}»`
+                        : "Прикрепить репозиторий"}
+                  </h3>
+                  {modalView === "details" && (
+                    <button
+                      type="button"
+                      onClick={() => setModalView("tf")}
+                      className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-sm font-semibold rounded-xl transition-all shrink-0"
+                    >
+                      {selectedTask.ps_functions?.length || 0} ТФ
+                    </button>
+                  )}
+                  {modalView === "tf" && (
+                    <button
+                      type="button"
+                      onClick={() => setModalView("details")}
+                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-all shrink-0"
+                    >
+                      Назад
+                    </button>
+                  )}
+                </div>
 
                 {modalView === "details" ? (
                   <>
@@ -523,19 +553,22 @@ export default function Tasks() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 shrink-0">
                       <button
-                        onClick={() => setIsModalOpen(false)}
+                        onClick={() => {
+                          setIsModalOpen(false);
+                          setModalView("details");
+                        }}
                         className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                       >
                         Вернуться
                       </button>
                       {selectedTask.analysis_status ? (
-                        <div className="flex-1 py-3 px-6 border border-warning text-warning font-semibold rounded-xl text-center bg-transparent">
+                        <div className="flex-1 py-3 px-6 border border-warning text-warning font-semibold rounded-xl text-center bg-transparent flex items-center justify-center">
                           Проверка выполняется
                         </div>
                       ) : selectedTask.latest_attempt?.successful ? (
-                        <div className="flex-1 py-3 px-6 border border-success text-success font-semibold rounded-xl text-center bg-transparent">
+                        <div className="flex-1 py-3 px-6 border border-success text-success font-semibold rounded-xl text-center bg-transparent flex items-center justify-center">
                           Задание выполнено
                         </div>
                       ) : (
@@ -548,67 +581,104 @@ export default function Tasks() {
                       )}
                     </div>
                   </>
+                ) : modalView === "tf" ? (
+                  <>
+                    <div className="flex-1 pr-2 custom-scrollbar flex flex-col min-h-0">
+                      {isClassifierLoading ? (
+                        <div className="flex-1 flex items-center justify-center">
+                          <LoadingText text="Загрузка трудовых функций..." className="text-gray-500" />
+                        </div>
+                      ) : filteredTree.length === 0 ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-500 py-8">
+                          Нет связанных трудовых функций.
+                        </div>
+                      ) : (
+                        <div className="flex-1 min-h-0 overflow-auto border border-gray-200 rounded-lg bg-white p-4">
+                          <ClassifierTree
+                            items={filteredTree}
+                            selectedKey={null}
+                            isLoading={isClassifierLoading}
+                            canEdit={false}
+                            onSelectProfStandard={() => undefined}
+                            onSelectGroup={() => undefined}
+                            onSelectFunction={() => undefined}
+                            onCreateProfStandard={() => undefined}
+                            onCreateGroup={() => undefined}
+                            onCreateFunction={() => undefined}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
                 ) : !githubProfile?.connected ? (
-                  <div className="flex flex-col items-start py-6">
-                    <p className="text-gray-600 mb-8 text-center text-lg leading-relaxed">
-                      Привяжите свой профиль GitHub в настройках профиля, чтобы выбрать репозиторий для проверки.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleConnectGitHub}
-                      disabled={isSubmitting}
-                      className="github-connect-button justify-center py-4 mb-6"
-                    >
-                      <GitHubIcon className="w-8 h-8" />
-                      <span className="font-semibold text-lg">Привязать профиль GitHub</span>
-                    </button>
-                    <button
-                      onClick={() => setModalView("details")}
-                      disabled={isSubmitting}
-                      className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
-                    >
-                      Назад
-                    </button>
-                  </div>
+                  <>
+                    <div className="flex-1 overflow-y-auto pr-2 mb-8 custom-scrollbar flex flex-col py-6">
+                      <p className="text-gray-600 mb-8 text-center text-lg leading-relaxed">
+                        Привяжите свой профиль GitHub в настройках профиля, чтобы выбрать репозиторий для проверки.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleConnectGitHub}
+                        disabled={isSubmitting}
+                        className="github-connect-button justify-center py-4 mb-6"
+                      >
+                        <GitHubIcon className="w-8 h-8" />
+                        <span className="font-semibold text-lg">Привязать профиль GitHub</span>
+                      </button>
+                    </div>
+                    <div className="flex gap-4 shrink-0 w-full">
+                      <button
+                        onClick={() => setModalView("details")}
+                        disabled={isSubmitting}
+                        className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                      >
+                        Вернуться
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <>
-                    <p className="text-gray-600 mb-6 text-center">
-                      Выберите свой репозиторий GitHub для проверки на соответствие требованиям этого задания.
-                    </p>
-                    <div className="mb-10">
-                      <AutocompleteSearch<RepoItem>
-                        onSearch={handleFetchRepos}
-                        onSelect={handleAttachRepo}
-                        itemToString={(r) => r.name}
-                        isItemDisabled={isRepoAlreadyChecked}
-                        placeholder="Название репозитория"
-                        buttonText="Выбрать и отправить"
-                        debounceMs={isInitialized ? 0 : SEARCH_DEBOUNCE_MS}
-                        renderItem={(r) => (
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">{r.name}</span>
-                            {r.description && <span className="text-xs text-gray-500 truncate">{r.description}</span>}
-                            {isRepoAlreadyChecked(r) && (
-                              <span className="text-xs text-gray-500">
-                                Репозиторий уже проверен для текущей версии кода
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      />
-                    </div>
-                    {isSubmitting && (
-                      <div className="flex items-center justify-center gap-2 text-primary font-medium mb-6">
-                        <LoadingText text="Отправка на проверку..." iconClassName="h-5 w-5" />
+                    <div className="flex-1 overflow-y-auto pr-2 mb-8 custom-scrollbar">
+                      <p className="text-gray-600 mb-6 text-center">
+                        Выберите свой репозиторий GitHub для проверки на соответствие требованиям этого задания.
+                      </p>
+                      <div className="mb-10">
+                        <AutocompleteSearch<RepoItem>
+                          onSearch={handleFetchRepos}
+                          onSelect={handleAttachRepo}
+                          itemToString={(r) => r.name}
+                          isItemDisabled={isRepoAlreadyChecked}
+                          placeholder="Название репозитория"
+                          buttonText="Выбрать и отправить"
+                          debounceMs={isInitialized ? 0 : SEARCH_DEBOUNCE_MS}
+                          renderItem={(r) => (
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900">{r.name}</span>
+                              {r.description && <span className="text-xs text-gray-500 truncate">{r.description}</span>}
+                              {isRepoAlreadyChecked(r) && (
+                                <span className="text-xs text-gray-500">
+                                  Репозиторий уже проверен для текущей версии кода
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        />
                       </div>
-                    )}
-                    <button
-                      onClick={() => setModalView("details")}
-                      disabled={isSubmitting}
-                      className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
-                    >
-                      Назад
-                    </button>
+                      {isSubmitting && (
+                        <div className="flex items-center justify-center gap-2 text-primary font-medium mb-6">
+                          <LoadingText text="Отправка на проверку..." iconClassName="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-4 shrink-0 w-full">
+                      <button
+                        onClick={() => setModalView("details")}
+                        disabled={isSubmitting}
+                        className="flex-1 py-3 px-6 border border-gray-400 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                      >
+                        Вернуться
+                      </button>
+                    </div>
                   </>
                 )}
               </>

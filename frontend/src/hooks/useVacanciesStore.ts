@@ -13,6 +13,7 @@ export interface VacancySearchItem {
   tags: string[];
   employer_name: string;
   original_url: string;
+  accredited_it_employer?: boolean;
 }
 
 export interface VacancySkillComparisonItem {
@@ -107,7 +108,7 @@ interface VacanciesState {
 export const useVacanciesStore = create<VacanciesState>((set) => ({
   description: "",
   excludedWords: "",
-  salaryFrom: 0,
+  salaryFrom: 25000,
   salaryTo: 1000000,
   experience: [],
   schedule: [],
@@ -145,7 +146,7 @@ export const useVacanciesStore = create<VacanciesState>((set) => ({
     set({
       description: "",
       excludedWords: "",
-      salaryFrom: 0,
+      salaryFrom: 25000,
       salaryTo: 1000000,
       experience: [],
       schedule: [],

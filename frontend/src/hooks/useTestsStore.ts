@@ -24,6 +24,7 @@ export interface TestPublicLevelItem {
   latest_attempt_passed: boolean | null;
   next_attempt_at: string | null;
   can_start_attempt: boolean;
+  ps_functions: PsFunctionItem[];
 }
 
 export interface TestPublicItem {

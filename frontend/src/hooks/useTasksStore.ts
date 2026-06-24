@@ -17,6 +17,7 @@ export interface TaskPublicItem {
   analysis_status?: TaskAnalysisStatus | null;
   analysis_repo_name?: string | null;
   analysis_repo_url?: string | null;
+  ps_functions: PsFunctionItem[];
 }
 
 export interface TaskRequirementItem {

@@ -34,8 +34,27 @@ export function VacancyInfo({ vacancy, titleAction }: VacancyInfoProps) {
         ))}
       </div>
 
-      <p className="mt-3 text-sm text-gray-600">
-        Работодатель: {vacancy.employer_name}
+      <p className="mt-3 text-sm text-gray-600 flex items-center gap-1">
+        <span>Работодатель: {vacancy.employer_name}</span>
+        {vacancy.accredited_it_employer && (
+          <span
+            className="inline-flex items-center text-blue-500 cursor-help"
+            title="Аккредитованная ИТ-компания"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </span>
+        )}
       </p>
     </>
   );

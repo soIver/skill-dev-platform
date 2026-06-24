@@ -119,10 +119,10 @@ export default function ActivityHistory() {
               <article key={item.id} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-primary">{item.action_text}</p>
+                    <p className="font-semibold text-primary">{item.action_text}</p>
                     <h3 className="mt-1 wrap-break-word text-lg font-bold text-gray-900">{item.title}</h3>
                   </div>
-                  <span className="flex w-fit shrink-0 items-center gap-1.5 text-xs font-medium text-gray-500">
+                  <span className="flex w-fit shrink-0 items-center gap-1.5 text-sm font-medium text-gray-500">
                     <Clock className="h-4 w-4" />
                     {formatDateTime(item.occurred_at)}
                   </span>

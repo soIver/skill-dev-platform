@@ -476,7 +476,16 @@ export default function ContentTests() {
       header: "Навык",
       align: "left",
       width: "w-2/6",
-      render: (item) => <span className="text-gray-900">{item.skill_name} - <span className="text-gray-500">{item.level_name}</span></span>,
+      render: (item) => (
+        <div className="w-full max-w-0 min-w-full">
+          <span className="text-gray-900 font-medium block truncate" title={item.skill_name}>
+            {item.skill_name}
+          </span>
+          <span className="text-gray-500 text-xs block truncate" title={item.level_name}>
+            {item.level_name}
+          </span>
+        </div>
+      ),
     },
     {
       key: "variant_number",
@@ -611,8 +620,12 @@ export default function ContentTests() {
 
       {/* правая панель */}
       <div className="workspace-panel flex-1 flex flex-col h-full relative min-w-0">
-        <div className="flex items-center justify-between gap-4 mb-2 shrink-0">
-          <h2 className="workspace-panel-header mb-0">
+        <div className="flex items-center justify-between gap-4 mb-2 shrink-0 min-w-0 w-full">
+          <h2 className="workspace-panel-header mb-0 flex-1 min-w-0 max-w-md overflow-x-auto whitespace-nowrap custom-scrollbar-h" title={selectedId === "new"
+            ? `Новый тест «${editorData.skill_name} - ${editorData.level_name}»`
+            : typeof selectedId === "number"
+              ? `Тест «${editorData.skill_name} - ${editorData.level_name}» №${editorData.variant_number}`
+              : "Редактор тестов"}>
             {selectedId === "new"
               ? `Новый тест «${editorData.skill_name} - ${editorData.level_name}»`
               : typeof selectedId === "number"
@@ -647,198 +660,198 @@ export default function ContentTests() {
 
         {selectedId ? (
           <div className="flex flex-col flex-1 overflow-y-auto pr-2 p-1 min-w-0">
-              {/* содержание теста */}
-              <TextareaField
-                containerClassName="mb-4"
-                value={editorData.description}
-                onChange={(e) => updateEditorData({ description: e.target.value })}
-                placeholder="Описание содержания теста"
-                minCharacters={TEST.DESCRIPTION.MIN_LENGTH}
-                maxCharacters={TEST.DESCRIPTION.MAX_LENGTH}
-                validationName="содержание"
-              />
+            {/* содержание теста */}
+            <TextareaField
+              containerClassName="mb-4"
+              value={editorData.description}
+              onChange={(e) => updateEditorData({ description: e.target.value })}
+              placeholder="Описание содержания теста"
+              minCharacters={TEST.DESCRIPTION.MIN_LENGTH}
+              maxCharacters={TEST.DESCRIPTION.MAX_LENGTH}
+              validationName="содержание"
+            />
 
-              <PsFunctionSelectorField
-                items={classifierTree}
-                selectedFunctions={editorData.ps_functions}
-                isLoading={isClassifierLoading}
-                error={psFunctionsError}
-                maxSelected={PS_FUNCTIONS.MAX_COUNT}
-                onChange={(items) => updateEditorData({ ps_functions: items })}
-              />
+            <PsFunctionSelectorField
+              items={classifierTree}
+              selectedFunctions={editorData.ps_functions}
+              isLoading={isClassifierLoading}
+              error={psFunctionsError}
+              maxSelected={PS_FUNCTIONS.MAX_COUNT}
+              onChange={(items) => updateEditorData({ ps_functions: items })}
+            />
 
-              {/* параметры времени и порога */}
-              <div className="flex gap-4 mb-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ограничение по времени
-                  </label>
-                  <NumberInput
-                    mode="integer"
-                    min={3}
-                    max={180}
-                    step={1}
-                    value={editorData.time_limit_minutes ?? 0}
-                    onChange={(value) => updateEditorData({ time_limit_minutes: value })}
-                    unitForms={["минут", "минута", "минуты", "минут"]}
-                    className="input-field mt-0! w-full"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Порог прохождения
-                  </label>
-                  <NumberInput
-                    mode="integer"
-                    min={1}
-                    max={100}
-                    step={1}
-                    value={editorData.threshold_score ?? 0}
-                    onChange={(value) => updateEditorData({ threshold_score: value })}
-                    unitForms={["баллов", "балл", "балла", "баллов"]}
-                    className="input-field mt-0! w-full"
-                  />
-                </div>
+            {/* параметры времени и порога */}
+            <div className="flex gap-4 mb-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ограничение по времени
+                </label>
+                <NumberInput
+                  mode="integer"
+                  min={3}
+                  max={180}
+                  step={1}
+                  value={editorData.time_limit_minutes ?? 0}
+                  onChange={(value) => updateEditorData({ time_limit_minutes: value })}
+                  unitForms={["минут", "минута", "минуты", "минут"]}
+                  className="input-field mt-0! w-full"
+                />
               </div>
-
-              {/* список вопросов */}
-              <div className="flex-1 flex flex-col gap-4 mb-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800">Список вопросов</h3>
-                  <div className="flex gap-2">
-                    <span className="text-sm font-medium text-gray-500 bg-gray-100 py-1 px-2.5 rounded-lg">
-                      Всего вопросов: {editorData.questions.length}
-                    </span>
-                    <span className="text-sm font-medium text-gray-500 bg-gray-100 py-1 px-2.5 rounded-lg">
-                      Всего баллов: {totalPoints}
-                    </span>
-                  </div>
-                </div>
-                {validationError && (
-                  <span className="text-xs whitespace-pre-wrap text-danger font-medium bg-red-50 border border-red-100 rounded-lg p-2.5 block max-w-lg">
-                    {validationError}
-                  </span>
-                )}
-
-                <div className="flex flex-col gap-4 overflow-y-visible">
-                  {editorData.questions.map((q, qIdx) => {
-                    return (
-                      <div key={q.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 flex flex-col gap-3">
-                        {/* заголовок вопроса */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="font-semibold text-gray-800 text-md whitespace-nowrap">
-                              Вопрос №{qIdx + 1}, баллов при верном ответе:
-                            </span>
-                            <NumberInput
-                              mode="integer"
-                              min={1}
-                              max={99}
-                              step={1}
-                              value={q.points ?? 0}
-                              onChange={(value) => handleUpdateQuestionPoints(q.id, value)}
-                              className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center font-medium text-md focus:outline-none focus:ring-1 focus:ring-primary"
-                              containerClassName="flex"
-                            />
-
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleExpandQuestion(q.id)}
-                              className="p-1 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
-                              title={q.is_expanded ? "Свернуть" : "Развернуть"}
-                            >
-                              <ChevronDown
-                                className={`w-5 h-5 transition-transform duration-200 ${q.is_expanded ? "rotate-180" : ""}`}
-                              />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveQuestion(q.id)}
-                              className="p-1 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors text-gray-500"
-                              title="Удалить вопрос"
-                            >
-                              <X className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* тело вопроса */}
-                        {q.is_expanded && (
-                          <div className="flex flex-col gap-3 mt-1">
-                            <TextareaField
-                              containerClassName="w-full"
-                              value={q.question_text}
-                              onChange={(e) => handleUpdateQuestion(q.id, "question_text", e.target.value)}
-                              placeholder="Описание вопроса"
-                              minCharacters={32}
-                              maxCharacters={1024}
-                              validationName="описание"
-                            />
-
-                            {/* варианты ответа */}
-                            <div className="flex flex-col gap-2">
-                              <span className="font-semibold text-gray-700 text-sm">Варианты ответа:</span>
-                              {q.answers.map((a) => {
-                                return (
-                                  <div key={a.id} className="flex items-start gap-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={a.is_correct}
-                                      onChange={(e) => handleUpdateAnswer(q.id, a.id, "is_correct", e.target.checked)}
-                                      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0 mt-3"
-                                    />
-                                    <TextareaField
-                                      containerClassName="flex-1"
-                                      value={a.answer_text}
-                                      onChange={(e) => handleUpdateAnswer(q.id, a.id, "answer_text", e.target.value)}
-                                      placeholder="Описание варианта ответа"
-                                      className="mt-0!"
-                                      maxCharacters={64}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveAnswer(q.id, a.id)}
-                                      className="p-1.5 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors text-gray-500 shrink-0 mt-2"
-                                      title="Удалить вариант"
-                                    >
-                                      <X className="w-4.5 h-4.5" />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-
-                              <div className="flex justify-start mt-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddAnswer(q.id)}
-                                  className="text-sm font-semibold text-primary hover:text-primary-hover flex items-center gap-1 p-2 rounded-lg hover:bg-blue-50 transition-colors"
-                                >
-                                  <Plus className="w-4 h-4" />
-                                  Добавить вариант ответа
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex justify-center mt-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleAddQuestion}
-                    className="py-2.5 px-6 border border-dashed border-primary text-primary hover:bg-blue-50 transition-colors font-semibold rounded-xl flex items-center gap-2"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Добавить вопрос
-                  </button>
-                </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Порог прохождения
+                </label>
+                <NumberInput
+                  mode="integer"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={editorData.threshold_score ?? 0}
+                  onChange={(value) => updateEditorData({ threshold_score: value })}
+                  unitForms={["баллов", "балл", "балла", "баллов"]}
+                  className="input-field mt-0! w-full"
+                />
               </div>
             </div>
+
+            {/* список вопросов */}
+            <div className="flex-1 flex flex-col gap-4 mb-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-800">Список вопросов</h3>
+                <div className="flex gap-2">
+                  <span className="text-sm font-medium text-gray-500 bg-gray-100 py-1 px-2.5 rounded-lg">
+                    Всего вопросов: {editorData.questions.length}
+                  </span>
+                  <span className="text-sm font-medium text-gray-500 bg-gray-100 py-1 px-2.5 rounded-lg">
+                    Всего баллов: {totalPoints}
+                  </span>
+                </div>
+              </div>
+              {validationError && (
+                <span className="text-xs whitespace-pre-wrap text-danger font-medium bg-red-50 border border-red-100 rounded-lg p-2.5 block max-w-lg">
+                  {validationError}
+                </span>
+              )}
+
+              <div className="flex flex-col gap-4 overflow-y-visible">
+                {editorData.questions.map((q, qIdx) => {
+                  return (
+                    <div key={q.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 flex flex-col gap-3">
+                      {/* заголовок вопроса */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="font-semibold text-gray-800 text-md whitespace-nowrap">
+                            Вопрос №{qIdx + 1}, баллов при верном ответе:
+                          </span>
+                          <NumberInput
+                            mode="integer"
+                            min={1}
+                            max={99}
+                            step={1}
+                            value={q.points ?? 0}
+                            onChange={(value) => handleUpdateQuestionPoints(q.id, value)}
+                            className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center font-medium text-md focus:outline-none focus:ring-1 focus:ring-primary"
+                            containerClassName="flex"
+                          />
+
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleExpandQuestion(q.id)}
+                            className="p-1 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                            title={q.is_expanded ? "Свернуть" : "Развернуть"}
+                          >
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform duration-200 ${q.is_expanded ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuestion(q.id)}
+                            className="p-1 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors text-gray-500"
+                            title="Удалить вопрос"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* тело вопроса */}
+                      {q.is_expanded && (
+                        <div className="flex flex-col gap-3 mt-1">
+                          <TextareaField
+                            containerClassName="w-full"
+                            value={q.question_text}
+                            onChange={(e) => handleUpdateQuestion(q.id, "question_text", e.target.value)}
+                            placeholder="Описание вопроса"
+                            minCharacters={32}
+                            maxCharacters={1024}
+                            validationName="описание"
+                          />
+
+                          {/* варианты ответа */}
+                          <div className="flex flex-col gap-2">
+                            <span className="font-semibold text-gray-700 text-sm">Варианты ответа:</span>
+                            {q.answers.map((a) => {
+                              return (
+                                <div key={a.id} className="flex items-start gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={a.is_correct}
+                                    onChange={(e) => handleUpdateAnswer(q.id, a.id, "is_correct", e.target.checked)}
+                                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0 mt-3"
+                                  />
+                                  <TextareaField
+                                    containerClassName="flex-1"
+                                    value={a.answer_text}
+                                    onChange={(e) => handleUpdateAnswer(q.id, a.id, "answer_text", e.target.value)}
+                                    placeholder="Описание варианта ответа"
+                                    className="mt-0!"
+                                    maxCharacters={64}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAnswer(q.id, a.id)}
+                                    className="p-1.5 hover:bg-red-100 hover:text-red-600 rounded-full transition-colors text-gray-500 shrink-0 mt-2"
+                                    title="Удалить вариант"
+                                  >
+                                    <X className="w-4.5 h-4.5" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+
+                            <div className="flex justify-start mt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleAddAnswer(q.id)}
+                                className="text-sm font-semibold text-primary hover:text-primary-hover flex items-center gap-1 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Добавить вариант ответа
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-center mt-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleAddQuestion}
+                  className="py-2.5 px-6 border border-dashed border-primary text-primary hover:bg-blue-50 transition-colors font-semibold rounded-xl flex items-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  Добавить вопрос
+                </button>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-gray-500">Выберите тест для редактирования</p>
